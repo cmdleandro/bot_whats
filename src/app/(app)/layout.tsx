@@ -3,7 +3,7 @@
 import * as React from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
-import { LogOut, MessageSquare, Users } from 'lucide-react';
+import { LogOut, MessageSquare, Users, Palette } from 'lucide-react';
 import Image from 'next/image';
 
 import {
@@ -18,7 +18,8 @@ import {
   SidebarInset,
 } from '@/components/ui/sidebar';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-
+import { ThemeSwitcher } from '@/components/theme/theme-switcher';
+import { ThemeProvider } from '@/components/theme/theme-provider';
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -48,61 +49,66 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <SidebarProvider>
-      <Sidebar>
-        <SidebarHeader>
-          <div className="flex items-center gap-3">
-            <Image src="/logo.svg" alt="Logo" width={32} height={32} className="h-8 w-8" />
-            <span className="text-xl font-semibold">ChatView</span>
-          </div>
-        </SidebarHeader>
-        <SidebarContent>
-          <SidebarMenu>
-            <SidebarMenuItem>
-              <SidebarMenuButton
-                asChild
-                isActive={pathname.startsWith('/chat')}
-              >
-                <Link href="/chat">
-                  <MessageSquare />
-                  <span>Mensageria</span>
-                </Link>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-            <SidebarMenuItem>
-              <SidebarMenuButton
-                asChild
-                isActive={pathname.startsWith('/users')}
-              >
-                <Link href="/users">
-                  <Users />
-                  <span>Usuários</span>
-                </Link>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-          </SidebarMenu>
-        </SidebarContent>
-        <SidebarFooter>
-          <div className="flex items-center gap-3">
-            <Avatar className="h-10 w-10">
-              <AvatarFallback>{getInitials(operatorName)}</AvatarFallback>
-            </Avatar>
-            <div className="flex flex-col">
-              <span className="font-semibold">{operatorName}</span>
-              <span className="text-xs text-muted-foreground">Operador</span>
+    <ThemeProvider>
+      <SidebarProvider>
+        <Sidebar>
+          <SidebarHeader>
+            <div className="flex items-center gap-3">
+              <Image src="/logo.svg" alt="Logo" width={32} height={32} className="h-8 w-8" />
+              <span className="text-xl font-semibold">ChatView</span>
             </div>
-          </div>
-          <SidebarMenu>
-            <SidebarMenuItem>
-              <SidebarMenuButton onClick={handleLogout}>
-                <LogOut />
-                <span>Sair</span>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-          </SidebarMenu>
-        </SidebarFooter>
-      </Sidebar>
-      <SidebarInset>{children}</SidebarInset>
-    </SidebarProvider>
+          </SidebarHeader>
+          <SidebarContent>
+            <SidebarMenu>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  asChild
+                  isActive={pathname.startsWith('/chat')}
+                >
+                  <Link href="/chat">
+                    <MessageSquare />
+                    <span>Mensageria</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  asChild
+                  isActive={pathname.startsWith('/users')}
+                >
+                  <Link href="/users">
+                    <Users />
+                    <span>Usuários</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            </SidebarMenu>
+          </SidebarContent>
+          <SidebarFooter>
+             <div className="flex w-full items-center justify-between">
+                <div className="flex items-center gap-3">
+                    <Avatar className="h-10 w-10">
+                    <AvatarFallback>{getInitials(operatorName)}</AvatarFallback>
+                    </Avatar>
+                    <div className="flex flex-col">
+                    <span className="font-semibold">{operatorName}</span>
+                    <span className="text-xs text-muted-foreground">Operador</span>
+                    </div>
+                </div>
+                <ThemeSwitcher />
+            </div>
+            <SidebarMenu>
+              <SidebarMenuItem>
+                <SidebarMenuButton onClick={handleLogout}>
+                  <LogOut />
+                  <span>Sair</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            </SidebarMenu>
+          </SidebarFooter>
+        </Sidebar>
+        <SidebarInset>{children}</SidebarInset>
+      </SidebarProvider>
+    </ThemeProvider>
   );
 }
