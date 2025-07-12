@@ -88,19 +88,17 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
-              {currentUser.role === 'Admin' && (
-                <SidebarMenuItem>
-                  <SidebarMenuButton
-                    asChild
-                    isActive={pathname.startsWith('/users')}
-                  >
-                    <Link href="/users">
-                      <Users />
-                      <span>Usuários</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              )}
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  asChild
+                  isActive={pathname.startsWith('/users')}
+                >
+                  <Link href="/users">
+                    <Users />
+                    <span>{currentUser.role === 'Admin' ? 'Usuários' : 'Meu Perfil'}</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
             </SidebarMenu>
           </SidebarContent>
           <SidebarFooter>

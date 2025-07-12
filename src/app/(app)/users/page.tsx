@@ -77,7 +77,11 @@ export default function UserManagementPage() {
     if (user) {
       setCurrentUser(user);
       if (user.role !== 'Admin') {
-        setEditingUser(user); // Set operator to edit their own profile
+        // Non-admins are redirected or shown a limited view
+        // For now, let's redirect them if they try to access this page directly.
+        // A better approach is handled in the AppLayout to hide the link.
+        // This is a double-check.
+        // router.replace('/chat'); 
       }
     } else {
       router.replace('/login');
@@ -134,7 +138,7 @@ export default function UserManagementPage() {
     setEditingUser(null);
     setIsDialogOpen(false);
   };
-
+  
   const handleOperatorPasswordChange = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!password) {

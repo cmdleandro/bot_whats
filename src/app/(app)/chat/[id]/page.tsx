@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useParams } from 'next/navigation';
 import Image from 'next/image';
 import { Send, Bot, User, ChevronLeft, Loader2 } from 'lucide-react';
-import { getMessages } from '@/lib/redis';
+import { getMessages, addMessage } from '@/lib/redis';
 import { Message, Contact } from '@/lib/data';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -13,16 +13,19 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { ReplySuggestions } from '@/components/ai/reply-suggestions';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
+import { useToast } from '@/hooks/use-toast';
 
 export default function ChatViewPage() {
   const params = useParams();
   const contactId = params.id as string;
+  const { toast } = useToast();
 
   const [contact, setContact] = useState<Contact | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [operatorName, setOperatorName] = useState('');
   const [isLoading, setIsLoading] = useState(true);
+  const [isSending, setIsSending] = useState(false);
 
 
   const scrollAreaRef = useRef<HTMLDivElement>(null);
@@ -31,8 +34,6 @@ export default function ChatViewPage() {
     const name = localStorage.getItem('chatview_operator_name');
     setOperatorName(name || 'Operador');
     
-    // O ideal seria buscar os detalhes do contato também, mas por simplicidade
-    // criamos um objeto de contato parcial na hora.
     setContact({
         id: contactId,
         name: contactId.split('@')[0],
@@ -64,13 +65,11 @@ export default function ChatViewPage() {
     }
   }, [messages]);
 
-  const handleSendMessage = () => {
-    if (newMessage.trim() === '') return;
+  const handleSendMessage = async () => {
+    if (newMessage.trim() === '' || isSending) return;
 
-    // TODO: Esta função agora precisaria de uma forma de enviar
-    // a mensagem para o Redis, provavelmente via uma API ou Server Action
-    // que interage com a API do WhatsApp ou similar.
-    // Por enquanto, apenas adicionamos à UI localmente.
+    setIsSending(true);
+
     const message: Message = {
       id: `m${Date.now()}`,
       contactId,
@@ -82,6 +81,25 @@ export default function ChatViewPage() {
 
     setMessages(prevMessages => [...prevMessages, message]);
     setNewMessage('');
+
+    try {
+      await addMessage(contactId, {
+        text: message.text,
+        sender: 'operator',
+        operatorName: operatorName
+      });
+    } catch (error) {
+      console.error('Falha ao enviar mensagem:', error);
+      toast({
+        variant: 'destructive',
+        title: 'Erro de Rede',
+        description: 'Não foi possível enviar a mensagem. Por favor, tente novamente.',
+      });
+      // Reverter a adição da mensagem na UI se a chamada de API falhar
+      setMessages(prevMessages => prevMessages.filter(m => m.id !== message.id));
+    } finally {
+      setIsSending(false);
+    }
   };
 
   const handleSuggestionClick = (suggestion: string) => {
@@ -183,15 +201,16 @@ export default function ChatViewPage() {
             }}
             placeholder="Digite uma mensagem..."
             className="min-h-[48px] resize-none pr-16"
+            disabled={isSending}
           />
           <Button
             type="submit"
             size="icon"
             className="absolute right-3 top-1/2 -translate-y-1/2"
             onClick={handleSendMessage}
-            disabled={!newMessage.trim()}
+            disabled={!newMessage.trim() || isSending}
           >
-            <Send className="h-5 w-5" />
+            {isSending ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5" />}
             <span className="sr-only">Enviar</span>
           </Button>
         </div>
