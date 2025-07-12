@@ -60,7 +60,7 @@ export default function LoginPage() {
       <Card className="w-full max-w-sm shadow-xl">
         <CardHeader className="text-center">
           <div className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-primary/10">
-            <Image src="https://placehold.co/64x64.png" alt="Logo" width={56} height={56} data-ai-hint="logo" />
+            <Image src="/logo.png" alt="Logo" width={56} height={56} />
           </div>
           <CardTitle className="text-2xl">Bem-vindo ao ChatView</CardTitle>
           <CardDescription>
