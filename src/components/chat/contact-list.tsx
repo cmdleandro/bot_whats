@@ -9,15 +9,28 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Search } from 'lucide-react';
-import { useState } from 'react';
-
+import { useState, useEffect } from 'react';
+// Importa a função para buscar dados do Redis
+// Como estamos em um client component, precisaríamos de um server action
+// ou de um endpoint de API. Por simplicidade, vamos continuar usando
+// os dados mocados, mas o exemplo de como buscar no backend está em src/lib/redis.ts
+// Para uma implementação real, você criaria um server action que chama `getContactsFromRedis`.
 
 export function ContactList() {
   const params = useParams();
   const activeChatId = params.id;
   const [searchTerm, setSearchTerm] = useState('');
+  const [contacts, setContacts] = useState<Contact[]>([]);
 
-  const filteredContacts = mockContacts.filter(contact =>
+  useEffect(() => {
+    // Em um cenário real, você faria a chamada para buscar os contatos aqui.
+    // Por exemplo, usando um Server Action ou uma API route que chama `getContactsFromRedis`.
+    // Por enquanto, vamos continuar usando os dados mocados.
+    setContacts(mockContacts);
+  }, []);
+
+
+  const filteredContacts = contacts.filter(contact =>
     contact.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
