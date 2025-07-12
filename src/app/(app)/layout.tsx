@@ -3,8 +3,7 @@
 import * as React from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
-import { LogOut, MessageSquare, Users, Palette } from 'lucide-react';
-import Image from 'next/image';
+import { LogOut, MessageSquare, Users } from 'lucide-react';
 
 import {
   SidebarProvider,
@@ -20,19 +19,37 @@ import {
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { ThemeSwitcher } from '@/components/theme/theme-switcher';
 import { ThemeProvider } from '@/components/theme/theme-provider';
+import type { User } from '@/lib/data';
+import { Logo } from '@/components/ui/logo';
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
-  const [operatorName, setOperatorName] = React.useState<string | null>(null);
+  const [currentUser, setCurrentUser] = React.useState<User | null>(null);
 
   React.useEffect(() => {
-    const name = localStorage.getItem('chatview_operator_name');
-    if (!name) {
+    const operatorName = localStorage.getItem('chatview_operator_name');
+    const storedUsers = localStorage.getItem('chatview_users');
+    
+    if (!operatorName) {
       router.replace('/login');
-    } else {
-      setOperatorName(name);
+      return;
     }
+
+    if (storedUsers) {
+      const users: User[] = JSON.parse(storedUsers);
+      const user = users.find(u => u.name === operatorName);
+      if (user) {
+        setCurrentUser(user);
+      } else {
+        // Logged-in user not found in user list, force logout
+        handleLogout();
+      }
+    } else {
+       // No users stored, something is wrong, force logout
+       handleLogout();
+    }
+
   }, [router]);
 
   const handleLogout = () => {
@@ -40,7 +57,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     router.replace('/login');
   };
 
-  if (!operatorName) {
+  if (!currentUser) {
     return null; // or a loading spinner
   }
   
@@ -54,7 +71,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         <Sidebar>
           <SidebarHeader>
             <div className="flex items-center gap-3">
-              <Image src="/logo.svg" alt="Logo" width={32} height={32} className="h-8 w-8" />
+              <Logo className="h-8 w-8" />
               <span className="text-xl font-semibold">ChatView</span>
             </div>
           </SidebarHeader>
@@ -71,28 +88,30 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
-              <SidebarMenuItem>
-                <SidebarMenuButton
-                  asChild
-                  isActive={pathname.startsWith('/users')}
-                >
-                  <Link href="/users">
-                    <Users />
-                    <span>Usuários</span>
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
+              {currentUser.role === 'Admin' && (
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    asChild
+                    isActive={pathname.startsWith('/users')}
+                  >
+                    <Link href="/users">
+                      <Users />
+                      <span>Usuários</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              )}
             </SidebarMenu>
           </SidebarContent>
           <SidebarFooter>
              <div className="flex w-full items-center justify-between">
                 <div className="flex items-center gap-3">
                     <Avatar className="h-10 w-10">
-                    <AvatarFallback>{getInitials(operatorName)}</AvatarFallback>
+                    <AvatarFallback>{getInitials(currentUser.name)}</AvatarFallback>
                     </Avatar>
                     <div className="flex flex-col">
-                    <span className="font-semibold">{operatorName}</span>
-                    <span className="text-xs text-muted-foreground">Operador</span>
+                    <span className="font-semibold">{currentUser.name}</span>
+                    <span className="text-xs text-muted-foreground">{currentUser.role}</span>
                     </div>
                 </div>
                 <ThemeSwitcher />

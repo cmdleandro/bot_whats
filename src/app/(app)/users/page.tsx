@@ -1,7 +1,8 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { PlusCircle, MoreHorizontal, Trash2, Edit } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { PlusCircle, MoreHorizontal, Trash2, Edit, KeyRound } from 'lucide-react';
 import {
   Table,
   TableBody,
@@ -39,35 +40,56 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import type { User } from '@/lib/data';
 import { initialUsers } from '@/lib/data';
-
+import { useToast } from '@/hooks/use-toast';
 
 export default function UserManagementPage() {
   const [users, setUsers] = useState<User[]>([]);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
-  
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [role, setRole] = useState<'Operador' | 'Admin'>('Operador');
 
+  const router = useRouter();
+  const { toast } = useToast();
 
   useEffect(() => {
+    const operatorName = localStorage.getItem('chatview_operator_name');
+    if (!operatorName) {
+      router.replace('/login');
+      return;
+    }
+    
     const storedUsers = localStorage.getItem('chatview_users');
+    let allUsers: User[] = [];
     if (storedUsers) {
-      setUsers(JSON.parse(storedUsers));
+      allUsers = JSON.parse(storedUsers);
     } else {
-      setUsers(initialUsers);
+      allUsers = initialUsers;
       localStorage.setItem('chatview_users', JSON.stringify(initialUsers));
     }
-  }, []);
+    setUsers(allUsers);
+
+    const user = allUsers.find(u => u.name === operatorName);
+    if (user) {
+      setCurrentUser(user);
+      if (user.role !== 'Admin') {
+        setEditingUser(user); // Set operator to edit their own profile
+      }
+    } else {
+      router.replace('/login');
+    }
+  }, [router]);
 
   useEffect(() => {
     if (isDialogOpen && editingUser) {
         setName(editingUser.name);
         setEmail(editingUser.email);
         setRole(editingUser.role);
-        setPassword(''); // Clear password field for editing
+        setPassword('');
     } else {
         setName('');
         setEmail('');
@@ -81,7 +103,7 @@ export default function UserManagementPage() {
       localStorage.setItem('chatview_users', JSON.stringify(updatedUsers));
   }
 
-  const handleFormSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+  const handleAdminFormSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
     if (editingUser) {
@@ -91,30 +113,53 @@ export default function UserManagementPage() {
                 name, 
                 email, 
                 role, 
-                // Only update password if a new one is provided
                 password: password ? password : user.password 
             } : user
         );
         persistUsers(updatedUsers);
+        toast({ title: 'Sucesso', description: 'Usuário atualizado com sucesso.' });
     } else {
         const newUser: User = {
             id: Date.now().toString(),
             name,
             email,
-            password: password, // Password is required for new users
+            password: password,
             role,
             createdAt: new Date().toISOString().split('T')[0],
         };
         persistUsers([...users, newUser]);
+        toast({ title: 'Sucesso', description: 'Usuário criado com sucesso.' });
     }
 
     setEditingUser(null);
     setIsDialogOpen(false);
   };
 
+  const handleOperatorPasswordChange = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!password) {
+        toast({ variant: 'destructive', title: 'Erro', description: 'A nova senha não pode estar em branco.' });
+        return;
+    }
+    if (currentUser) {
+        const updatedUsers = users.map(user =>
+            user.id === currentUser.id ? { ...user, password } : user
+        );
+        persistUsers(updatedUsers);
+        setPassword('');
+        toast({ title: 'Sucesso', description: 'Sua senha foi alterada com sucesso.' });
+    }
+  };
+
+
   const handleDeleteUser = (userId: string) => {
+    if (currentUser?.id === userId) {
+        toast({ variant: 'destructive', title: 'Ação não permitida', description: 'Você não pode excluir sua própria conta.' });
+        return;
+    }
     const updatedUsers = users.filter(user => user.id !== userId);
     persistUsers(updatedUsers);
+    toast({ title: 'Sucesso', description: 'Usuário excluído com sucesso.' });
   };
   
   const handleOpenDialog = (user: User | null = null) => {
@@ -122,6 +167,54 @@ export default function UserManagementPage() {
     setIsDialogOpen(true);
   }
 
+  if (!currentUser) {
+    return null; // or a loading spinner
+  }
+
+  // Operator View
+  if (currentUser.role === 'Operador') {
+    return (
+       <div className="p-4 md:p-8">
+        <Card className="max-w-2xl mx-auto">
+          <CardHeader>
+            <CardTitle>Meu Perfil</CardTitle>
+            <CardDescription>
+              Atualize sua senha de acesso aqui.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleOperatorPasswordChange} className="space-y-4">
+                <div className="space-y-1">
+                    <Label>Nome</Label>
+                    <Input value={currentUser.name} disabled />
+                </div>
+                <div className="space-y-1">
+                    <Label>Email</Label>
+                    <Input value={currentUser.email} disabled />
+                </div>
+                <div className="space-y-1">
+                    <Label htmlFor="new-password">Nova Senha</Label>
+                    <Input 
+                        id="new-password"
+                        type="password" 
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        placeholder="••••••••" 
+                        required 
+                    />
+                </div>
+                 <Button type="submit" className="gap-2">
+                    <KeyRound className="h-4 w-4" />
+                    Alterar Senha
+                </Button>
+            </form>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
+  // Admin View
   return (
     <div className="p-4 md:p-8">
       <Card>
@@ -143,10 +236,10 @@ export default function UserManagementPage() {
               <DialogHeader>
                 <DialogTitle>{editingUser ? 'Editar Usuário' : 'Adicionar Novo Usuário'}</DialogTitle>
                 <DialogDescription>
-                  {editingUser ? 'Atualize os detalhes do usuário. Deixe a senha em branco para mantê-la.' : 'Preencha os detalhes para criar uma nova conta de operador.'}
+                  {editingUser ? 'Atualize os detalhes do usuário. Deixe a senha em branco para mantê-la.' : 'Preencha os detalhes para criar uma nova conta.'}
                 </DialogDescription>
               </DialogHeader>
-              <form onSubmit={handleFormSubmit}>
+              <form onSubmit={handleAdminFormSubmit}>
                 <div className="grid gap-4 py-4">
                   <div className="grid grid-cols-4 items-center gap-4">
                     <Label htmlFor="name" className="text-right">Nome</Label>
@@ -200,7 +293,7 @@ export default function UserManagementPage() {
                   <TableCell>
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
-                        <Button aria-haspopup="true" size="icon" variant="ghost">
+                        <Button aria-haspopup="true" size="icon" variant="ghost" disabled={currentUser.id === user.id}>
                           <MoreHorizontal className="h-4 w-4" />
                           <span className="sr-only">Toggle menu</span>
                         </Button>
