@@ -118,7 +118,7 @@ export default function ChatViewPage() {
               </Avatar>
               <div
                 className={cn(
-                  'rounded-lg px-4 py-2 text-sm shadow-sm',
+                  'rounded-lg px-4 py-2 text-sm shadow-sm flex flex-col',
                   msg.sender === 'operator' ? 'rounded-br-none bg-primary text-primary-foreground' : 'rounded-bl-none bg-background'
                 )}
               >
@@ -128,7 +128,7 @@ export default function ChatViewPage() {
                     </p>
                 )}
                 <p className="whitespace-pre-wrap">{msg.text}</p>
-                <p className="mt-1 text-right text-xs opacity-60">{msg.timestamp}</p>
+                <p className="mt-1 text-right text-xs opacity-60 self-end">{msg.timestamp}</p>
               </div>
             </div>
           ))}
