@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { PlusCircle, MoreHorizontal, Trash2, Edit, KeyRound } from 'lucide-react';
+import { PlusCircle, MoreHorizontal, Trash2, Edit, KeyRound, Server, Loader2, AlertTriangle } from 'lucide-react';
 import {
   Table,
   TableBody,
@@ -41,6 +41,87 @@ import { Badge } from '@/components/ui/badge';
 import type { User } from '@/lib/data';
 import { initialUsers } from '@/lib/data';
 import { useToast } from '@/hooks/use-toast';
+import { checkRedisConnection, RedisStatus } from '@/lib/redis';
+
+function RedisStatusCard() {
+  const [status, setStatus] = useState<RedisStatus | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    async function fetchStatus() {
+      setIsLoading(true);
+      const redisStatus = await checkRedisConnection();
+      setStatus(redisStatus);
+      setIsLoading(false);
+    }
+    fetchStatus();
+  }, []);
+
+  return (
+    <Card className="mt-8">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Server className="h-6 w-6" />
+          Status da Conexão Redis
+        </CardTitle>
+        <CardDescription>
+          Diagnóstico da conexão com o banco de dados Redis.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        {isLoading ? (
+          <div className="flex items-center gap-2 text-muted-foreground">
+            <Loader2 className="h-5 w-5 animate-spin" />
+            <span>Verificando conexão...</span>
+          </div>
+        ) : status ? (
+          <div className="space-y-4">
+            <div>
+              <h3 className="font-semibold">Status da Conexão</h3>
+              {status.connected ? (
+                <Badge variant="default" className="bg-green-600">Conectado com Sucesso</Badge>
+              ) : (
+                <Badge variant="destructive">Falha na Conexão</Badge>
+              )}
+            </div>
+            {status.error && (
+              <div>
+                <h3 className="font-semibold text-destructive">Mensagem de Erro</h3>
+                <p className="text-sm font-mono bg-muted p-2 rounded-md text-destructive">{status.error}</p>
+              </div>
+            )}
+            <div>
+              <h3 className="font-semibold">Amostra de Chaves (`chat:*`)</h3>
+              {status.sampleKeys && status.sampleKeys.length > 0 ? (
+                <ul className="list-disc list-inside bg-muted p-2 rounded-md font-mono text-sm">
+                  {status.sampleKeys.map((key) => <li key={key}>{key}</li>)}
+                </ul>
+              ) : (
+                <p className="text-sm text-muted-foreground">Nenhuma chave com o padrão `chat:*` foi encontrada.</p>
+              )}
+            </div>
+             <div>
+              <h3 className="font-semibold">Conteúdo Bruto da Primeira Chave</h3>
+               {status.firstKeyContent ? (
+                <pre className="text-xs font-mono bg-muted p-2 rounded-md overflow-x-auto">
+                  {JSON.stringify(status.firstKeyContent, null, 2)}
+                </pre>
+              ) : (
+                <p className="text-sm text-muted-foreground">Nenhum conteúdo para exibir.</p>
+              )}
+            </div>
+          </div>
+        ) : (
+           <div className="flex items-center gap-2 text-destructive">
+            <AlertTriangle className="h-5 w-5" />
+            <span>Não foi possível obter o status do Redis.</span>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 
 export default function UserManagementPage() {
   const [users, setUsers] = useState<User[]>([]);
@@ -314,6 +395,9 @@ export default function UserManagementPage() {
           </Table>
         </CardContent>
       </Card>
+      
+      {currentUser.role === 'Admin' && <RedisStatusCard />}
+
     </div>
   );
 }

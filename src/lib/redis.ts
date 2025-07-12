@@ -16,9 +16,10 @@ async function getClient() {
   
   const url = process.env.REDIS_URL;
   if (!url) {
+    // Esse console.error será visível nos logs do seu container no Easypanel
     console.error('A variável de ambiente REDIS_URL não está definida.');
-    // Lança um erro claro para que o desenvolvedor saiba o que configurar.
-    throw new Error('A variável de ambiente REDIS_URL não está definida. Por favor, configure-a nas variáveis de ambiente do seu serviço de aplicação.');
+    // Lança um erro claro para que a função que chamou saiba o que deu errado.
+    throw new Error('A variável de ambiente REDIS_URL não está definida. Por favor, configure-a no Easypanel.');
   }
   
   try {
@@ -29,7 +30,7 @@ async function getClient() {
     console.log('Cliente Redis conectado com sucesso.');
   } catch (e) {
     console.error('Falha ao conectar ao Redis:', e);
-    redisClient = null;
+    redisClient = null; // Garante que não usaremos um cliente que falhou ao conectar.
     throw e; // Lança o erro para a função que chamou saber que falhou
   }
 
@@ -39,16 +40,16 @@ async function getClient() {
 // Função auxiliar para parsear mensagens de forma segura
 function parseRedisMessage(jsonString: string, key: string): RedisMessage | null {
   try {
-    // Tentativa 1: Parse duplo (comum com n8n)
-    return JSON.parse(JSON.parse(jsonString));
-  } catch (e) {
-    try {
-      // Tentativa 2: Parse simples
-      return JSON.parse(jsonString);
-    } catch (e2) {
-      console.error(`Falha ao parsear mensagem para a chave ${key}. Conteúdo:`, jsonString, 'Erro:', e2);
-      return null;
+    // Tentativa 1: Parse simples. O n8n pode salvar como um JSON válido.
+    const data = JSON.parse(jsonString);
+    // Se o resultado do primeiro parse for uma string, é um JSON aninhado.
+    if (typeof data === 'string') {
+        return JSON.parse(data);
     }
+    return data;
+  } catch (e) {
+      console.error(`Falha ao parsear mensagem para a chave ${key}. Conteúdo:`, jsonString, 'Erro:', e);
+      return null;
   }
 }
 
@@ -164,7 +165,7 @@ export async function addMessage(contactId: string, message: { text: string; sen
       timestamp: Math.floor(Date.now() / 1000).toString(), // Timestamp em segundos
       operatorName: message.operatorName,
     };
-
+    
     // O n8n parece estar fazendo um JSON.stringify duplo. Vamos replicar.
     const messageString = JSON.stringify(JSON.stringify(redisMessage));
     
@@ -174,4 +175,54 @@ export async function addMessage(contactId: string, message: { text: string; sen
     console.error(`Falha ao adicionar mensagem para ${contactId} no Redis:`, error);
     throw error; // Lança o erro para a UI poder reagir
   }
+}
+
+export interface RedisStatus {
+  connected: boolean;
+  error: string | null;
+  sampleKeys: string[];
+  firstKeyContent: string[] | null;
+}
+
+export async function checkRedisConnection(): Promise<RedisStatus> {
+  const status: RedisStatus = {
+    connected: false,
+    error: null,
+    sampleKeys: [],
+    firstKeyContent: null,
+  };
+
+  try {
+    const client = await getClient();
+    
+    const pingResponse = await client.ping();
+    if (pingResponse !== 'PONG') {
+      throw new Error(`Redis PING command returned: ${pingResponse}`);
+    }
+    status.connected = true;
+
+    // Buscar chaves de amostra
+    const keys = [];
+    for await (const key of client.scanIterator({ MATCH: 'chat:*', COUNT: 5 })) {
+      keys.push(key);
+    }
+    status.sampleKeys = keys;
+
+    // Buscar conteúdo da primeira chave encontrada
+    if (keys.length > 0) {
+      status.firstKeyContent = await client.lRange(keys[0], 0, -1);
+    }
+
+  } catch (e: any) {
+    status.connected = false;
+    status.error = e.message || 'Ocorreu um erro desconhecido.';
+    console.error("Erro na verificação de status do Redis:", e);
+  } finally {
+     if (redisClient && redisClient.isOpen) {
+        // Não fechamos a conexão para que possa ser reutilizada por outras partes da app.
+        // O cliente é gerenciado como um singleton.
+     }
+  }
+
+  return status;
 }
