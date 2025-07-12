@@ -13,6 +13,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { ReplySuggestions } from '@/components/ai/reply-suggestions';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
+import { Logo } from '@/components/ui/logo';
 
 export default function ChatViewPage() {
   const params = useParams();
@@ -108,10 +109,9 @@ export default function ChatViewPage() {
                 {msg.sender === 'operator' ? (
                   <AvatarFallback>{operatorName.charAt(0)}</AvatarFallback>
                 ) : msg.sender === 'bot' ? (
-                  <>
-                   <AvatarImage src="/logo.png" alt="Bot" />
-                   <AvatarFallback>B</AvatarFallback>
-                  </>
+                  <AvatarFallback className='bg-primary'>
+                    <Logo className="h-6 w-6 text-primary-foreground" />
+                  </AvatarFallback>
                 ) : (
                   <>
                   <AvatarImage src={contact.avatar} alt={contact.name} />
