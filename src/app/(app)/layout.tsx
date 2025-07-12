@@ -4,6 +4,7 @@ import * as React from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { LogOut, MessageSquare, Users } from 'lucide-react';
+import Image from 'next/image';
 
 import {
   SidebarProvider,
@@ -17,7 +18,7 @@ import {
   SidebarInset,
 } from '@/components/ui/sidebar';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { Logo } from '@/components/ui/logo';
+
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -51,7 +52,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       <Sidebar>
         <SidebarHeader>
           <div className="flex items-center gap-3">
-            <Logo className="h-8 w-8" />
+            <Image src="/logo.svg" alt="Logo" width={32} height={32} className="h-8 w-8" />
             <span className="text-xl font-semibold">ChatView</span>
           </div>
         </SidebarHeader>
