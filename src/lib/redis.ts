@@ -10,26 +10,48 @@ import { ptBR } from 'date-fns/locale';
 let redisClient: ReturnType<typeof createClient> | null = null;
 
 async function getClient() {
-  if (!redisClient) {
-    const url = process.env.REDIS_URL;
-    if (!url) {
-      console.error('A variável de ambiente REDIS_URL não está definida.');
-      // Lança um erro claro para que o desenvolvedor saiba o que configurar.
-      throw new Error('A variável de ambiente REDIS_URL não está definida. Por favor, configure-a nas variáveis de ambiente do seu serviço de aplicação.');
-    }
-    
-    try {
-      const client = createClient({ url });
-      client.on('error', (err) => console.error('Erro no Cliente Redis', err));
-      await client.connect();
-      redisClient = client;
-    } catch (e) {
-      console.error('Falha ao conectar ao Redis:', e);
-      throw e; // Lança o erro para a função que chamou saber que falhou
-    }
+  if (redisClient && redisClient.isOpen) {
+    return redisClient;
   }
+  
+  const url = process.env.REDIS_URL;
+  if (!url) {
+    console.error('A variável de ambiente REDIS_URL não está definida.');
+    // Lança um erro claro para que o desenvolvedor saiba o que configurar.
+    throw new Error('A variável de ambiente REDIS_URL não está definida. Por favor, configure-a nas variáveis de ambiente do seu serviço de aplicação.');
+  }
+  
+  try {
+    const client = createClient({ url });
+    client.on('error', (err) => console.error('Erro no Cliente Redis', err));
+    await client.connect();
+    redisClient = client;
+    console.log('Cliente Redis conectado com sucesso.');
+  } catch (e) {
+    console.error('Falha ao conectar ao Redis:', e);
+    redisClient = null;
+    throw e; // Lança o erro para a função que chamou saber que falhou
+  }
+
   return redisClient;
 }
+
+// Função auxiliar para parsear mensagens de forma segura
+function parseRedisMessage(jsonString: string, key: string): RedisMessage | null {
+  try {
+    // Tentativa 1: Parse duplo (comum com n8n)
+    return JSON.parse(JSON.parse(jsonString));
+  } catch (e) {
+    try {
+      // Tentativa 2: Parse simples
+      return JSON.parse(jsonString);
+    } catch (e2) {
+      console.error(`Falha ao parsear mensagem para a chave ${key}. Conteúdo:`, jsonString, 'Erro:', e2);
+      return null;
+    }
+  }
+}
+
 
 // Busca a lista de contatos a partir das chaves do Redis
 export async function getContacts(): Promise<Contact[]> {
@@ -42,34 +64,23 @@ export async function getContacts(): Promise<Contact[]> {
     }
 
     if (contactKeys.length === 0) {
+      console.log("Nenhuma chave de chat encontrada no Redis.");
       return [];
     }
 
     const contacts: Contact[] = await Promise.all(
       contactKeys.map(async (key) => {
-        const lastMessageJson = await client.lRange(key, -1, -1);
+        const lastMessageJsonArray = await client.lRange(key, -1, -1);
         const contactId = key.replace('chat:', '');
         
         let lastMessageText = 'Nenhuma mensagem ainda.';
         let timestamp = Date.now();
 
-        if (lastMessageJson.length > 0) {
-          try {
-            // A mensagem do Redis está como uma string JSON, precisa de dois parses.
-            const parsedMessageString = JSON.parse(lastMessageJson[0]);
-            const lastMessage: RedisMessage = JSON.parse(parsedMessageString);
-            
-            lastMessageText = lastMessage.texto || 'Mensagem sem texto';
-            timestamp = lastMessage.timestamp ? parseInt(lastMessage.timestamp) * 1000 : Date.now();
-          } catch (e) {
-            // Tentativa de fallback se o primeiro parse já for o objeto
-            try {
-              const lastMessage: RedisMessage = JSON.parse(lastMessageJson[0]);
+        if (lastMessageJsonArray.length > 0) {
+          const lastMessage = parseRedisMessage(lastMessageJsonArray[0], key);
+          if (lastMessage) {
               lastMessageText = lastMessage.texto || 'Mensagem sem texto';
-              timestamp = lastMessage.timestamp ? parseInt(lastMessage.timestamp) * 1000 : Date.now();
-            } catch (e2) {
-               console.error(`Falha ao parsear a última mensagem para a chave ${key}:`, lastMessageJson[0]);
-            }
+              timestamp = lastMessage.timestamp ? parseInt(lastMessage.timestamp, 10) * 1000 : Date.now();
           }
         }
         
@@ -105,53 +116,35 @@ export async function getMessages(contactId: string): Promise<Message[]> {
     // LRange(key, 0, -1) busca todos os elementos da lista
     const messagesJson = await client.lRange(key, 0, -1);
 
-    if (!messagesJson) {
+    if (!messagesJson || messagesJson.length === 0) {
       return [];
     }
     
     const parsedMessages = messagesJson.map((jsonString, index) => {
-      try {
-        // A mensagem pode estar como uma string JSON, precisando de dois parses.
-        const parsedString = JSON.parse(jsonString);
-        const redisMsg: RedisMessage = JSON.parse(parsedString);
+      const redisMsg = parseRedisMessage(jsonString, key);
 
-        const timestamp = redisMsg.timestamp ? parseInt(redisMsg.timestamp) * 1000 : Date.now();
-        
+      if (!redisMsg) {
         return {
-          id: `m-${contactId}-${index}`,
+          id: `m-error-${contactId}-${index}`,
           contactId: contactId,
-          text: redisMsg.texto,
-          sender: redisMsg.tipo, // 'user' ou 'bot'
-          operatorName: redisMsg.tipo === 'operator' ? 'Operador' : undefined,
-          timestamp: new Date(timestamp).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+          text: 'Erro ao carregar esta mensagem',
+          sender: 'bot',
+          timestamp: 'agora'
         };
-      } catch (e) {
-         try {
-            // Fallback para caso a string não esteja duplamente encapsulada
-            const redisMsg: RedisMessage = JSON.parse(jsonString);
-            const timestamp = redisMsg.timestamp ? parseInt(redisMsg.timestamp) * 1000 : Date.now();
-            return {
-              id: `m-${contactId}-${index}`,
-              contactId: contactId,
-              text: redisMsg.texto,
-              sender: redisMsg.tipo,
-              operatorName: redisMsg.tipo === 'operator' ? 'Operador' : undefined,
-              timestamp: new Date(timestamp).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
-            };
-         } catch(e2) {
-            console.error(`Falha ao parsear mensagem para o contato ${contactId}:`, jsonString);
-            return {
-              id: `m-error-${index}`,
-              contactId: contactId,
-              text: 'Erro ao carregar esta mensagem',
-              sender: 'bot',
-              timestamp: 'agora'
-            };
-         }
       }
+
+      const timestamp = redisMsg.timestamp ? parseInt(redisMsg.timestamp, 10) * 1000 : Date.now();
+      
+      return {
+        id: `m-${contactId}-${index}`,
+        contactId: contactId,
+        text: redisMsg.texto || '',
+        sender: redisMsg.tipo, // 'user' ou 'bot'
+        operatorName: redisMsg.tipo === 'operator' ? 'Operador' : undefined,
+        timestamp: new Date(timestamp).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+      };
     });
-    // O n8n dá push, então as mais recentes estão no fim. `lrange` busca do início (antigas) ao fim (recentes).
-    // Para o chat, queremos a ordem cronológica, então não precisamos reverter.
+
     return parsedMessages;
   } catch (error) {
     console.error(`Falha ao buscar mensagens para ${contactId} do Redis:`, error);
