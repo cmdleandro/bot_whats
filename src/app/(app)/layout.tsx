@@ -51,7 +51,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       <Sidebar>
         <SidebarHeader>
           <div className="flex items-center gap-3">
-            <Image src="/logo.png" alt="IAI Thermas Logo" width={32} height={32} />
+            <Image src="https://placehold.co/32x32.png" alt="Logo" width={32} height={32} data-ai-hint="logo" />
             <span className="text-xl font-semibold">ChatView</span>
           </div>
         </SidebarHeader>

@@ -109,7 +109,7 @@ export default function ChatViewPage() {
                   <AvatarFallback>{operatorName.charAt(0)}</AvatarFallback>
                 ) : msg.sender === 'bot' ? (
                   <>
-                   <AvatarImage src="/logo.png" alt="IAI Thermas Logo" />
+                   <AvatarImage src="https://placehold.co/40x40.png" alt="Bot" data-ai-hint="robot logo" />
                    <AvatarFallback>B</AvatarFallback>
                   </>
                 ) : (
