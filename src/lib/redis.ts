@@ -181,7 +181,7 @@ export interface RedisStatus {
   connected: boolean;
   error: string | null;
   sampleKeys: string[];
-  firstKeyContent: string[] | null;
+  firstKeyContent: string | null;
 }
 
 export async function checkRedisConnection(): Promise<RedisStatus> {
@@ -210,18 +210,15 @@ export async function checkRedisConnection(): Promise<RedisStatus> {
 
     // Buscar conteúdo da primeira chave encontrada
     if (keys.length > 0) {
-      status.firstKeyContent = await client.lRange(keys[0], 0, -1);
+        const rawContent = await client.lRange(keys[0], 0, -1);
+        // Garantir que o conteúdo seja serializável para o cliente.
+        status.firstKeyContent = JSON.stringify(rawContent, null, 2);
     }
 
   } catch (e: any) {
     status.connected = false;
     status.error = e.message || 'Ocorreu um erro desconhecido.';
     console.error("Erro na verificação de status do Redis:", e);
-  } finally {
-     if (redisClient && redisClient.isOpen) {
-        // Não fechamos a conexão para que possa ser reutilizada por outras partes da app.
-        // O cliente é gerenciado como um singleton.
-     }
   }
 
   return status;
