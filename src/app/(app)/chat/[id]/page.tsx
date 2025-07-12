@@ -108,7 +108,10 @@ export default function ChatViewPage() {
                 {msg.sender === 'operator' ? (
                   <AvatarFallback>{operatorName.charAt(0)}</AvatarFallback>
                 ) : msg.sender === 'bot' ? (
+                  <>
                    <AvatarImage src="/logo.png" alt="IAI Thermas Logo" />
+                   <AvatarFallback>B</AvatarFallback>
+                  </>
                 ) : (
                   <>
                   <AvatarImage src={contact.avatar} alt={contact.name} />
