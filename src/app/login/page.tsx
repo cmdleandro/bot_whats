@@ -41,7 +41,7 @@ export default function LoginPage() {
     }
 
     const storedUsers = localStorage.getItem('chatview_users');
-    const users: User[] = storedUsers ? JSON.parse(storedUsers) : [];
+    const users: User[] = storedUsers ? JSON.parse(storedUsers) : initialUsers;
 
     const foundUser = users.find(
       (user) => user.name.toLowerCase() === username.toLowerCase() && user.password === password

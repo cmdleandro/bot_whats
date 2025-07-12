@@ -76,13 +76,6 @@ export default function UserManagementPage() {
     const user = allUsers.find(u => u.name === operatorName);
     if (user) {
       setCurrentUser(user);
-      if (user.role !== 'Admin') {
-        // Non-admins are redirected or shown a limited view
-        // For now, let's redirect them if they try to access this page directly.
-        // A better approach is handled in the AppLayout to hide the link.
-        // This is a double-check.
-        // router.replace('/chat'); 
-      }
     } else {
       router.replace('/login');
     }
