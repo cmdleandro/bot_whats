@@ -3,7 +3,8 @@
 import * as React from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
-import { Bot, LogOut, MessageSquare, Users, Settings } from 'lucide-react';
+import Image from 'next/image';
+import { LogOut, MessageSquare, Users, Settings } from 'lucide-react';
 
 import {
   SidebarProvider,
@@ -50,7 +51,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       <Sidebar>
         <SidebarHeader>
           <div className="flex items-center gap-3">
-            <Bot className="h-8 w-8 text-primary" />
+            <Image src="/logo.png" alt="IAI Thermas Logo" width={32} height={32} />
             <span className="text-xl font-semibold">ChatView</span>
           </div>
         </SidebarHeader>
