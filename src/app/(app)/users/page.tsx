@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useState } from 'react';
-import { PlusCircle, MoreHorizontal, Trash2 } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { PlusCircle, MoreHorizontal, Trash2, Edit } from 'lucide-react';
 import {
   Table,
   TableBody,
@@ -55,24 +55,58 @@ const initialUsers: User[] = [
 export default function UserManagementPage() {
   const [users, setUsers] = useState<User[]>(initialUsers);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [editingUser, setEditingUser] = useState<User | null>(null);
+  
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [role, setRole] = useState<'Operador' | 'Admin'>('Operador');
 
-  const handleAddUser = (event: React.FormEvent<HTMLFormElement>) => {
+
+  useEffect(() => {
+    if (isDialogOpen && editingUser) {
+        setName(editingUser.name);
+        setEmail(editingUser.email);
+        setRole(editingUser.role);
+    } else {
+        setName('');
+        setEmail('');
+        setRole('Operador');
+    }
+  }, [isDialogOpen, editingUser]);
+
+  const handleFormSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const formData = new FormData(event.currentTarget);
-    const newUser: User = {
-      id: Date.now().toString(),
-      name: formData.get('name') as string,
-      email: formData.get('email') as string,
-      role: formData.get('role') as 'Operador' | 'Admin',
-      createdAt: new Date().toISOString().split('T')[0],
-    };
-    setUsers(prevUsers => [...prevUsers, newUser]);
+
+    if (editingUser) {
+        // Edit existing user
+        const updatedUsers = users.map(user =>
+            user.id === editingUser.id ? { ...user, name, email, role } : user
+        );
+        setUsers(updatedUsers);
+    } else {
+        // Add new user
+        const newUser: User = {
+            id: Date.now().toString(),
+            name,
+            email,
+            role,
+            createdAt: new Date().toISOString().split('T')[0],
+        };
+        setUsers(prevUsers => [...prevUsers, newUser]);
+    }
+
+    setEditingUser(null);
     setIsDialogOpen(false);
   };
 
   const handleDeleteUser = (userId: string) => {
     setUsers(users.filter(user => user.id !== userId));
   };
+  
+  const handleOpenDialog = (user: User | null = null) => {
+    setEditingUser(user);
+    setIsDialogOpen(true);
+  }
 
   return (
     <div className="p-4 md:p-8">
@@ -84,40 +118,40 @@ export default function UserManagementPage() {
               Adicione, edite ou remova usuários do sistema.
             </CardDescription>
           </div>
-          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+          <Dialog open={isDialogOpen} onOpenChange={(isOpen) => { setIsDialogOpen(isOpen); if (!isOpen) setEditingUser(null);}}>
             <DialogTrigger asChild>
-              <Button size="sm" className="gap-1">
+              <Button size="sm" className="gap-1" onClick={() => handleOpenDialog()}>
                 <PlusCircle className="h-4 w-4" />
                 Adicionar Usuário
               </Button>
             </DialogTrigger>
             <DialogContent>
               <DialogHeader>
-                <DialogTitle>Adicionar Novo Usuário</DialogTitle>
+                <DialogTitle>{editingUser ? 'Editar Usuário' : 'Adicionar Novo Usuário'}</DialogTitle>
                 <DialogDescription>
-                  Preencha os detalhes para criar uma nova conta de operador.
+                  {editingUser ? 'Atualize os detalhes do usuário.' : 'Preencha os detalhes para criar uma nova conta de operador.'}
                 </DialogDescription>
               </DialogHeader>
-              <form onSubmit={handleAddUser}>
+              <form onSubmit={handleFormSubmit}>
                 <div className="grid gap-4 py-4">
                   <div className="grid grid-cols-4 items-center gap-4">
                     <Label htmlFor="name" className="text-right">Nome</Label>
-                    <Input id="name" name="name" className="col-span-3" required />
+                    <Input id="name" name="name" value={name} onChange={(e) => setName(e.target.value)} className="col-span-3" required />
                   </div>
                   <div className="grid grid-cols-4 items-center gap-4">
                     <Label htmlFor="email" className="text-right">Email</Label>
-                    <Input id="email" name="email" type="email" className="col-span-3" required />
+                    <Input id="email" name="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="col-span-3" required />
                   </div>
                    <div className="grid grid-cols-4 items-center gap-4">
                     <Label htmlFor="role" className="text-right">Função</Label>
-                     <select id="role" name="role" className="col-span-3 flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50">
+                     <select id="role" name="role" value={role} onChange={(e) => setRole(e.target.value as 'Operador' | 'Admin')} className="col-span-3 flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50">
                         <option value="Operador">Operador</option>
                         <option value="Admin">Admin</option>
                     </select>
                   </div>
                 </div>
                 <DialogFooter>
-                  <Button type="submit">Salvar Usuário</Button>
+                  <Button type="submit">{editingUser ? 'Salvar Alterações' : 'Salvar Usuário'}</Button>
                 </DialogFooter>
               </form>
             </DialogContent>
@@ -155,6 +189,10 @@ export default function UserManagementPage() {
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
                         <DropdownMenuLabel>Ações</DropdownMenuLabel>
+                        <DropdownMenuItem onClick={() => handleOpenDialog(user)}>
+                            <Edit className="mr-2 h-4 w-4" />
+                            Editar
+                        </DropdownMenuItem>
                         <DropdownMenuItem onClick={() => handleDeleteUser(user.id)} className="text-destructive">
                           <Trash2 className="mr-2 h-4 w-4" />
                           Excluir
