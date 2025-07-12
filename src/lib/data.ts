@@ -1,3 +1,12 @@
+export type User = {
+  id: string;
+  name: string;
+  email: string;
+  password?: string;
+  role: 'Operador' | 'Admin';
+  createdAt: string;
+};
+
 export type Message = {
   id: string;
   contactId: string;
@@ -16,6 +25,11 @@ export type Contact = {
   timestamp: string;
   unreadCount: number;
 };
+
+export const initialUsers: User[] = [
+    { id: '1', name: 'Leandro', email: 'leandro@email.com', password: '123', role: 'Admin', createdAt: '2023-01-15' },
+    { id: '2', name: 'Alice', email: 'alice@email.com', password: '123', role: 'Operador', createdAt: '2023-02-20' },
+];
 
 export const contacts: Contact[] = [
   { id: '1', name: 'Maria Silva', avatar: 'https://placehold.co/40x40.png', lastMessage: 'Olá, preciso de ajuda com meu pedido.', timestamp: '10:40 AM', unreadCount: 2 },

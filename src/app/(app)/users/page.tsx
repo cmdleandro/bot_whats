@@ -37,62 +37,75 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
+import type { User } from '@/lib/data';
+import { initialUsers } from '@/lib/data';
 
-type User = {
-  id: string;
-  name: string;
-  email: string;
-  role: 'Operador' | 'Admin';
-  createdAt: string;
-};
-
-const initialUsers: User[] = [
-  { id: '1', name: 'Leandro', email: 'leandro@example.com', role: 'Admin', createdAt: '2023-10-25' },
-  { id: '2', name: 'Mariana', email: 'mariana@example.com', role: 'Operador', createdAt: '2023-10-26' },
-  { id: '3', name: 'Carlos', email: 'carlos@example.com', role: 'Operador', createdAt: '2024-01-15' },
-];
 
 export default function UserManagementPage() {
-  const [users, setUsers] = useState<User[]>(initialUsers);
+  const [users, setUsers] = useState<User[]>([]);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
   
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [role, setRole] = useState<'Operador' | 'Admin'>('Operador');
 
+
+  useEffect(() => {
+    const storedUsers = localStorage.getItem('chatview_users');
+    if (storedUsers) {
+      setUsers(JSON.parse(storedUsers));
+    } else {
+      setUsers(initialUsers);
+      localStorage.setItem('chatview_users', JSON.stringify(initialUsers));
+    }
+  }, []);
 
   useEffect(() => {
     if (isDialogOpen && editingUser) {
         setName(editingUser.name);
         setEmail(editingUser.email);
         setRole(editingUser.role);
+        setPassword(''); // Clear password field for editing
     } else {
         setName('');
         setEmail('');
+        setPassword('');
         setRole('Operador');
     }
   }, [isDialogOpen, editingUser]);
+
+  const persistUsers = (updatedUsers: User[]) => {
+      setUsers(updatedUsers);
+      localStorage.setItem('chatview_users', JSON.stringify(updatedUsers));
+  }
 
   const handleFormSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
     if (editingUser) {
-        // Edit existing user
         const updatedUsers = users.map(user =>
-            user.id === editingUser.id ? { ...user, name, email, role } : user
+            user.id === editingUser.id ? { 
+                ...user, 
+                name, 
+                email, 
+                role, 
+                // Only update password if a new one is provided
+                password: password ? password : user.password 
+            } : user
         );
-        setUsers(updatedUsers);
+        persistUsers(updatedUsers);
     } else {
-        // Add new user
         const newUser: User = {
             id: Date.now().toString(),
             name,
             email,
+            password: password, // Password is required for new users
             role,
             createdAt: new Date().toISOString().split('T')[0],
         };
-        setUsers(prevUsers => [...prevUsers, newUser]);
+        persistUsers([...users, newUser]);
     }
 
     setEditingUser(null);
@@ -100,7 +113,8 @@ export default function UserManagementPage() {
   };
 
   const handleDeleteUser = (userId: string) => {
-    setUsers(users.filter(user => user.id !== userId));
+    const updatedUsers = users.filter(user => user.id !== userId);
+    persistUsers(updatedUsers);
   };
   
   const handleOpenDialog = (user: User | null = null) => {
@@ -129,7 +143,7 @@ export default function UserManagementPage() {
               <DialogHeader>
                 <DialogTitle>{editingUser ? 'Editar Usuário' : 'Adicionar Novo Usuário'}</DialogTitle>
                 <DialogDescription>
-                  {editingUser ? 'Atualize os detalhes do usuário.' : 'Preencha os detalhes para criar uma nova conta de operador.'}
+                  {editingUser ? 'Atualize os detalhes do usuário. Deixe a senha em branco para mantê-la.' : 'Preencha os detalhes para criar uma nova conta de operador.'}
                 </DialogDescription>
               </DialogHeader>
               <form onSubmit={handleFormSubmit}>
@@ -141,6 +155,10 @@ export default function UserManagementPage() {
                   <div className="grid grid-cols-4 items-center gap-4">
                     <Label htmlFor="email" className="text-right">Email</Label>
                     <Input id="email" name="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="col-span-3" required />
+                  </div>
+                   <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="password" className="text-right">Senha</Label>
+                    <Input id="password" name="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} className="col-span-3" placeholder={editingUser ? 'Deixe em branco para manter' : '••••••••'} required={!editingUser} />
                   </div>
                    <div className="grid grid-cols-4 items-center gap-4">
                     <Label htmlFor="role" className="text-right">Função</Label>

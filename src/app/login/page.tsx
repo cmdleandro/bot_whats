@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { LogIn } from 'lucide-react';
 import Image from 'next/image';
@@ -14,6 +14,8 @@ import {
 } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import type { User } from '@/lib/data';
+import { initialUsers } from '@/lib/data';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -21,15 +23,35 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
 
+  useEffect(() => {
+    // Seed initial users into localStorage if not already there
+    if (!localStorage.getItem('chatview_users')) {
+      localStorage.setItem('chatview_users', JSON.stringify(initialUsers));
+    }
+  }, []);
+
+
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
-    if (username.trim() && password.trim()) {
-      // Mock login: In a real app, you would validate against a backend.
-      // Any username/password will work for this demo.
-      localStorage.setItem('chatview_operator_name', username);
+    setError('');
+
+    if (!username.trim() || !password.trim()) {
+      setError('Usuário e senha são obrigatórios.');
+      return;
+    }
+
+    const storedUsers = localStorage.getItem('chatview_users');
+    const users: User[] = storedUsers ? JSON.parse(storedUsers) : [];
+
+    const foundUser = users.find(
+      (user) => user.name.toLowerCase() === username.toLowerCase() && user.password === password
+    );
+
+    if (foundUser) {
+      localStorage.setItem('chatview_operator_name', foundUser.name);
       router.replace('/chat');
     } else {
-      setError('Usuário e senha são obrigatórios.');
+      setError('Usuário ou senha inválidos.');
     }
   };
 
