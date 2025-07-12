@@ -50,9 +50,20 @@ function RedisStatusCard() {
   useEffect(() => {
     async function fetchStatus() {
       setIsLoading(true);
-      const redisStatus = await checkRedisConnection();
-      setStatus(redisStatus);
-      setIsLoading(false);
+      try {
+        const redisStatus = await checkRedisConnection();
+        setStatus(redisStatus);
+      } catch (error) {
+        console.error("Falha catastrófica ao verificar status do Redis:", error);
+        setStatus({
+          connected: false,
+          error: "Não foi possível comunicar com o servidor para verificar o status do Redis.",
+          sampleKeys: [],
+          firstKeyContent: null,
+        });
+      } finally {
+        setIsLoading(false);
+      }
     }
     fetchStatus();
   }, []);
