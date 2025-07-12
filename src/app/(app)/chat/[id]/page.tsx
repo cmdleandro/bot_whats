@@ -3,9 +3,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams } from 'next/navigation';
 import Image from 'next/image';
-import { Send, Bot, User, ChevronLeft } from 'lucide-react';
-
-import { contacts as mockContacts, messages as mockMessages, Message, Contact } from '@/lib/data';
+import { Send, Bot, User, ChevronLeft, Loader2 } from 'lucide-react';
+import { getMessages } from '@/lib/redis';
+import { Message, Contact } from '@/lib/data';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -22,19 +22,37 @@ export default function ChatViewPage() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [operatorName, setOperatorName] = useState('');
+  const [isLoading, setIsLoading] = useState(true);
+
 
   const scrollAreaRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const name = localStorage.getItem('chatview_operator_name');
     setOperatorName(name || 'Operador');
+    
+    // O ideal seria buscar os detalhes do contato também, mas por simplicidade
+    // criamos um objeto de contato parcial na hora.
+    setContact({
+        id: contactId,
+        name: contactId.split('@')[0],
+        avatar: `https://placehold.co/40x40.png`,
+        lastMessage: '',
+        timestamp: '',
+        unreadCount: 0
+    });
 
-    const currentContact = mockContacts.find(c => c.id === contactId);
-    if (currentContact) {
-      setContact(currentContact);
-      const contactMessages = mockMessages.filter(m => m.contactId === contactId);
-      setMessages(contactMessages);
+    async function fetchMessages() {
+        setIsLoading(true);
+        const redisMessages = await getMessages(contactId);
+        setMessages(redisMessages);
+        setIsLoading(false);
     }
+
+    if (contactId) {
+        fetchMessages();
+    }
+    
   }, [contactId]);
 
   useEffect(() => {
@@ -49,6 +67,10 @@ export default function ChatViewPage() {
   const handleSendMessage = () => {
     if (newMessage.trim() === '') return;
 
+    // TODO: Esta função agora precisaria de uma forma de enviar
+    // a mensagem para o Redis, provavelmente via uma API ou Server Action
+    // que interage com a API do WhatsApp ou similar.
+    // Por enquanto, apenas adicionamos à UI localmente.
     const message: Message = {
       id: `m${Date.now()}`,
       contactId,
@@ -71,7 +93,7 @@ export default function ChatViewPage() {
   if (!contact) {
     return (
       <div className="flex h-full items-center justify-center bg-muted/20">
-        <p>Carregando conversa...</p>
+        <p>Selecione uma conversa.</p>
       </div>
     );
   }
@@ -96,42 +118,52 @@ export default function ChatViewPage() {
 
       <ScrollArea className="flex-1" ref={scrollAreaRef}>
         <div className="p-4 md:p-6 space-y-6">
-          {messages.map(msg => (
-            <div
-              key={msg.id}
-              className={cn(
-                'flex items-end gap-3 max-w-[85%]',
-                msg.sender === 'operator' ? 'ml-auto flex-row-reverse' : 'mr-auto'
-              )}
-            >
-              <Avatar className="h-8 w-8">
-                {msg.sender === 'operator' ? (
-                  <AvatarFallback>{operatorName.charAt(0)}</AvatarFallback>
-                ) : msg.sender === 'bot' ? (
-                   <AvatarImage src="/logo.svg" alt="Bot Logo" />
-                ) : (
-                  <>
-                  <AvatarImage src={contact.avatar} alt={contact.name} />
-                  <AvatarFallback>{contact.name.charAt(0)}</AvatarFallback>
-                  </>
-                )}
-              </Avatar>
+          {isLoading ? (
+            <div className="flex justify-center items-center h-full p-8">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            </div>
+          ) : messages.length === 0 ? (
+            <div className="flex justify-center items-center h-full p-8">
+              <p className="text-muted-foreground">Nenhuma mensagem nesta conversa.</p>
+            </div>
+          ) : (
+            messages.map(msg => (
               <div
+                key={msg.id}
                 className={cn(
-                  'rounded-lg px-4 py-2 text-sm shadow-sm flex flex-col',
-                  msg.sender === 'operator' ? 'rounded-br-none bg-primary text-primary-foreground' : 'rounded-bl-none bg-background'
+                  'flex items-end gap-3 max-w-[85%]',
+                  msg.sender === 'operator' || msg.sender === 'bot' ? 'ml-auto flex-row-reverse' : 'mr-auto'
                 )}
               >
-                {(msg.sender === 'bot' || msg.sender === 'operator') && (
-                    <p className="text-xs font-bold mb-1" style={{ color: msg.sender === 'operator' ? undefined : 'hsl(var(--accent))' }}>
-                        {msg.sender === 'bot' ? 'BOT' : msg.operatorName}
-                    </p>
-                )}
-                <p className="whitespace-pre-wrap">{msg.text}</p>
-                <p className="mt-1 text-right text-xs opacity-60 self-end">{msg.timestamp}</p>
+                <Avatar className="h-8 w-8">
+                  {msg.sender === 'operator' ? (
+                    <AvatarFallback>{operatorName.charAt(0)}</AvatarFallback>
+                  ) : msg.sender === 'bot' ? (
+                     <AvatarImage src="/logo.svg" alt="Bot Logo" />
+                  ) : (
+                    <>
+                    <AvatarImage src={contact.avatar} alt={contact.name} />
+                    <AvatarFallback>{contact.name.charAt(0)}</AvatarFallback>
+                    </>
+                  )}
+                </Avatar>
+                <div
+                  className={cn(
+                    'rounded-lg px-4 py-2 text-sm shadow-sm flex flex-col',
+                    msg.sender === 'operator' || msg.sender === 'bot' ? 'rounded-br-none bg-primary text-primary-foreground' : 'rounded-bl-none bg-background'
+                  )}
+                >
+                  {(msg.sender === 'bot' || msg.sender === 'operator') && (
+                      <p className="text-xs font-bold mb-1" style={{ color: msg.sender === 'operator' ? undefined : 'hsl(var(--accent))' }}>
+                          {msg.sender === 'bot' ? 'BOT' : msg.operatorName}
+                      </p>
+                  )}
+                  <p className="whitespace-pre-wrap">{msg.text}</p>
+                  <p className="mt-1 text-right text-xs opacity-60 self-end">{msg.timestamp}</p>
+                </div>
               </div>
-            </div>
-          ))}
+            ))
+          )}
         </div>
       </ScrollArea>
       

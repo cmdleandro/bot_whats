@@ -3,30 +3,43 @@
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { cn } from '@/lib/utils';
-import { contacts as mockContacts, Contact } from '@/lib/data';
+import { type Contact } from '@/lib/data';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Search } from 'lucide-react';
 import { useState, useEffect } from 'react';
-// Importa a função para buscar dados do Redis
-// Como estamos em um client component, precisaríamos de um server action
-// ou de um endpoint de API. Por simplicidade, vamos continuar usando
-// os dados mocados, mas o exemplo de como buscar no backend está em src/lib/redis.ts
-// Para uma implementação real, você criaria um server action que chama `getContactsFromRedis`.
+import { getContacts } from '@/lib/redis';
+import { Skeleton } from '@/components/ui/skeleton';
 
 export function ContactList() {
   const params = useParams();
   const activeChatId = params.id;
   const [searchTerm, setSearchTerm] = useState('');
   const [contacts, setContacts] = useState<Contact[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // Em um cenário real, você faria a chamada para buscar os contatos aqui.
-    // Por exemplo, usando um Server Action ou uma API route que chama `getContactsFromRedis`.
-    // Por enquanto, vamos continuar usando os dados mocados.
-    setContacts(mockContacts);
+    async function fetchContacts() {
+      setIsLoading(true);
+      try {
+        const redisContacts = await getContacts();
+        setContacts(redisContacts);
+      } catch (error) {
+        console.error("Erro ao buscar contatos:", error);
+        // Poderia setar um estado de erro aqui para exibir na UI
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    
+    fetchContacts();
+    
+    // Atualiza a lista a cada 30 segundos
+    const interval = setInterval(fetchContacts, 30000);
+    return () => clearInterval(interval);
+
   }, []);
 
 
@@ -50,33 +63,48 @@ export function ContactList() {
       </div>
       <ScrollArea className="flex-1">
         <nav className="flex flex-col gap-1 p-2">
-          {filteredContacts.map((contact: Contact) => (
-            <Link
-              key={contact.id}
-              href={`/chat/${contact.id}`}
-              className={cn(
-                'flex items-center gap-3 rounded-lg p-3 text-muted-foreground transition-all hover:bg-accent/50 hover:text-foreground',
-                activeChatId === contact.id && 'bg-accent/80 text-accent-foreground'
-              )}
-            >
-              <Avatar className="h-10 w-10">
-                <AvatarImage src={contact.avatar} alt={contact.name} data-ai-hint="person portrait" />
-                <AvatarFallback>{contact.name.charAt(0)}</AvatarFallback>
-              </Avatar>
-              <div className="flex-1 truncate">
-                <p className="font-semibold">{contact.name}</p>
-                <p className="text-sm truncate">{contact.lastMessage}</p>
-              </div>
-              <div className="flex flex-col items-end text-xs">
-                <span>{contact.timestamp}</span>
-                {contact.unreadCount > 0 && (
-                  <Badge className="mt-1 h-5 w-5 justify-center p-0">
-                    {contact.unreadCount}
-                  </Badge>
+          {isLoading ? (
+            Array.from({ length: 5 }).map((_, i) => (
+                <div key={i} className="flex items-center gap-3 rounded-lg p-3">
+                    <Skeleton className="h-10 w-10 rounded-full" />
+                    <div className="flex-1 space-y-2">
+                        <Skeleton className="h-4 w-3/4" />
+                        <Skeleton className="h-3 w-1/2" />
+                    </div>
+                </div>
+            ))
+          ) : (
+            filteredContacts.map((contact: Contact) => (
+              <Link
+                key={contact.id}
+                href={`/chat/${contact.id}`}
+                className={cn(
+                  'flex items-center gap-3 rounded-lg p-3 text-muted-foreground transition-all hover:bg-accent/50 hover:text-foreground',
+                  activeChatId === contact.id && 'bg-accent/80 text-accent-foreground'
                 )}
-              </div>
-            </Link>
-          ))}
+              >
+                <Avatar className="h-10 w-10">
+                  <AvatarImage src={contact.avatar} alt={contact.name} data-ai-hint="person portrait" />
+                  <AvatarFallback>{contact.name.charAt(0)}</AvatarFallback>
+                </Avatar>
+                <div className="flex-1 truncate">
+                  <p className="font-semibold">{contact.name}</p>
+                  <p className="text-sm truncate">{contact.lastMessage}</p>
+                </div>
+                <div className="flex flex-col items-end text-xs text-nowrap">
+                  <span>{contact.timestamp}</span>
+                  {contact.unreadCount > 0 && (
+                    <Badge className="mt-1 h-5 w-5 justify-center p-0">
+                      {contact.unreadCount}
+                    </Badge>
+                  )}
+                </div>
+              </Link>
+            ))
+          )}
+           {!isLoading && filteredContacts.length === 0 && (
+            <p className="p-4 text-center text-sm text-muted-foreground">Nenhum contato encontrado.</p>
+           )}
         </nav>
       </ScrollArea>
     </aside>
