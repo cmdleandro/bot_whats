@@ -48,17 +48,19 @@ export async function getClient() {
 // Função auxiliar para parsear mensagens de forma segura
 function parseRedisMessage(jsonString: string, key: string): RedisMessage | null {
   try {
-    // Primeiro tenta parsear o JSON.
     const data = JSON.parse(jsonString);
-    // Se o resultado do parse for outra string, tenta parsear de novo.
-    // Isso lida com o caso de JSON duplamente "stringificado".
     if (typeof data === 'string') {
         return JSON.parse(data);
     }
     return data;
   } catch (e) {
-      console.error(`Falha ao parsear mensagem para a chave ${key}. Conteúdo:`, jsonString, 'Erro:', e);
-      return null;
+      // Se não for um JSON válido, trata como uma mensagem de texto simples do usuário.
+      console.warn(`Conteúdo para a chave ${key} não é um JSON válido. Tratando como texto. Conteúdo:`, jsonString);
+      return {
+          texto: jsonString,
+          tipo: 'user', // Assume que é do usuário se o formato for desconhecido
+          timestamp: Math.floor(Date.now() / 1000).toString(),
+      };
   }
 }
 
@@ -103,7 +105,13 @@ export async function getContacts(): Promise<Contact[]> {
       })
     );
     
-    return contacts.sort((a, b) => b.timestamp.localeCompare(a.timestamp));
+    // Filtra contatos sem ID válido e ordena
+    const validContacts = contacts.filter(c => c.id && !c.id.includes('$json'));
+    return validContacts.sort((a, b) => {
+        const dateA = new Date(a.timestamp.startsWith('hoje') || a.timestamp.startsWith('ontem') ? new Date() : a.timestamp);
+        const dateB = new Date(b.timestamp.startsWith('hoje') || b.timestamp.startsWith('ontem') ? new Date() : b.timestamp);
+        return dateB.getTime() - dateA.getTime();
+    });
 
   } catch (error) {
     console.error("Falha ao buscar contatos do Redis:", error);
@@ -125,14 +133,9 @@ export async function getMessages(contactId: string): Promise<Message[]> {
     const parsedMessages = messagesJson.map((jsonString, index) => {
       const redisMsg = parseRedisMessage(jsonString, key);
 
+      // Se o parse falhar, não renderiza a mensagem
       if (!redisMsg) {
-        return {
-          id: `m-error-${contactId}-${index}`,
-          contactId: contactId,
-          text: 'Erro ao carregar esta mensagem',
-          sender: 'bot',
-          timestamp: 'agora'
-        };
+        return null;
       }
 
       const timestamp = redisMsg.timestamp ? parseInt(redisMsg.timestamp, 10) * 1000 : Date.now();
@@ -147,7 +150,8 @@ export async function getMessages(contactId: string): Promise<Message[]> {
       };
     });
 
-    return parsedMessages;
+    // Filtra quaisquer mensagens que possam ter falhado no parse
+    return parsedMessages.filter((msg): msg is Message => msg !== null);
   } catch (error) {
     console.error(`Falha ao buscar mensagens para ${contactId} do Redis:`, error);
     return [];
