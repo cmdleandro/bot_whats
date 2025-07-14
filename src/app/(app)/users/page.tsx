@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { PlusCircle, MoreHorizontal, Trash2, Edit, KeyRound, Server, Loader2, AlertTriangle } from 'lucide-react';
+import { PlusCircle, MoreHorizontal, Trash2, Edit, KeyRound, Server, Loader2, AlertTriangle, RefreshCw } from 'lucide-react';
 import {
   Table,
   TableBody,
@@ -41,11 +41,12 @@ import { Badge } from '@/components/ui/badge';
 import type { User } from '@/lib/data';
 import { initialUsers } from '@/lib/data';
 import { useToast } from '@/hooks/use-toast';
-import { checkRedisConnection, RedisStatus } from '@/lib/redis';
+import { checkRedisConnection, type RedisStatus } from '@/actions/redis-status';
 
 function RedisStatusCard() {
   const [status, setStatus] = useState<RedisStatus | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [key, setKey] = useState(0); // Adiciona uma chave para forçar a atualização
 
   useEffect(() => {
     async function fetchStatus() {
@@ -53,11 +54,11 @@ function RedisStatusCard() {
       try {
         const redisStatus = await checkRedisConnection();
         setStatus(redisStatus);
-      } catch (error) {
+      } catch (error: any) {
         console.error("Falha catastrófica ao verificar status do Redis:", error);
         setStatus({
           connected: false,
-          error: "Não foi possível comunicar com o servidor para verificar o status do Redis.",
+          error: error.message || "Não foi possível comunicar com o servidor para verificar o status do Redis.",
           sampleKeys: [],
           firstKeyContent: null,
         });
@@ -66,18 +67,30 @@ function RedisStatusCard() {
       }
     }
     fetchStatus();
-  }, []);
+  }, [key]); // Re-executa o efeito quando a chave mudar
+
+  const handleRefresh = () => {
+    setKey(prevKey => prevKey + 1); // Força a re-execução do useEffect
+  };
+
 
   return (
     <Card className="mt-8">
       <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Server className="h-6 w-6" />
-          Status da Conexão Redis
-        </CardTitle>
-        <CardDescription>
-          Diagnóstico da conexão com o banco de dados Redis.
-        </CardDescription>
+        <div className="flex items-center justify-between">
+            <div className="space-y-1">
+                <CardTitle className="flex items-center gap-2">
+                <Server className="h-6 w-6" />
+                Status da Conexão Redis
+                </CardTitle>
+                <CardDescription>
+                Diagnóstico da conexão com o banco de dados Redis.
+                </CardDescription>
+            </div>
+            <Button variant="outline" size="icon" onClick={handleRefresh} disabled={isLoading}>
+                <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
+            </Button>
+        </div>
       </CardHeader>
       <CardContent>
         {isLoading ? (
@@ -98,7 +111,7 @@ function RedisStatusCard() {
             {status.error && (
               <div>
                 <h3 className="font-semibold text-destructive">Mensagem de Erro</h3>
-                <p className="text-sm font-mono bg-muted p-2 rounded-md text-destructive">{status.error}</p>
+                <p className="text-sm font-mono bg-muted p-2 rounded-md text-destructive whitespace-pre-wrap">{status.error}</p>
               </div>
             )}
             <div>
