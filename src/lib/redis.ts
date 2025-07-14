@@ -174,7 +174,8 @@ export async function addMessage(contactId: string, message: { text: string; sen
       operatorName: message.operatorName,
     };
     
-    const messageString = JSON.stringify(JSON.stringify(redisMessage));
+    // Simplificado para um único stringify
+    const messageString = JSON.stringify(redisMessage);
     
     await client.rPush(key, messageString);
 

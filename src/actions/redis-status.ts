@@ -57,21 +57,20 @@ async function performRedisCheck(): Promise<RedisStatus> {
         }
     } catch (e: any) {
         status.connected = false;
-        status.error = e.message || 'Ocorreu um erro desconhecido durante a verificação do Redis.';
-        console.error("Erro na verificação de status do Redis:", e);
+        status.error = e.message || 'An unknown error occurred during the Redis check.';
+        console.error("Error in Redis status check:", e);
     }
     return status;
 }
 
 export async function checkRedisConnection(): Promise<RedisStatus> {
     try {
-        // Usa o Promise.race para competir a verificação do Redis com um timer de 10 segundos
         return await withTimeout(performRedisCheck(), 10000);
     } catch (error: any) {
         console.error("Redis connection check timed out or failed:", error);
         return {
             connected: false,
-            error: "A verificação da conexão com o Redis demorou muito para responder (timeout de 10 segundos) ou falhou. Verifique as configurações de rede e a REDIS_URL.",
+            error: "The Redis connection check timed out after 10 seconds or failed. Please check your network settings and REDIS_URL.",
             sampleKeys: [],
             firstKeyContent: null,
         };
