@@ -49,23 +49,11 @@ export async function getClient() {
 function parseRedisMessage(jsonString: string): RedisMessage | null {
   try {
     const data = JSON.parse(jsonString);
-    // Se o n8n salvou o JSON como uma string dentro de outra string
-    if (typeof data === 'string') {
-        const innerData = JSON.parse(data);
-        if (innerData && innerData.texto && innerData.tipo) {
-            return innerData;
-        }
-        return { texto: innerData, tipo: 'user', timestamp: Math.floor(Date.now() / 1000).toString() };
-    }
     // Garante que o objeto tenha a estrutura esperada
     if (data && data.texto && data.tipo) {
         return data;
     }
-    // Se for um JSON mas sem a estrutura, trata o objeto todo como texto
-    if (typeof data === 'object' && data !== null) {
-        return { texto: JSON.stringify(data), tipo: 'user', timestamp: Math.floor(Date.now() / 1000).toString() };
-    }
-     return { texto: jsonString, tipo: 'user', timestamp: Math.floor(Date.now() / 1000).toString() };
+    return null;
   } catch (e) {
       // Se não for um JSON válido, trata como uma mensagem de texto simples do usuário.
       return {
@@ -106,24 +94,28 @@ export async function getContacts(): Promise<Contact[]> {
       uniqueContactIds.map(async (contactId) => {
         // Usa a primeira chave encontrada para esse ID, já que todas apontam para a mesma conversa
         const representativeKey = groupedKeys[contactId][0];
-        const lastMessageJsonArray = await client.lRange(representativeKey, -1, -1);
+        const allMessagesJson = await client.lRange(representativeKey, 0, -1);
         
         let lastMessageText = 'Nenhuma mensagem ainda.';
         let timestamp = Date.now();
-        let contactName = contactId.split('@')[0];
-        let contactPhotoUrl = `https://placehold.co/40x40.png`;
+        let contactName = contactId.split('@')[0]; // Fallback name
+        const avatar = `https://placehold.co/40x40.png`;
 
-
-        if (lastMessageJsonArray.length > 0) {
-          const lastMessage = parseRedisMessage(lastMessageJsonArray[0]);
+        if (allMessagesJson.length > 0) {
+          const lastMessageJson = allMessagesJson[allMessagesJson.length - 1];
+          const lastMessage = parseRedisMessage(lastMessageJson);
+          
           if (lastMessage) {
               lastMessageText = lastMessage.texto || 'Mensagem sem texto';
               timestamp = lastMessage.timestamp ? parseInt(lastMessage.timestamp, 10) * 1000 : Date.now();
-              if (lastMessage.contactName) {
-                contactName = lastMessage.contactName;
-              }
-              if (lastMessage.contactPhotoUrl) {
-                contactPhotoUrl = lastMessage.contactPhotoUrl;
+              
+              // Tenta encontrar o nome do contato em qualquer mensagem
+              for (const msgJson of allMessagesJson) {
+                const msg = parseRedisMessage(msgJson);
+                if (msg?.contactName) {
+                  contactName = msg.contactName;
+                  break; // Para no primeiro nome que encontrar
+                }
               }
           }
         }
@@ -131,7 +123,7 @@ export async function getContacts(): Promise<Contact[]> {
         return {
           id: contactId,
           name: contactName,
-          avatar: contactPhotoUrl,
+          avatar: avatar,
           lastMessage: lastMessageText,
           timestamp: formatRelative(fromUnixTime(timestamp / 1000), new Date(), { locale: ptBR }),
           unreadCount: 0,
@@ -181,11 +173,9 @@ export async function getMessages(contactId: string): Promise<Message[]> {
         operatorName: redisMsg.operatorName,
         timestamp: new Date(timestamp).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
       };
-    });
-
-    const validMessages = parsedMessages.filter((msg): msg is Message => msg !== null);
+    }).filter((msg): msg is Message => msg !== null);
     
-    return validMessages;
+    return parsedMessages;
 
   } catch (error) {
     console.error(`Falha ao buscar mensagens para ${contactId} do Redis:`, error);
@@ -206,9 +196,7 @@ export async function addMessage(contactId: string, message: { text: string; sen
       operatorName: message.operatorName,
     };
     
-    const messageString = JSON.stringify(redisMessage);
-    
-    await client.rPush(key, messageString);
+    await client.rPush(key, JSON.stringify(redisMessage));
 
   } catch (error) {
     console.error(`Falha ao adicionar mensagem para ${contactId} no Redis:`, error);
