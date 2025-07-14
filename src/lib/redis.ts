@@ -50,17 +50,13 @@ function parseRedisMessage(jsonString: string): RedisMessage | null {
   try {
     const data = JSON.parse(jsonString);
     // Garante que o objeto tenha a estrutura esperada
-    if (data && data.texto && data.tipo) {
+    if (data && typeof data.texto !== 'undefined' && typeof data.tipo !== 'undefined') {
         return data;
     }
     return null;
   } catch (e) {
-      // Se não for um JSON válido, trata como uma mensagem de texto simples do usuário.
-      return {
-          texto: jsonString,
-          tipo: 'user', 
-          timestamp: Math.floor(Date.now() / 1000).toString(),
-      };
+      // Se não for um JSON válido, retorna null para ser tratado pelo chamador.
+      return null;
   }
 }
 
@@ -108,16 +104,19 @@ export async function getContacts(): Promise<Contact[]> {
           if (lastMessage) {
               lastMessageText = lastMessage.texto || 'Mensagem sem texto';
               timestamp = lastMessage.timestamp ? parseInt(lastMessage.timestamp, 10) * 1000 : Date.now();
-              
-              // Tenta encontrar o nome do contato em qualquer mensagem
-              for (const msgJson of allMessagesJson) {
-                const msg = parseRedisMessage(msgJson);
-                if (msg?.contactName) {
-                  contactName = msg.contactName;
-                  break; // Para no primeiro nome que encontrar
-                }
-              }
+          } else {
+             // Se a última mensagem não for um JSON válido, usa o texto bruto.
+             lastMessageText = lastMessageJson;
           }
+        }
+        
+        // Tenta encontrar o nome do contato em qualquer mensagem que seja um JSON válido
+        for (const msgJson of allMessagesJson) {
+            const msg = parseRedisMessage(msgJson);
+            if (msg?.contactName) {
+                contactName = msg.contactName;
+                break; // Para no primeiro nome que encontrar
+            }
         }
         
         return {
@@ -156,26 +155,36 @@ export async function getMessages(contactId: string): Promise<Message[]> {
       return [];
     }
     
-    const parsedMessages = messagesJson.map((jsonString, index) => {
+    // Inverte a ordem das mensagens para que as mais antigas apareçam primeiro
+    const orderedMessagesJson = messagesJson.reverse();
+
+    const parsedMessages = orderedMessagesJson.map((jsonString, index) => {
       const redisMsg = parseRedisMessage(jsonString);
 
-      if (!redisMsg) {
-        return null;
+      // Se a mensagem for um JSON válido, extrai os dados
+      if (redisMsg) {
+        const timestamp = redisMsg.timestamp ? parseInt(redisMsg.timestamp, 10) * 1000 : Date.now();
+        return {
+          id: `m-${contactId}-${index}`,
+          contactId: contactId,
+          text: redisMsg.texto || '',
+          sender: redisMsg.tipo,
+          operatorName: redisMsg.operatorName,
+          timestamp: new Date(timestamp).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+        };
       }
-
-      const timestamp = redisMsg.timestamp ? parseInt(redisMsg.timestamp, 10) * 1000 : Date.now();
       
+      // Se não for um JSON, trata como uma mensagem de texto simples do usuário
       return {
         id: `m-${contactId}-${index}`,
         contactId: contactId,
-        text: redisMsg.texto || '',
-        sender: redisMsg.tipo,
-        operatorName: redisMsg.operatorName,
-        timestamp: new Date(timestamp).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+        text: jsonString,
+        sender: 'user',
+        timestamp: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
       };
-    }).filter((msg): msg is Message => msg !== null);
+    });
     
-    return parsedMessages;
+    return parsedMessages.filter((msg): msg is Message => msg !== null);
 
   } catch (error) {
     console.error(`Falha ao buscar mensagens para ${contactId} do Redis:`, error);
