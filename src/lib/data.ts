@@ -12,6 +12,9 @@ export type RedisMessage = {
   texto: string;
   tipo: 'user' | 'bot' | 'operator'; // 'tipo' é o campo do Redis
   timestamp: string; // Adicionaremos isso ao buscar
+  contactName?: string;
+  contactPhotoUrl?: string;
+  operatorName?: string;
 };
 
 // Tipo para mensagens como são usadas na UI

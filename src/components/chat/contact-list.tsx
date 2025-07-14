@@ -15,7 +15,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 
 export function ContactList() {
   const params = useParams();
-  const activeChatId = params.id;
+  const activeChatId = params.id as string | undefined;
   const [searchTerm, setSearchTerm] = useState('');
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [isLoading, setIsLoading] = useState(true);

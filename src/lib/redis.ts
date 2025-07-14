@@ -52,14 +52,20 @@ function parseRedisMessage(jsonString: string): RedisMessage | null {
     // Se o n8n salvou o JSON como uma string dentro de outra string
     if (typeof data === 'string') {
         const innerData = JSON.parse(data);
-        return innerData.texto ? innerData : { texto: innerData, tipo: 'user', timestamp: Math.floor(Date.now() / 1000).toString() };
+        if (innerData && innerData.texto && innerData.tipo) {
+            return innerData;
+        }
+        return { texto: innerData, tipo: 'user', timestamp: Math.floor(Date.now() / 1000).toString() };
     }
     // Garante que o objeto tenha a estrutura esperada
     if (data && data.texto && data.tipo) {
         return data;
     }
     // Se for um JSON mas sem a estrutura, trata o objeto todo como texto
-    return { texto: jsonString, tipo: 'user', timestamp: Math.floor(Date.now() / 1000).toString() };
+    if (typeof data === 'object' && data !== null) {
+        return { texto: JSON.stringify(data), tipo: 'user', timestamp: Math.floor(Date.now() / 1000).toString() };
+    }
+     return { texto: jsonString, tipo: 'user', timestamp: Math.floor(Date.now() / 1000).toString() };
   } catch (e) {
       // Se não for um JSON válido, trata como uma mensagem de texto simples do usuário.
       return {
@@ -104,19 +110,28 @@ export async function getContacts(): Promise<Contact[]> {
         
         let lastMessageText = 'Nenhuma mensagem ainda.';
         let timestamp = Date.now();
+        let contactName = contactId.split('@')[0];
+        let contactPhotoUrl = `https://placehold.co/40x40.png`;
+
 
         if (lastMessageJsonArray.length > 0) {
           const lastMessage = parseRedisMessage(lastMessageJsonArray[0]);
           if (lastMessage) {
               lastMessageText = lastMessage.texto || 'Mensagem sem texto';
               timestamp = lastMessage.timestamp ? parseInt(lastMessage.timestamp, 10) * 1000 : Date.now();
+              if (lastMessage.contactName) {
+                contactName = lastMessage.contactName;
+              }
+              if (lastMessage.contactPhotoUrl) {
+                contactPhotoUrl = lastMessage.contactPhotoUrl;
+              }
           }
         }
         
         return {
           id: contactId,
-          name: contactId.split('@')[0],
-          avatar: `https://placehold.co/40x40.png`,
+          name: contactName,
+          avatar: contactPhotoUrl,
           lastMessage: lastMessageText,
           timestamp: formatRelative(fromUnixTime(timestamp / 1000), new Date(), { locale: ptBR }),
           unreadCount: 0,
@@ -163,15 +178,14 @@ export async function getMessages(contactId: string): Promise<Message[]> {
         contactId: contactId,
         text: redisMsg.texto || '',
         sender: redisMsg.tipo,
-        operatorName: redisMsg.tipo === 'operator' ? 'Operador' : undefined,
+        operatorName: redisMsg.operatorName,
         timestamp: new Date(timestamp).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
       };
     });
 
     const validMessages = parsedMessages.filter((msg): msg is Message => msg !== null);
     
-    // Inverte a ordem das mensagens para que as mais antigas apareçam primeiro.
-    return validMessages.reverse();
+    return validMessages;
 
   } catch (error) {
     console.error(`Falha ao buscar mensagens para ${contactId} do Redis:`, error);

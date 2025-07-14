@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useParams } from 'next/navigation';
 import Image from 'next/image';
 import { Send, Bot, User, ChevronLeft, Loader2 } from 'lucide-react';
-import { getMessages, addMessage } from '@/lib/redis';
+import { getMessages, addMessage, getContacts } from '@/lib/redis';
 import { Message, Contact } from '@/lib/data';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -36,26 +36,45 @@ export default function ChatViewPage() {
     setOperatorName(name || 'Operador');
     
     if (contactId) {
-        setContact({
-            id: contactId,
-            name: contactId.split('@')[0],
-            avatar: `https://placehold.co/40x40.png`,
-            lastMessage: '',
-            timestamp: '',
-            unreadCount: 0
-        });
-
-        async function fetchMessages() {
+        async function fetchContactAndMessages() {
             setIsLoading(true);
-            const redisMessages = await getMessages(contactId);
-            setMessages(redisMessages);
-            setIsLoading(false);
+            try {
+                // Busca o contato específico para obter nome e avatar atualizados
+                const allContacts = await getContacts();
+                const currentContact = allContacts.find(c => c.id === contactId);
+                
+                if (currentContact) {
+                    setContact(currentContact);
+                } else {
+                    // Fallback se o contato não for encontrado na lista (improvável)
+                    setContact({
+                        id: contactId,
+                        name: contactId.split('@')[0],
+                        avatar: `https://placehold.co/40x40.png`,
+                        lastMessage: '',
+                        timestamp: '',
+                        unreadCount: 0
+                    });
+                }
+
+                const redisMessages = await getMessages(contactId);
+                setMessages(redisMessages);
+            } catch (error) {
+                console.error("Erro ao buscar dados do chat:", error);
+                toast({
+                    variant: 'destructive',
+                    title: 'Erro de Rede',
+                    description: 'Não foi possível carregar os dados da conversa.',
+                });
+            } finally {
+                setIsLoading(false);
+            }
         }
 
-        fetchMessages();
+        fetchContactAndMessages();
     }
     
-  }, [contactId]);
+  }, [contactId, toast]);
 
   useEffect(() => {
     if (scrollAreaRef.current) {
