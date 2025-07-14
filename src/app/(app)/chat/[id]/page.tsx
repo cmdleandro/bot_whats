@@ -17,7 +17,8 @@ import { useToast } from '@/hooks/use-toast';
 
 export default function ChatViewPage() {
   const params = useParams();
-  const contactId = params.id as string;
+  const rawContactId = params.id as string;
+  const contactId = rawContactId ? decodeURIComponent(rawContactId).trim() : '';
   const { toast } = useToast();
 
   const [contact, setContact] = useState<Contact | null>(null);
@@ -34,23 +35,23 @@ export default function ChatViewPage() {
     const name = localStorage.getItem('chatview_operator_name');
     setOperatorName(name || 'Operador');
     
-    setContact({
-        id: contactId,
-        name: contactId.split('@')[0],
-        avatar: `https://placehold.co/40x40.png`,
-        lastMessage: '',
-        timestamp: '',
-        unreadCount: 0
-    });
-
-    async function fetchMessages() {
-        setIsLoading(true);
-        const redisMessages = await getMessages(contactId);
-        setMessages(redisMessages);
-        setIsLoading(false);
-    }
-
     if (contactId) {
+        setContact({
+            id: contactId,
+            name: contactId.split('@')[0],
+            avatar: `https://placehold.co/40x40.png`,
+            lastMessage: '',
+            timestamp: '',
+            unreadCount: 0
+        });
+
+        async function fetchMessages() {
+            setIsLoading(true);
+            const redisMessages = await getMessages(contactId);
+            setMessages(redisMessages);
+            setIsLoading(false);
+        }
+
         fetchMessages();
     }
     

@@ -49,13 +49,14 @@ export async function getClient() {
 function parseRedisMessage(jsonString: string, key: string): RedisMessage | null {
   try {
     const data = JSON.parse(jsonString);
+    // Se o n8n salvou o JSON como uma string dentro de outra string
     if (typeof data === 'string') {
         return JSON.parse(data);
     }
     return data;
   } catch (e) {
       // Se não for um JSON válido, trata como uma mensagem de texto simples do usuário.
-      console.warn(`Conteúdo para a chave ${key} não é um JSON válido. Tratando como texto. Conteúdo:`, jsonString);
+      // Isso aumenta a robustez contra dados mal formatados.
       return {
           texto: jsonString,
           tipo: 'user', // Assume que é do usuário se o formato for desconhecido
@@ -81,7 +82,7 @@ export async function getContacts(): Promise<Contact[]> {
     const contacts: Contact[] = await Promise.all(
       contactKeys.map(async (key) => {
         const lastMessageJsonArray = await client.lRange(key, -1, -1);
-        const contactId = key.replace('chat:', '');
+        const contactId = key.replace('chat:', '').trim();
         
         let lastMessageText = 'Nenhuma mensagem ainda.';
         let timestamp = Date.now();
@@ -171,6 +172,7 @@ export async function addMessage(contactId: string, message: { text: string; sen
       operatorName: message.operatorName,
     };
     
+    // Simplificado para apenas um stringify
     const messageString = JSON.stringify(redisMessage);
     
     await client.rPush(key, messageString);
