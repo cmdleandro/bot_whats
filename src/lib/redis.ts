@@ -82,7 +82,7 @@ export async function getContacts(): Promise<Contact[]> {
     const contacts: Contact[] = await Promise.all(
       contactKeys.map(async (key) => {
         const lastMessageJsonArray = await client.lRange(key, -1, -1);
-        const contactId = key.replace('chat:', '').trim();
+        const contactId = key.replace(/^chat:\s*/, '').trim();
         
         let lastMessageText = 'Nenhuma mensagem ainda.';
         let timestamp = Date.now();
