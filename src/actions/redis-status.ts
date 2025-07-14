@@ -65,12 +65,13 @@ async function performRedisCheck(): Promise<RedisStatus> {
 
 export async function checkRedisConnection(): Promise<RedisStatus> {
     try {
-        return await withTimeout(performRedisCheck(), 10000);
+        // Reduzido para 5 segundos para falhar mais rápido
+        return await withTimeout(performRedisCheck(), 5000); 
     } catch (error: any) {
         console.error("Redis connection check timed out or failed:", error);
         return {
             connected: false,
-            error: "The Redis connection check timed out after 10 seconds or failed. Please check your network settings and REDIS_URL.",
+            error: "The Redis connection check timed out after 5 seconds or failed. Please check your network/firewall settings and REDIS_URL.",
             sampleKeys: [],
             firstKeyContent: null,
         };
