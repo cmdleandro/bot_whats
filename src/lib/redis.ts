@@ -7,58 +7,51 @@ import { ptBR } from 'date-fns/locale';
 
 // O cliente Redis será criado apenas uma vez e reutilizado.
 let redisClient: ReturnType<typeof createClient> | null = null;
-let clientPromise: Promise<ReturnType<typeof createClient>> | null = null;
 
-
-// Envolve a criação do cliente em uma Promise para lidar com conexões concorrentes.
-function connectToRedis() {
-    if (clientPromise) {
-        return clientPromise;
-    }
-    clientPromise = (async () => {
-        const url = process.env.REDIS_URL;
-        if (!url) {
-            console.error('A variável de ambiente REDIS_URL não está definida.');
-            throw new Error('A variável de ambiente REDIS_URL não está definida. Por favor, configure-a no Easypanel.');
-        }
-        
-        try {
-            const client = createClient({ 
-                url,
-                socket: {
-                    connectTimeout: 5000 // Timeout de conexão de 5 segundos
-                }
-            });
-            client.on('error', (err) => {
-                console.error('Erro no Cliente Redis', err);
-                redisClient = null; // Invalida o cliente em caso de erro
-                clientPromise = null; // Permite uma nova tentativa de conexão
-            });
-            await client.connect();
-            console.log('Cliente Redis conectado com sucesso.');
-            redisClient = client;
-            return client;
-        } catch (e) {
-            console.error('Falha ao conectar ao Redis:', e);
-            redisClient = null;
-            clientPromise = null;
-            throw e;
-        }
-    })();
-    return clientPromise;
-}
-
+// Função para obter o cliente Redis.
+// Ela garante que a conexão seja estabelecida apenas uma vez.
 export async function getClient() {
-  if (redisClient && redisClient.isOpen) {
-    return redisClient;
-  }
-  return connectToRedis();
+    if (redisClient && redisClient.isOpen) {
+        return redisClient;
+    }
+
+    const url = process.env.REDIS_URL;
+    if (!url) {
+        console.error('A variável de ambiente REDIS_URL não está definida.');
+        throw new Error('A variável de ambiente REDIS_URL não está definida. Por favor, configure-a no painel do seu ambiente de produção.');
+    }
+    
+    try {
+        const client = createClient({ 
+            url,
+            socket: {
+                connectTimeout: 5000 // Timeout de conexão de 5 segundos
+            }
+        });
+
+        client.on('error', (err) => {
+            console.error('Erro no Cliente Redis', err);
+            redisClient = null; // Invalida o cliente para permitir uma nova tentativa de conexão
+        });
+
+        await client.connect();
+        console.log('Cliente Redis conectado com sucesso.');
+        redisClient = client;
+        return redisClient;
+    } catch (e) {
+        console.error('Falha ao conectar ao Redis:', e);
+        redisClient = null;
+        throw e;
+    }
 }
 
 // Função auxiliar para parsear mensagens de forma segura
 function parseRedisMessage(jsonString: string, key: string): RedisMessage | null {
   try {
+    // Primeiro tenta parsear o JSON.
     const data = JSON.parse(jsonString);
+    // Se o resultado do parse for outra string, tenta parsear de novo.
+    // Isso lida com o caso de JSON duplamente "stringificado".
     if (typeof data === 'string') {
         return JSON.parse(data);
     }
@@ -174,7 +167,6 @@ export async function addMessage(contactId: string, message: { text: string; sen
       operatorName: message.operatorName,
     };
     
-    // Simplificado para um único stringify
     const messageString = JSON.stringify(redisMessage);
     
     await client.rPush(key, messageString);
