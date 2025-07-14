@@ -22,7 +22,7 @@ export async function getClient() {
         const client = createClient({ 
             url,
             socket: {
-                connectTimeout: 5000
+                connectTimeout: 10000 // Aumentado para 10 segundos
             }
         });
 
@@ -44,7 +44,14 @@ export async function getClient() {
 
 
 function parseRedisMessage(jsonString: string): RedisMessage {
-  return JSON.parse(jsonString) as RedisMessage;
+  try {
+    const parsed = JSON.parse(jsonString);
+    return parsed;
+  } catch (e) {
+    console.error("Falha ao analisar JSON da mensagem do Redis:", jsonString, e);
+    // Retorna um objeto padrão para evitar que a aplicação quebre
+    return { texto: jsonString, tipo: 'user', timestamp: Math.floor(Date.now() / 1000).toString() };
+  }
 }
 
 export async function getContacts(): Promise<Contact[]> {
@@ -70,16 +77,17 @@ export async function getContacts(): Promise<Contact[]> {
         let avatar = `https://placehold.co/40x40.png`;
 
         if (allMessagesJson.length > 0) {
-            const lastMsgJson = allMessagesJson[0]; // latest message
-            const lastMsg = parseRedisMessage(lastMsgJson);
+            const lastMsg = parseRedisMessage(allMessagesJson[0]); // A mensagem mais recente é a primeira (lPush)
             lastMessageText = lastMsg.texto;
             timestamp = lastMsg.timestamp ? parseInt(lastMsg.timestamp, 10) * 1000 : Date.now();
         }
         
+        // Tenta encontrar nome e foto em qualquer mensagem, começando pelas mais recentes
         for (const msgJson of allMessagesJson) {
             const msg = parseRedisMessage(msgJson);
             if (msg.contactName) contactName = msg.contactName;
             if (msg.contactPhotoUrl) avatar = msg.contactPhotoUrl;
+            if (contactName !== contactId.split('@')[0] && avatar !== `https://placehold.co/40x40.png`) break;
         }
         
         return {
@@ -116,6 +124,8 @@ export async function getMessages(contactId: string): Promise<Message[]> {
       return [];
     }
     
+    // As mensagens são adicionadas com lPush, então a lista já está da mais nova para a mais antiga.
+    // Invertemos para exibir na ordem cronológica correta (mais antiga primeiro).
     messagesJson.reverse();
 
     const parsedMessages = messagesJson.map((jsonString, index) => {
@@ -132,7 +142,7 @@ export async function getMessages(contactId: string): Promise<Message[]> {
       };
     });
     
-    return parsedMessages.filter((msg): msg is Message => msg !== null);
+    return parsedMessages;
 
   } catch (error) {
     console.error(`Falha ao buscar mensagens para ${contactId} do Redis:`, error);
@@ -152,6 +162,7 @@ export async function addMessage(contactId: string, message: { text: string; sen
       operatorName: message.operatorName,
     };
     
+    // lPush adiciona ao início da lista, mantendo a mensagem mais recente no topo.
     await client.lPush(key, JSON.stringify(redisMessage));
 
   } catch (error) {
