@@ -7,32 +7,31 @@ export type User = {
   createdAt: string;
 };
 
-// Tipo para mensagens como são armazenadas no Redis pelo n8n
 export type RedisMessage = {
   texto: string;
-  tipo: 'user' | 'bot' | 'operator'; // 'tipo' é o campo do Redis
-  timestamp: string; // Adicionaremos isso ao buscar
+  tipo: 'user' | 'bot' | 'operator'; 
+  timestamp: string; 
   contactName?: string;
   operatorName?: string;
+  contactPhotoUrl?: string; 
 };
 
-// Tipo para mensagens como são usadas na UI
 export type Message = {
   id: string;
   contactId: string;
-  text: string; // 'text' é o campo na UI
-  sender: 'user' | 'bot' | 'operator'; // 'sender' é o campo na UI
+  text: string; 
+  sender: 'user' | 'bot' | 'operator'; 
   operatorName?: string;
   timestamp: string;
 };
 
 export type Contact = {
-  id: string; // Ex: 5511999998888@s.whatsapp.net
-  name: string; // Por padrão, será o ID
-  avatar: string; // Usaremos placeholder
+  id: string; 
+  name: string; 
+  avatar: string; 
   lastMessage: string;
   timestamp: string;
-  unreadCount: number; // Não temos essa informação do Redis, será 0
+  unreadCount: number; 
 };
 
 export const initialUsers: User[] = [
@@ -40,8 +39,6 @@ export const initialUsers: User[] = [
     { id: '2', name: 'Alice', email: 'alice@email.com', password: '123', role: 'Operador', createdAt: '2023-02-20' },
 ];
 
-// Os dados mocados abaixo não serão mais usados para contatos e mensagens
-// se a conexão com o Redis for bem-sucedida.
 export const contacts: Contact[] = [
   { id: '1', name: 'Maria Silva', avatar: 'https://placehold.co/40x40.png', lastMessage: 'Olá, preciso de ajuda com meu pedido.', timestamp: '10:40 AM', unreadCount: 2 },
   { id: '2', name: 'João Pereira', avatar: 'https://placehold.co/40x40.png', lastMessage: 'Obrigado pela resposta rápida!', timestamp: '10:35 AM', unreadCount: 0 },

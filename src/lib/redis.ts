@@ -85,7 +85,7 @@ export async function getContacts(): Promise<Contact[]> {
         let lastMessageText = 'Nenhuma mensagem ainda.';
         let timestamp = Date.now();
         let contactName = contactId.split('@')[0];
-        const avatar = `https://placehold.co/40x40.png`;
+        let avatar = `https://placehold.co/40x40.png`;
 
         if (allMessagesJson.length > 0) {
           const lastMessageJson = allMessagesJson[allMessagesJson.length - 1];
@@ -103,7 +103,9 @@ export async function getContacts(): Promise<Contact[]> {
             const msg = parseRedisMessage(msgJson);
             if (msg?.contactName) {
                 contactName = msg.contactName;
-                break;
+            }
+            if (msg?.contactPhotoUrl) {
+                avatar = msg.contactPhotoUrl;
             }
         }
         
@@ -141,9 +143,9 @@ export async function getMessages(contactId: string): Promise<Message[]> {
       return [];
     }
     
-    const orderedMessagesJson = messagesJson.reverse();
+    messagesJson.reverse();
 
-    const parsedMessages = orderedMessagesJson.map((jsonString, index) => {
+    const parsedMessages = messagesJson.map((jsonString, index) => {
       const redisMsg = parseRedisMessage(jsonString);
 
       if (redisMsg) {
