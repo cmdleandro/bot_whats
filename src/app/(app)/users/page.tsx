@@ -95,11 +95,12 @@ function RedisStatusCard() {
       return (
          <Alert variant="destructive">
           <AlertTriangle className="h-4 w-4" />
-          <AlertTitle>Falha na Conexão</AlertTitle>
+          <AlertTitle>Falha na Conexão Externa</AlertTitle>
           <AlertDescription>
             <p className="font-semibold mb-2">A aplicação não conseguiu se conectar ao banco de dados Redis.</p>
-            <p className="mb-1"><strong>Causa Provável:</strong> Um firewall pode estar bloqueando a porta <strong>6379</strong>.</p>
-            <p><strong>Ação Necessária:</strong> Verifique as regras de firewall do seu provedor de nuvem (AWS, Google Cloud, etc.) e adicione uma regra de entrada (Inbound) para permitir tráfego TCP na porta <strong>6379</strong> a partir de qualquer origem (0.0.0.0/0).</p>
+            <p className="mb-1"><strong>Diagnóstico:</strong> Testes indicam que o firewall do servidor (UFW) está inativo, mas a conexão externa ainda falha. Isso aponta para um bloqueio a nível de rede.</p>
+            <p className="mb-1"><strong>Causa Provável:</strong> O firewall do seu provedor de internet ou data center está bloqueando a porta <strong>6379</strong>.</p>
+            <p><strong>Ação Necessária:</strong> Contate o suporte do seu provedor ou acesse o painel de controle da sua rede para criar uma regra de "Port Forwarding" ou "Firewall" que libere o tráfego TCP na porta <strong>6379</strong> para o seu servidor.</p>
             {status.error && (
               <div className="mt-4">
                 <h3 className="font-semibold">Detalhes do Erro Técnico:</h3>
