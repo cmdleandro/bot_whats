@@ -5,11 +5,8 @@ import type { Contact, RedisMessage, Message } from './data';
 import { formatRelative, fromUnixTime } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
-// O cliente Redis será criado apenas uma vez e reutilizado.
 let redisClient: ReturnType<typeof createClient> | null = null;
 
-// Função para obter o cliente Redis.
-// Ela garante que a conexão seja estabelecida apenas uma vez.
 export async function getClient() {
     if (redisClient && redisClient.isOpen) {
         return redisClient;
@@ -25,13 +22,13 @@ export async function getClient() {
         const client = createClient({ 
             url,
             socket: {
-                connectTimeout: 5000 // Timeout de conexão de 5 segundos
+                connectTimeout: 5000
             }
         });
 
         client.on('error', (err) => {
             console.error('Erro no Cliente Redis', err);
-            redisClient = null; // Invalida o cliente para permitir uma nova tentativa de conexão
+            redisClient = null;
         });
 
         await client.connect();
@@ -45,22 +42,18 @@ export async function getClient() {
     }
 }
 
-// Função auxiliar para parsear mensagens de forma segura
-function parseRedisMessage(jsonString: string): RedisMessage | null {
+function parseRedisMessage(jsonString: string): Omit<RedisMessage, 'timestamp'> & { timestamp?: string } | null {
   try {
     const data = JSON.parse(jsonString);
-    // Garante que o objeto tenha a estrutura esperada
     if (data && typeof data.texto !== 'undefined' && typeof data.tipo !== 'undefined') {
         return data;
     }
     return null;
   } catch (e) {
-      // Se não for um JSON válido, retorna null para ser tratado pelo chamador.
       return null;
   }
 }
 
-// Busca a lista de contatos a partir das chaves do Redis
 export async function getContacts(): Promise<Contact[]> {
   try {
     const client = await getClient();
@@ -73,10 +66,8 @@ export async function getContacts(): Promise<Contact[]> {
       return [];
     }
     
-    // Agrupa chaves pelo mesmo ID de contato normalizado para evitar duplicatas
     const groupedKeys: { [key: string]: string[] } = {};
     contactKeys.forEach(key => {
-      // Remove o prefixo 'chat:' e espaços em branco para obter o ID limpo
       const contactId = key.replace(/^chat:/, '').trim();
       if (!groupedKeys[contactId]) {
         groupedKeys[contactId] = [];
@@ -88,34 +79,31 @@ export async function getContacts(): Promise<Contact[]> {
 
     const contacts: Contact[] = await Promise.all(
       uniqueContactIds.map(async (contactId) => {
-        // Usa a primeira chave encontrada para esse ID, já que todas apontam para a mesma conversa
         const representativeKey = groupedKeys[contactId][0];
         const allMessagesJson = await client.lRange(representativeKey, 0, -1);
         
         let lastMessageText = 'Nenhuma mensagem ainda.';
         let timestamp = Date.now();
-        let contactName = contactId.split('@')[0]; // Fallback name
+        let contactName = contactId.split('@')[0];
         const avatar = `https://placehold.co/40x40.png`;
 
         if (allMessagesJson.length > 0) {
-          const lastMessageJson = allMessagesJson[0]; // A mensagem mais recente está no índice 0
+          const lastMessageJson = allMessagesJson[allMessagesJson.length - 1];
           const lastMessage = parseRedisMessage(lastMessageJson);
           
           if (lastMessage) {
               lastMessageText = lastMessage.texto || 'Mensagem sem texto';
               timestamp = lastMessage.timestamp ? parseInt(lastMessage.timestamp, 10) * 1000 : Date.now();
           } else {
-             // Se a última mensagem não for um JSON válido, usa o texto bruto.
              lastMessageText = lastMessageJson;
           }
         }
         
-        // Tenta encontrar o nome do contato em qualquer mensagem que seja um JSON válido
         for (const msgJson of allMessagesJson) {
             const msg = parseRedisMessage(msgJson);
             if (msg?.contactName) {
                 contactName = msg.contactName;
-                break; // Para no primeiro nome que encontrar
+                break;
             }
         }
         
@@ -130,7 +118,6 @@ export async function getContacts(): Promise<Contact[]> {
       })
     );
     
-    // Filtra contatos sem ID válido e ordena
     const validContacts = contacts.filter(c => c.id && !c.id.includes('$json'));
     return validContacts.sort((a, b) => {
         const dateA = new Date(a.timestamp.startsWith('hoje') || a.timestamp.startsWith('ontem') ? new Date() : a.timestamp);
@@ -144,7 +131,6 @@ export async function getContacts(): Promise<Contact[]> {
   }
 }
 
-// Busca todas as mensagens de um contato específico
 export async function getMessages(contactId: string): Promise<Message[]> {
   try {
     const client = await getClient();
@@ -155,13 +141,11 @@ export async function getMessages(contactId: string): Promise<Message[]> {
       return [];
     }
     
-    // Inverte a ordem das mensagens para que as mais antigas apareçam primeiro
     const orderedMessagesJson = messagesJson.reverse();
 
     const parsedMessages = orderedMessagesJson.map((jsonString, index) => {
       const redisMsg = parseRedisMessage(jsonString);
 
-      // Se a mensagem for um JSON válido, extrai os dados
       if (redisMsg) {
         const timestamp = redisMsg.timestamp ? parseInt(redisMsg.timestamp, 10) * 1000 : Date.now();
         return {
@@ -174,7 +158,6 @@ export async function getMessages(contactId: string): Promise<Message[]> {
         };
       }
       
-      // Se não for um JSON, trata como uma mensagem de texto simples do usuário
       return {
         id: `m-${contactId}-${index}`,
         contactId: contactId,
@@ -192,7 +175,6 @@ export async function getMessages(contactId: string): Promise<Message[]> {
   }
 }
 
-// Adiciona uma nova mensagem ao chat no Redis
 export async function addMessage(contactId: string, message: { text: string; sender: 'operator', operatorName: string }): Promise<void> {
   try {
     const client = await getClient();
@@ -205,7 +187,7 @@ export async function addMessage(contactId: string, message: { text: string; sen
       operatorName: message.operatorName,
     };
     
-    await client.rPush(key, JSON.stringify(redisMessage));
+    await client.lPush(key, JSON.stringify(redisMessage));
 
   } catch (error) {
     console.error(`Falha ao adicionar mensagem para ${contactId} no Redis:`, error);
