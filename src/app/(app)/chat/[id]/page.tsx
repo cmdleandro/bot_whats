@@ -136,6 +136,30 @@ export default function ChatViewPage() {
     );
   }
 
+  const getMessageStyle = (sender: Message['sender']) => {
+    switch (sender) {
+      case 'user':
+        return 'rounded-bl-none bg-background';
+      case 'operator':
+        return 'rounded-br-none bg-primary text-primary-foreground';
+      case 'bot':
+        return 'rounded-br-none bg-accent text-accent-foreground';
+      default:
+        return 'rounded-bl-none bg-background';
+    }
+  };
+
+  const getSenderNameStyle = (sender: Message['sender']) => {
+    switch (sender) {
+      case 'operator':
+        return {}; // Usa a cor padrão do `primary-foreground`
+      case 'bot':
+        return { color: 'hsl(var(--accent-foreground))' }; // Usa cor de destaque
+      default:
+        return {};
+    }
+  }
+
   return (
     <div className="flex h-screen flex-col bg-card">
       <header className="flex items-center gap-4 border-b bg-background p-3">
@@ -188,11 +212,11 @@ export default function ChatViewPage() {
                 <div
                   className={cn(
                     'rounded-lg px-4 py-2 text-sm shadow-sm flex flex-col',
-                     msg.sender === 'user' ? 'rounded-bl-none bg-background' : 'rounded-br-none bg-primary text-primary-foreground'
+                     getMessageStyle(msg.sender)
                   )}
                 >
                   {(msg.sender === 'bot' || msg.sender === 'operator') && (
-                      <p className="text-xs font-bold mb-1" style={{ color: msg.sender === 'operator' ? undefined : 'hsl(var(--accent))' }}>
+                      <p className="text-xs font-bold mb-1" style={getSenderNameStyle(msg.sender)}>
                           {msg.sender === 'bot' ? 'BOT' : msg.operatorName}
                       </p>
                   )}
