@@ -42,7 +42,7 @@ export async function getClient() {
     }
 }
 
-function parseRedisMessage(jsonString: string): Omit<RedisMessage, 'timestamp'> & { timestamp?: string } | null {
+function parseRedisMessage(jsonString: string): Omit<RedisMessage, 'timestamp'> & { timestamp?: string, contactName?: string, contactPhotoUrl?: string } | null {
   try {
     const data = JSON.parse(jsonString);
     if (data && typeof data.texto !== 'undefined' && typeof data.tipo !== 'undefined') {
