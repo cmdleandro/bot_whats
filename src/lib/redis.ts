@@ -164,7 +164,7 @@ export async function getMessages(contactId: string): Promise<Message[]> {
         id: `m-${contactId}-${index}`,
         contactId: contactId,
         text: jsonString,
-        sender: 'user',
+        sender: 'user' as const,
         timestamp: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
       };
     });
