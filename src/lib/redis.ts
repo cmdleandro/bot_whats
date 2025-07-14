@@ -107,7 +107,6 @@ export async function getContacts(): Promise<Contact[]> {
             }
             if (msg?.contactPhotoUrl) {
                 avatar = msg.contactPhotoUrl;
-                break; // Assume the first photo found is the correct one
             }
         }
         
