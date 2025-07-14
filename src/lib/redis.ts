@@ -22,7 +22,7 @@ export async function getClient() {
         const client = createClient({ 
             url,
             socket: {
-                connectTimeout: 10000 // Aumentado para 10 segundos
+                connectTimeout: 5000 // Reduzido para 5 segundos
             }
         });
 
