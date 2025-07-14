@@ -78,17 +78,30 @@ export async function getContacts(): Promise<Contact[]> {
     if (contactKeys.length === 0) {
       return [];
     }
+    
+    // Agrupa chaves pelo mesmo ID de contato normalizado para evitar duplicatas
+    const groupedKeys: { [key: string]: string[] } = {};
+    contactKeys.forEach(key => {
+      const contactId = key.replace(/^chat:/, '').trim();
+      if (!groupedKeys[contactId]) {
+        groupedKeys[contactId] = [];
+      }
+      groupedKeys[contactId].push(key);
+    });
+
+    const uniqueContactIds = Object.keys(groupedKeys);
 
     const contacts: Contact[] = await Promise.all(
-      contactKeys.map(async (key) => {
-        const lastMessageJsonArray = await client.lRange(key, -1, -1);
-        const contactId = key.replace(/^chat:\s*/, '').trim();
+      uniqueContactIds.map(async (contactId) => {
+        // Usa a primeira chave encontrada para esse ID, já que todas apontam para a mesma conversa
+        const representativeKey = groupedKeys[contactId][0];
+        const lastMessageJsonArray = await client.lRange(representativeKey, -1, -1);
         
         let lastMessageText = 'Nenhuma mensagem ainda.';
         let timestamp = Date.now();
 
         if (lastMessageJsonArray.length > 0) {
-          const lastMessage = parseRedisMessage(lastMessageJsonArray[0], key);
+          const lastMessage = parseRedisMessage(lastMessageJsonArray[0], representativeKey);
           if (lastMessage) {
               lastMessageText = lastMessage.texto || 'Mensagem sem texto';
               timestamp = lastMessage.timestamp ? parseInt(lastMessage.timestamp, 10) * 1000 : Date.now();
