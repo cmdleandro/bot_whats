@@ -42,11 +42,12 @@ import type { User } from '@/lib/data';
 import { initialUsers } from '@/lib/data';
 import { useToast } from '@/hooks/use-toast';
 import { checkRedisConnection, type RedisStatus } from '@/actions/redis-status';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 function RedisStatusCard() {
   const [status, setStatus] = useState<RedisStatus | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [key, setKey] = useState(0); // Adiciona uma chave para forçar a atualização
+  const [key, setKey] = useState(0);
 
   useEffect(() => {
     async function fetchStatus() {
@@ -67,11 +68,78 @@ function RedisStatusCard() {
       }
     }
     fetchStatus();
-  }, [key]); // Re-executa o efeito quando a chave mudar
+  }, [key]);
 
   const handleRefresh = () => {
-    setKey(prevKey => prevKey + 1); // Força a re-execução do useEffect
+    setKey(prevKey => prevKey + 1);
   };
+
+  const renderContent = () => {
+    if (isLoading) {
+      return (
+        <div className="flex items-center gap-2 text-muted-foreground">
+          <Loader2 className="h-5 w-5 animate-spin" />
+          <span>Verificando conexão...</span>
+        </div>
+      );
+    }
+    if (!status) {
+       return (
+           <div className="flex items-center gap-2 text-destructive">
+            <AlertTriangle className="h-5 w-5" />
+            <span>Não foi possível obter o status do Redis.</span>
+          </div>
+        );
+    }
+    if (!status.connected) {
+      return (
+         <Alert variant="destructive">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertTitle>Falha na Conexão</AlertTitle>
+          <AlertDescription>
+            <p className="font-semibold mb-2">A aplicação não conseguiu se conectar ao banco de dados Redis.</p>
+            <p className="mb-1"><strong>Causa Provável:</strong> Um firewall pode estar bloqueando a porta <strong>6379</strong>.</p>
+            <p><strong>Ação Necessária:</strong> Verifique as regras de firewall do seu provedor de nuvem (AWS, Google Cloud, etc.) e adicione uma regra de entrada (Inbound) para permitir tráfego TCP na porta <strong>6379</strong> a partir de qualquer origem (0.0.0.0/0).</p>
+            {status.error && (
+              <div className="mt-4">
+                <h3 className="font-semibold">Detalhes do Erro Técnico:</h3>
+                <p className="text-xs font-mono bg-destructive/20 p-2 rounded-md mt-1">{status.error}</p>
+              </div>
+            )}
+          </AlertDescription>
+        </Alert>
+      )
+    }
+
+    return (
+       <div className="space-y-4">
+        <div>
+          <h3 className="font-semibold">Status da Conexão</h3>
+          <Badge variant="default" className="bg-green-600">Conectado com Sucesso</Badge>
+        </div>
+        <div>
+          <h3 className="font-semibold">Amostra de Chaves (`chat:*`)</h3>
+          {status.sampleKeys && status.sampleKeys.length > 0 ? (
+            <ul className="list-disc list-inside bg-muted p-2 rounded-md font-mono text-sm">
+              {status.sampleKeys.map((key) => <li key={key}>{key}</li>)}
+            </ul>
+          ) : (
+            <p className="text-sm text-muted-foreground">Nenhuma chave com o padrão `chat:*` foi encontrada.</p>
+          )}
+        </div>
+         <div>
+          <h3 className="font-semibold">Conteúdo Bruto da Primeira Chave</h3>
+           {status.firstKeyContent ? (
+            <pre className="text-xs font-mono bg-muted p-2 rounded-md overflow-x-auto">
+              {status.firstKeyContent}
+            </pre>
+          ) : (
+            <p className="text-sm text-muted-foreground">Nenhum conteúdo para exibir.</p>
+          )}
+        </div>
+      </div>
+    );
+  }
 
 
   return (
@@ -84,7 +152,7 @@ function RedisStatusCard() {
                 Status da Conexão Redis
                 </CardTitle>
                 <CardDescription>
-                Diagnóstico da conexão com o banco de dados Redis.
+                Diagnóstico da conexão com o banco de dados em tempo real.
                 </CardDescription>
             </div>
             <Button variant="outline" size="icon" onClick={handleRefresh} disabled={isLoading}>
@@ -93,54 +161,7 @@ function RedisStatusCard() {
         </div>
       </CardHeader>
       <CardContent>
-        {isLoading ? (
-          <div className="flex items-center gap-2 text-muted-foreground">
-            <Loader2 className="h-5 w-5 animate-spin" />
-            <span>Verificando conexão...</span>
-          </div>
-        ) : status ? (
-          <div className="space-y-4">
-            <div>
-              <h3 className="font-semibold">Status da Conexão</h3>
-              {status.connected ? (
-                <Badge variant="default" className="bg-green-600">Conectado com Sucesso</Badge>
-              ) : (
-                <Badge variant="destructive">Falha na Conexão</Badge>
-              )}
-            </div>
-            {status.error && (
-              <div>
-                <h3 className="font-semibold text-destructive">Mensagem de Erro</h3>
-                <p className="text-sm font-mono bg-muted p-2 rounded-md text-destructive whitespace-pre-wrap">{status.error}</p>
-              </div>
-            )}
-            <div>
-              <h3 className="font-semibold">Amostra de Chaves (`chat:*`)</h3>
-              {status.sampleKeys && status.sampleKeys.length > 0 ? (
-                <ul className="list-disc list-inside bg-muted p-2 rounded-md font-mono text-sm">
-                  {status.sampleKeys.map((key) => <li key={key}>{key}</li>)}
-                </ul>
-              ) : (
-                <p className="text-sm text-muted-foreground">Nenhuma chave com o padrão `chat:*` foi encontrada.</p>
-              )}
-            </div>
-             <div>
-              <h3 className="font-semibold">Conteúdo Bruto da Primeira Chave</h3>
-               {status.firstKeyContent ? (
-                <pre className="text-xs font-mono bg-muted p-2 rounded-md overflow-x-auto">
-                  {status.firstKeyContent}
-                </pre>
-              ) : (
-                <p className="text-sm text-muted-foreground">Nenhum conteúdo para exibir.</p>
-              )}
-            </div>
-          </div>
-        ) : (
-           <div className="flex items-center gap-2 text-destructive">
-            <AlertTriangle className="h-5 w-5" />
-            <span>Não foi possível obter o status do Redis.</span>
-          </div>
-        )}
+       {renderContent()}
       </CardContent>
     </Card>
   );
