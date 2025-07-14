@@ -45,12 +45,14 @@ export async function getClient() {
 function parseRedisMessage(jsonString: string): RedisMessage | null {
   try {
     const data = JSON.parse(jsonString);
-    if (data && typeof data.texto !== 'undefined' && typeof data.tipo !== 'undefined') {
-        return data as RedisMessage;
+    // Basic validation to ensure it's a message object we expect
+    if (data && typeof data.texto === 'string' && typeof data.tipo === 'string') {
+        return data;
     }
     return null;
   } catch (e) {
-      return null;
+    console.warn(`Could not parse message from Redis: "${jsonString}"`, e);
+    return null;
   }
 }
 
@@ -66,21 +68,10 @@ export async function getContacts(): Promise<Contact[]> {
       return [];
     }
     
-    const groupedKeys: { [key: string]: string[] } = {};
-    contactKeys.forEach(key => {
-      const contactId = key.replace(/^chat:/, '').trim();
-      if (!groupedKeys[contactId]) {
-        groupedKeys[contactId] = [];
-      }
-      groupedKeys[contactId].push(key);
-    });
-
-    const uniqueContactIds = Object.keys(groupedKeys);
-
     const contacts: Contact[] = await Promise.all(
-      uniqueContactIds.map(async (contactId) => {
-        const representativeKey = groupedKeys[contactId][0];
-        const allMessagesJson = await client.lRange(representativeKey, 0, -1);
+      contactKeys.map(async (key) => {
+        const contactId = key.replace(/^chat:/, '').trim();
+        const allMessagesJson = await client.lRange(key, 0, -1);
         
         let lastMessageText = 'Nenhuma mensagem ainda.';
         let timestamp = Date.now();
@@ -88,14 +79,12 @@ export async function getContacts(): Promise<Contact[]> {
         let avatar = `https://placehold.co/40x40.png`;
 
         if (allMessagesJson.length > 0) {
-          const lastMessageJson = allMessagesJson[0]; // Redis lRange returns newest first
+          const lastMessageJson = allMessagesJson[0]; // Redis lPush makes index 0 the latest
           const lastMessage = parseRedisMessage(lastMessageJson);
           
           if (lastMessage) {
               lastMessageText = lastMessage.texto || 'Mensagem sem texto';
               timestamp = lastMessage.timestamp ? parseInt(lastMessage.timestamp, 10) * 1000 : Date.now();
-          } else {
-             lastMessageText = lastMessageJson;
           }
         }
         
@@ -151,28 +140,21 @@ export async function getMessages(contactId: string): Promise<Message[]> {
       const redisMsg = parseRedisMessage(jsonString);
 
       if (redisMsg) {
-        // It's a valid JSON message from bot or user
         const timestamp = redisMsg.timestamp ? parseInt(redisMsg.timestamp, 10) * 1000 : Date.now();
         return {
           id: `m-${contactId}-${index}`,
           contactId: contactId,
-          text: redisMsg.texto || '',
+          text: redisMsg.texto,
           sender: redisMsg.tipo,
           operatorName: redisMsg.operatorName,
           timestamp: new Date(timestamp).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
         };
       }
-      
-      // Fallback for non-JSON strings (plain text, likely older messages or from operator)
-      return {
-        id: `m-${contactId}-${index}`,
-        contactId: contactId,
-        text: jsonString,
-        sender: 'user' as const, // Default to user if type is unknown
-        timestamp: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
-      };
+      // If parsing fails, we return null and filter it out later.
+      return null;
     });
     
+    // Filter out any messages that failed to parse
     return parsedMessages.filter((msg): msg is Message => msg !== null);
 
   } catch (error) {
