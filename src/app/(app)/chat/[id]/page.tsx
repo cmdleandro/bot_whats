@@ -170,7 +170,7 @@ export default function ChatViewPage() {
                 key={msg.id}
                 className={cn(
                   'flex items-end gap-3 max-w-[85%]',
-                  msg.sender === 'operator' || msg.sender === 'bot' ? 'ml-auto flex-row-reverse' : 'mr-auto'
+                  msg.sender === 'user' ? 'mr-auto' : 'ml-auto flex-row-reverse'
                 )}
               >
                 <Avatar className="h-8 w-8">
@@ -188,7 +188,7 @@ export default function ChatViewPage() {
                 <div
                   className={cn(
                     'rounded-lg px-4 py-2 text-sm shadow-sm flex flex-col',
-                    msg.sender === 'operator' || msg.sender === 'bot' ? 'rounded-br-none bg-primary text-primary-foreground' : 'rounded-bl-none bg-background'
+                     msg.sender === 'user' ? 'rounded-bl-none bg-background' : 'rounded-br-none bg-primary text-primary-foreground'
                   )}
                 >
                   {(msg.sender === 'bot' || msg.sender === 'operator') && (
