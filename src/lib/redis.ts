@@ -98,7 +98,7 @@ export async function getContacts(): Promise<Contact[]> {
         const avatar = `https://placehold.co/40x40.png`;
 
         if (allMessagesJson.length > 0) {
-          const lastMessageJson = allMessagesJson[allMessagesJson.length - 1];
+          const lastMessageJson = allMessagesJson[0]; // A mensagem mais recente está no índice 0
           const lastMessage = parseRedisMessage(lastMessageJson);
           
           if (lastMessage) {
