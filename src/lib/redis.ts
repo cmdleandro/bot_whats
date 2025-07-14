@@ -15,7 +15,7 @@ export async function getClient() {
     const url = process.env.REDIS_URL;
     if (!url) {
         console.error('A variável de ambiente REDIS_URL não está definida.');
-        throw new Error('A variável de ambiente REDIS_URL não está definida. Por favor, configure-a no painel do seu ambiente de produção.');
+        throw new Error('A variável de ambiente REDIS_URL não está definida. Por favor, configure-a no arquivo .env ou no painel do seu ambiente de produção.');
     }
     
     try {
@@ -42,18 +42,9 @@ export async function getClient() {
     }
 }
 
-function parseRedisMessage(jsonString: string): RedisMessage | null {
-  try {
-    const data = JSON.parse(jsonString);
-    // Basic validation to ensure it's a message object we expect
-    if (data && typeof data.texto === 'string' && typeof data.tipo === 'string') {
-        return data;
-    }
-    return null;
-  } catch (e) {
-    console.warn(`Could not parse message from Redis: "${jsonString}"`, e);
-    return null;
-  }
+
+function parseRedisMessage(jsonString: string): RedisMessage {
+  return JSON.parse(jsonString) as RedisMessage;
 }
 
 export async function getContacts(): Promise<Contact[]> {
@@ -79,30 +70,22 @@ export async function getContacts(): Promise<Contact[]> {
         let avatar = `https://placehold.co/40x40.png`;
 
         if (allMessagesJson.length > 0) {
-          const lastMessageJson = allMessagesJson[0]; // Redis lPush makes index 0 the latest
-          const lastMessage = parseRedisMessage(lastMessageJson);
-          
-          if (lastMessage) {
-              lastMessageText = lastMessage.texto || 'Mensagem sem texto';
-              timestamp = lastMessage.timestamp ? parseInt(lastMessage.timestamp, 10) * 1000 : Date.now();
-          }
+            const lastMsgJson = allMessagesJson[0]; // latest message
+            const lastMsg = parseRedisMessage(lastMsgJson);
+            lastMessageText = lastMsg.texto;
+            timestamp = lastMsg.timestamp ? parseInt(lastMsg.timestamp, 10) * 1000 : Date.now();
         }
         
-        // Loop through all messages to find the latest contact name and photo
         for (const msgJson of allMessagesJson) {
             const msg = parseRedisMessage(msgJson);
-            if (msg?.contactName) {
-                contactName = msg.contactName;
-            }
-            if (msg?.contactPhotoUrl) {
-                avatar = msg.contactPhotoUrl;
-            }
+            if (msg.contactName) contactName = msg.contactName;
+            if (msg.contactPhotoUrl) avatar = msg.contactPhotoUrl;
         }
         
         return {
           id: contactId,
           name: contactName,
-          avatar: avatar,
+          avatar: avatar || `https://placehold.co/40x40.png`,
           lastMessage: lastMessageText,
           timestamp: formatRelative(fromUnixTime(timestamp / 1000), new Date(), { locale: ptBR }),
           unreadCount: 0,
@@ -133,28 +116,22 @@ export async function getMessages(contactId: string): Promise<Message[]> {
       return [];
     }
     
-    // Reverse the array to get chronological order (oldest first)
     messagesJson.reverse();
 
     const parsedMessages = messagesJson.map((jsonString, index) => {
       const redisMsg = parseRedisMessage(jsonString);
-
-      if (redisMsg) {
-        const timestamp = redisMsg.timestamp ? parseInt(redisMsg.timestamp, 10) * 1000 : Date.now();
-        return {
-          id: `m-${contactId}-${index}`,
-          contactId: contactId,
-          text: redisMsg.texto,
-          sender: redisMsg.tipo,
-          operatorName: redisMsg.operatorName,
-          timestamp: new Date(timestamp).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
-        };
-      }
-      // If parsing fails, we return null and filter it out later.
-      return null;
+      const timestamp = redisMsg.timestamp ? parseInt(redisMsg.timestamp, 10) * 1000 : Date.now();
+      
+      return {
+        id: `m-${contactId}-${index}`,
+        contactId: contactId,
+        text: redisMsg.texto,
+        sender: redisMsg.tipo,
+        operatorName: redisMsg.operatorName,
+        timestamp: new Date(timestamp).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+      };
     });
     
-    // Filter out any messages that failed to parse
     return parsedMessages.filter((msg): msg is Message => msg !== null);
 
   } catch (error) {
@@ -175,7 +152,6 @@ export async function addMessage(contactId: string, message: { text: string; sen
       operatorName: message.operatorName,
     };
     
-    // LPUSH adds to the head of the list (index 0)
     await client.lPush(key, JSON.stringify(redisMessage));
 
   } catch (error) {
