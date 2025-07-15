@@ -70,7 +70,6 @@ function parseRedisMessage(jsonString: string): RedisMessage {
         }
     }
     
-    // Verifica se a mensagem do bot deve acionar o alarme
     const needsAttention = parsed.tipo === 'bot' && checkNeedsAttention(parsed.texto || '');
 
     return {
@@ -82,6 +81,7 @@ function parseRedisMessage(jsonString: string): RedisMessage {
       contactPhotoUrl: parsed.contactPhotoUrl,
       instance: parsed.instance,
       needsAttention: parsed.needsAttention === true || needsAttention,
+      status: parsed.status,
     };
   } catch (e) {
     return { 
@@ -102,7 +102,7 @@ export async function getContacts(): Promise<Contact[]> {
   try {
     const client = await getClient();
     const [storedContacts, contactKeys] = await Promise.all([
-        getStoredContacts(), // Fetch the saved contacts list
+        getStoredContacts(),
         client.keys('chat:*')
     ]);
     const storedContactsMap = new Map(storedContacts.map(c => [c.id, c.name]));
@@ -120,23 +120,20 @@ export async function getContacts(): Promise<Contact[]> {
         let lastMessageText = 'Nenhuma mensagem ainda.';
         let timestamp = Date.now();
         
-        // Priority for naming: 1. Stored Contact Name, 2. Name from user message, 3. Default from ID
         let contactName = storedContactsMap.get(contactId) || contactId.split('@')[0];
         let avatar = `https://placehold.co/40x40.png`;
         let needsAttention = false;
 
         if (allMessagesJson.length > 0) {
-            const lastMsg = parseRedisMessage(allMessagesJson[0]); // Get the most recent
+            const lastMsg = parseRedisMessage(allMessagesJson[0]);
             lastMessageText = lastMsg.texto;
             timestamp = lastMsg.timestamp ? parseInt(lastMsg.timestamp, 10) * 1000 : Date.now();
             needsAttention = lastMsg.needsAttention === true;
         }
         
-        // Find the most recent name and avatar from a USER message, if not already in stored contacts
         if (!storedContactsMap.has(contactId)) {
             for (const msgJson of allMessagesJson) {
                 const msg = parseRedisMessage(msgJson);
-                // CRITICAL FIX: Only consider 'user' messages for contactName and contactPhotoUrl
                 if (msg.tipo === 'user') {
                     if (msg.contactName) {
                         contactName = msg.contactName;
@@ -144,7 +141,6 @@ export async function getContacts(): Promise<Contact[]> {
                     if (msg.contactPhotoUrl) {
                         avatar = msg.contactPhotoUrl;
                     }
-                    // If we found both from a user message, we can stop searching
                     if (contactName !== contactId.split('@')[0] && avatar !== `https://placehold.co/40x40.png`) {
                         break;
                     }
@@ -205,6 +201,7 @@ export async function getMessages(contactId: string): Promise<Message[]> {
         operatorName: redisMsg.operatorName,
         timestamp: new Date(timestamp).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
         botAvatarUrl: sender === 'bot' ? redisMsg.contactPhotoUrl : undefined,
+        status: redisMsg.status,
       };
     });
 
@@ -241,6 +238,7 @@ export async function addMessage(contactId: string, message: { text: string; sen
       operatorName: message.operatorName,
       instance: instanceName,
       needsAttention: false, 
+      status: 'sent',
     };
 
     const formattedText = `*${message.operatorName}*\n${message.text}`;

@@ -4,9 +4,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams } from 'next/navigation';
 import Image from 'next/image';
-import { Send, Bot, User, ChevronLeft, Loader2 } from 'lucide-react';
+import { Send, Bot, User, ChevronLeft, Loader2, Check, CheckCheck } from 'lucide-react';
 import { getMessages, addMessage, getContacts, dismissAttention } from '@/lib/redis';
-import { Message, Contact } from '@/lib/data';
+import { Message, Contact, MessageStatus } from '@/lib/data';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -14,6 +14,19 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
 import { useToast } from '@/hooks/use-toast';
+
+function MessageStatusIndicator({ status }: { status: MessageStatus }) {
+    const iconClass = "h-4 w-4 ml-1";
+    if (status === 'read') {
+        return <CheckCheck className={cn(iconClass, "text-blue-500")} />;
+    }
+    if (status === 'delivered') {
+        return <CheckCheck className={iconClass} />;
+    }
+    // Default to 'sent'
+    return <Check className={iconClass} />;
+}
+
 
 export default function ChatViewPage() {
   const params = useParams();
@@ -35,7 +48,7 @@ export default function ChatViewPage() {
     try {
         const redisMessages = await getMessages(id);
         setMessages(prevMessages => {
-            if (prevMessages.length !== redisMessages.length) {
+            if (JSON.stringify(prevMessages) !== JSON.stringify(redisMessages)) {
                 return redisMessages;
             }
             return prevMessages;
@@ -60,7 +73,6 @@ export default function ChatViewPage() {
         async function fetchContactAndInitialMessages() {
             setIsLoading(true);
             try {
-                // Desativa o alarme assim que o chat é aberto
                 await dismissAttention(contactId);
 
                 const allContacts = await getContacts();
@@ -97,7 +109,7 @@ export default function ChatViewPage() {
 
         const interval = setInterval(() => {
           fetchMessages(contactId, true);
-        }, 3000); // Check every 3 seconds
+        }, 3000);
 
         return () => clearInterval(interval);
     }
@@ -118,13 +130,15 @@ export default function ChatViewPage() {
 
     setIsSending(true);
 
+    const tempId = `m${Date.now()}`;
     const message: Message = {
-      id: `m${Date.now()}`,
+      id: tempId,
       contactId,
       text: newMessage,
       sender: 'operator',
       operatorName: operatorName,
       timestamp: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+      status: 'sent',
     };
 
     setMessages(prevMessages => [...prevMessages, message]);
@@ -136,6 +150,8 @@ export default function ChatViewPage() {
         sender: 'operator',
         operatorName: operatorName
       });
+      // Optionally, you can refetch messages here to get the final status from redis
+      // await fetchMessages(contactId, true);
     } catch (error) {
       console.error('Falha ao enviar mensagem:', error);
       toast({
@@ -143,11 +159,9 @@ export default function ChatViewPage() {
         title: 'Erro de Rede',
         description: 'Não foi possível enviar a mensagem. Por favor, tente novamente.',
       });
-      // Rollback UI on failure
-      setMessages(prevMessages => prevMessages.filter(m => m.id !== message.id));
+      setMessages(prevMessages => prevMessages.filter(m => m.id !== tempId));
     } finally {
       setIsSending(false);
-      // Refocus the textarea after sending
       document.querySelector('textarea')?.focus();
     }
   };
@@ -246,7 +260,10 @@ export default function ChatViewPage() {
                       </p>
                   )}
                   <p className="whitespace-pre-wrap">{msg.text}</p>
-                  <p className="mt-1 text-right text-xs opacity-60 self-end">{msg.timestamp}</p>
+                  <div className="flex items-center justify-end mt-1 text-xs opacity-60 self-end">
+                    <span>{msg.timestamp}</span>
+                    {msg.sender === 'operator' && msg.status && <MessageStatusIndicator status={msg.status} />}
+                  </div>
                 </div>
               </div>
             ))

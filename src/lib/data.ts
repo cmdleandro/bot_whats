@@ -8,6 +8,8 @@ export type User = {
   createdAt: string;
 };
 
+export type MessageStatus = 'sent' | 'delivered' | 'read';
+
 export type RedisMessage = {
   texto: string;
   tipo: 'user' | 'bot' | 'operator'; 
@@ -17,6 +19,7 @@ export type RedisMessage = {
   contactPhotoUrl?: string; 
   instance?: string;
   needsAttention?: boolean;
+  status?: MessageStatus;
 };
 
 export type Message = {
@@ -27,6 +30,7 @@ export type Message = {
   operatorName?: string;
   timestamp: string;
   botAvatarUrl?: string;
+  status?: MessageStatus;
 };
 
 export type Contact = {
