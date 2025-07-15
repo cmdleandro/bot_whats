@@ -5,7 +5,7 @@ import * as React from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
-import { LogOut, MessageSquare, Users, Loader2 } from 'lucide-react';
+import { LogOut, MessageSquare, Users, Loader2, BookUser } from 'lucide-react';
 import {
   SidebarProvider,
   Sidebar,
@@ -99,6 +99,17 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
                 <Link href="/chat">
                   <MessageSquare />
                   <span>Mensageria</span>
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                asChild
+                isActive={pathname.startsWith('/contacts')}
+              >
+                <Link href="/contacts">
+                  <BookUser />
+                  <span>Contatos</span>
                 </Link>
               </SidebarMenuButton>
             </SidebarMenuItem>
