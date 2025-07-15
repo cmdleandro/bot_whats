@@ -20,7 +20,7 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
-import { Search, BellRing, PlusCircle, Sparkles } from 'lucide-react';
+import { Search, BellRing, PlusCircle } from 'lucide-react';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { getContacts } from '@/lib/redis';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -124,18 +124,6 @@ export function ContactList() {
           <h2 className="text-2xl font-bold">Contatos</h2>
           <div className="flex items-center gap-1">
             <TooltipProvider>
-                <Tooltip>
-                    <TooltipTrigger asChild>
-                        <Button variant="ghost" size="icon" onClick={() => router.push('/ai-contact-finder')}>
-                            <Sparkles className="h-6 w-6" />
-                            <span className="sr-only">Busca com IA</span>
-                        </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                        <p>Busca Inteligente de Contatos</p>
-                    </TooltipContent>
-                </Tooltip>
-
                 <Dialog open={isNewChatOpen} onOpenChange={setIsNewChatOpen}>
                 <Tooltip>
                     <TooltipTrigger asChild>

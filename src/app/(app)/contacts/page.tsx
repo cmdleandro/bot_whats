@@ -1,227 +1,324 @@
+'use server';
 
-'use client';
+import { createClient } from 'redis';
+import type { Contact, RedisMessage, Message, User, StoredContact } from './data';
+import { initialUsers } from './data';
+import { formatRelative, fromUnixTime } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
 
-import React, { useState, useEffect, useCallback } from 'react';
-import { useToast } from '@/hooks/use-toast';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { Upload, Trash2, Loader2, Info, UserPlus } from 'lucide-react';
-import { StoredContact } from '@/lib/data';
-import { getStoredContacts, saveStoredContacts } from '@/lib/redis';
-import { processContactsFile } from '@/ai/flows/process-csv-flow';
-import { useRouter } from 'next/navigation';
+let redisClient: ReturnType<typeof createClient> | null = null;
 
-export default function ContactsPage() {
-  const [contacts, setContacts] = useState<StoredContact[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [fileContent, setFileContent] = useState<string>('');
-  const { toast } = useToast();
-  const router = useRouter();
-  
-  const fetchContacts = useCallback(async () => {
-    setIsLoading(true);
+const BOT_ATTENTION_KEYWORDS = [
+    "transferindo para um de nossos atendentes",
+    "estou te transferindo para um especialista",
+    "vou te passar para um técnico",
+    "aguarde o nosso próximo agente",
+    "encaminhando sua conversa para o setor responsável",
+    "passando para um técnico",
+    "vou acionar um técnico humano pra te ajudar melhor"
+];
+
+
+export async function getClient() {
+    if (redisClient && redisClient.isOpen) {
+        return redisClient;
+    }
+
+    const url = process.env.REDIS_URL;
+    if (!url) {
+        console.error('A variável de ambiente REDIS_URL não está definida.');
+        throw new Error('A variável de ambiente REDIS_URL não está definida. Por favor, configure-a no arquivo .env ou no painel do seu ambiente de produção.');
+    }
+    
     try {
-      const storedContacts = await getStoredContacts();
-      setContacts(storedContacts);
-    } catch (error) {
-      toast({
-        variant: 'destructive',
-        title: 'Erro ao Carregar Contatos',
-        description: 'Não foi possível buscar a lista de contatos do banco de dados.',
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  }, [toast]);
-
-  useEffect(() => {
-    fetchContacts();
-  }, [fetchContacts]);
-
-  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const text = e.target?.result as string;
-        setFileContent(text);
-      };
-      reader.readAsText(file);
-    }
-  };
-
-  const handleImport = async () => {
-    if (!fileContent) {
-      toast({
-        variant: 'destructive',
-        title: 'Nenhum Arquivo Selecionado',
-        description: 'Por favor, selecione um arquivo CSV ou VCF para importar.',
-      });
-      return;
-    }
-    setIsProcessing(true);
-    try {
-      const result = await processContactsFile({ fileContent: fileContent });
-      if (result.contacts.length > 0) {
-        await saveStoredContacts(result.contacts);
-        await fetchContacts(); 
-        toast({
-          title: 'Importação Concluída',
-          description: `${result.contacts.length} contatos foram importados e salvos com sucesso.`,
+        const client = createClient({ 
+            url,
+            socket: {
+                connectTimeout: 5000
+            }
         });
-        setIsDialogOpen(false);
-        setFileContent('');
-      } else {
-        toast({
-          variant: 'destructive',
-          title: 'Nenhum Contato Encontrado',
-          description: 'A IA não conseguiu extrair contatos válidos do arquivo fornecido.',
+
+        client.on('error', (err) => {
+            console.error('Erro no Cliente Redis', err);
+            redisClient = null;
         });
-      }
-    } catch (error) {
-      console.error('Erro ao processar arquivo:', error);
-      toast({
-        variant: 'destructive',
-        title: 'Erro na Importação',
-        description: 'Ocorreu um erro ao processar o arquivo. Verifique se o formato (CSV ou VCF) está correto.',
-      });
-    } finally {
-      setIsProcessing(false);
+
+        await client.connect();
+        console.log('Cliente Redis conectado com sucesso.');
+        redisClient = client;
+        return redisClient;
+    } catch (e) {
+        console.error('Falha ao conectar ao Redis:', e);
+        redisClient = null;
+        throw e;
     }
-  };
-  
-  const handleDeleteAll = async () => {
-    if (confirm('Você tem certeza que deseja apagar TODOS os contatos importados? Esta ação não pode ser desfeita.')) {
-        setIsLoading(true);
+}
+
+
+function parseRedisMessage(jsonString: string): RedisMessage {
+  const cleanedString = jsonString.trim();
+  try {
+    const parsed = JSON.parse(cleanedString);
+    
+    if (typeof parsed.texto === 'string' && parsed.texto.startsWith('"') && parsed.texto.endsWith('"')) {
         try {
-            await saveStoredContacts([]);
-            setContacts([]);
-            toast({
-                title: 'Contatos Apagados',
-                description: 'Sua lista de contatos foi removida com sucesso.'
-            });
-        } catch (error) {
-             toast({
-                variant: 'destructive',
-                title: 'Erro ao Apagar',
-                description: 'Não foi possível apagar os contatos.',
-            });
-        } finally {
-            setIsLoading(false);
+            parsed.texto = JSON.parse(parsed.texto);
+        } catch (e) {
+            // se o segundo parse falhar, mantem o texto como esta
         }
     }
+    
+    // Verifica se a mensagem do bot deve acionar o alarme
+    const needsAttention = parsed.tipo === 'bot' && checkNeedsAttention(parsed.texto || '');
+
+    return {
+      texto: parsed.texto || '',
+      tipo: parsed.tipo || 'user',
+      timestamp: parsed.timestamp || Math.floor(Date.now() / 1000).toString(),
+      contactName: parsed.contactName,
+      operatorName: parsed.operatorName,
+      contactPhotoUrl: parsed.contactPhotoUrl,
+      instance: parsed.instance,
+      needsAttention: parsed.needsAttention === true || needsAttention,
+    };
+  } catch (e) {
+    return { 
+        texto: cleanedString, 
+        tipo: 'user', 
+        timestamp: Math.floor(Date.now() / 1000).toString(),
+        needsAttention: false,
+    };
   }
-  
-  const handleStartChat = (contactId: string) => {
-    if (contactId) {
-        router.push(`/chat/${encodeURIComponent(contactId)}`);
+}
+
+function checkNeedsAttention(message: string): boolean {
+    const lowerCaseMessage = message.toLowerCase();
+    return BOT_ATTENTION_KEYWORDS.some(keyword => lowerCaseMessage.includes(keyword));
+}
+
+export async function getContacts(): Promise<Contact[]> {
+  try {
+    const client = await getClient();
+    const contactKeys = [];
+    for await (const key of client.scanIterator({ MATCH: 'chat:*', COUNT: 100 })) {
+      contactKeys.push(key);
     }
-  };
 
+    if (contactKeys.length === 0) {
+      return [];
+    }
+    
+    const contacts: Contact[] = await Promise.all(
+      contactKeys.map(async (key) => {
+        const contactId = key.replace(/^chat:/, '').trim();
+        const allMessagesJson = await client.lRange(key, 0, -1);
+        
+        let lastMessageText = 'Nenhuma mensagem ainda.';
+        let timestamp = Date.now();
+        let contactName = contactId.split('@')[0];
+        let avatar = `https://placehold.co/40x40.png`;
+        let needsAttention = false;
 
-  return (
-    <div className="p-4 md:p-8">
-      <Card>
-        <CardHeader className="flex flex-row items-start justify-between">
-          <div>
-            <CardTitle>Gerenciar Contatos</CardTitle>
-            <CardDescription>
-              Importe e visualize sua lista de contatos para usar na busca com IA.
-            </CardDescription>
-          </div>
-          <div className="flex gap-2">
-            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-              <DialogTrigger asChild>
-                <Button>
-                  <Upload className="mr-2 h-4 w-4" />
-                  Importar Contatos
-                </Button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Importar Contatos (CSV ou VCF)</DialogTitle>
-                  <DialogDescription>
-                    Selecione o arquivo CSV (do Google) ou VCF para importar.
-                  </DialogDescription>
-                </DialogHeader>
-                <div className="space-y-4 py-4">
-                    <div className="bg-muted/50 p-3 rounded-lg text-sm space-y-2">
-                        <p className="font-semibold flex items-center gap-2"><Info className="h-5 w-5 text-primary"/> Instruções</p>
-                        <ul className="list-disc list-inside space-y-1 text-muted-foreground">
-                            <li>Exporte seus contatos do Google (formato CSV) ou de outro aplicativo (formato VCF).</li>
-                            <li>Faça o upload do arquivo exportado abaixo.</li>
-                            <li>A IA irá processar o arquivo e adicionar os contatos à sua lista.</li>
-                        </ul>
-                    </div>
-                  <input
-                    type="file"
-                    accept=".csv,.vcf"
-                    onChange={handleFileChange}
-                    className="w-full text-sm text-foreground file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary/10 file:text-primary hover:file:bg-primary/20"
-                    disabled={isProcessing}
-                  />
-                </div>
-                <DialogFooter>
-                  <Button onClick={handleImport} disabled={isProcessing || !fileContent}>
-                    {isProcessing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4" />}
-                    Processar e Salvar
-                  </Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
-            <Button variant="destructive" onClick={handleDeleteAll} disabled={isLoading || contacts.length === 0}>
-                <Trash2 className="mr-2 h-4 w-4" />
-                Apagar Tudo
-            </Button>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <ScrollArea className="h-[60vh] w-full">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Nome</TableHead>
-                  <TableHead>ID (Telefone)</TableHead>
-                  <TableHead className="text-right">Ações</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {isLoading ? (
-                  <TableRow>
-                    <TableCell colSpan={3} className="text-center">
-                      <Loader2 className="mx-auto h-6 w-6 animate-spin" />
-                    </TableCell>
-                  </TableRow>
-                ) : contacts.length > 0 ? (
-                  contacts.map((contact, index) => (
-                    <TableRow key={index}>
-                      <TableCell className="font-medium">{contact.name}</TableCell>
-                      <TableCell className="font-mono text-xs">{contact.id}</TableCell>
-                      <TableCell className="text-right">
-                        <Button size="sm" variant="ghost" onClick={() => handleStartChat(contact.id)}>
-                            <UserPlus className="mr-2 h-4 w-4"/>
-                            Conversar
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))
-                ) : (
-                  <TableRow>
-                    <TableCell colSpan={3} className="text-center text-muted-foreground">
-                      Nenhum contato importado.
-                    </TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
-          </ScrollArea>
-        </CardContent>
-      </Card>
-    </div>
-  );
+        if (allMessagesJson.length > 0) {
+            const lastMsg = parseRedisMessage(allMessagesJson[0]); // Pega a mais recente
+            lastMessageText = lastMsg.texto;
+            timestamp = lastMsg.timestamp ? parseInt(lastMsg.timestamp, 10) * 1000 : Date.now();
+            needsAttention = lastMsg.needsAttention === true;
+        }
+        
+        for (const msgJson of allMessagesJson) {
+            const msg = parseRedisMessage(msgJson);
+            if (msg.tipo === 'user' && msg.contactName) contactName = msg.contactName;
+            if (msg.tipo === 'user' && msg.contactPhotoUrl) avatar = msg.contactPhotoUrl;
+            if (contactName !== contactId.split('@')[0] && avatar !== `https://placehold.co/40x40.png`) break;
+        }
+        
+        return {
+          id: contactId,
+          name: contactName,
+          avatar: avatar || `https://placehold.co/40x40.png`,
+          lastMessage: lastMessageText,
+          timestamp: formatRelative(fromUnixTime(timestamp / 1000), new Date(), { locale: ptBR }),
+          unreadCount: 0,
+          needsAttention,
+        };
+      })
+    );
+    
+    const validContacts = contacts.filter(c => c.id && !c.id.includes('$json'));
+    return validContacts.sort((a, b) => {
+        if (a.needsAttention && !b.needsAttention) return -1;
+        if (!a.needsAttention && b.needsAttention) return 1;
+        const dateA = new Date(a.timestamp.startsWith('hoje') || a.timestamp.startsWith('ontem') ? new Date() : a.timestamp);
+        const dateB = new Date(b.timestamp.startsWith('hoje') || b.timestamp.startsWith('ontem') ? new Date() : b.timestamp);
+        return dateB.getTime() - dateA.getTime();
+    });
+
+  } catch (error) {
+    console.error("Falha ao buscar contatos do Redis:", error);
+    return [];
+  }
+}
+
+export async function getMessages(contactId: string): Promise<Message[]> {
+  try {
+    const client = await getClient();
+    const key = `chat:${contactId.trim()}`;
+    const messagesJson = await client.lRange(key, 0, -1);
+
+    if (!messagesJson || messagesJson.length === 0) {
+      return [];
+    }
+    
+    messagesJson.reverse();
+
+    return messagesJson.map((jsonString, index) => {
+      const redisMsg = parseRedisMessage(jsonString);
+      const timestamp = redisMsg.timestamp ? parseInt(redisMsg.timestamp, 10) * 1000 : Date.now();
+      
+      const sender: Message['sender'] = ['user', 'bot', 'operator'].includes(redisMsg.tipo) ? redisMsg.tipo : 'user';
+
+      return {
+        id: `m-${contactId}-${index}`,
+        contactId: contactId,
+        text: redisMsg.texto,
+        sender: sender,
+        operatorName: redisMsg.operatorName,
+        timestamp: new Date(timestamp).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+        botAvatarUrl: sender === 'bot' ? redisMsg.contactPhotoUrl : undefined,
+      };
+    });
+
+  } catch (error) {
+    console.error(`Falha ao buscar mensagens para ${contactId} do Redis:`, error);
+    return [];
+  }
+}
+
+export async function addMessage(contactId: string, message: { text: string; sender: 'operator', operatorName: string }): Promise<void> {
+  try {
+    const client = await getClient();
+    const historyKey = `chat:${contactId.trim()}`;
+    const channelName = 'fila_envio_whatsapp';
+    
+    let instanceName = 'default';
+    const recentMessages = await client.lRange(historyKey, 0, 10);
+    for (const msgJson of recentMessages) {
+        try {
+            const parsedMsg = parseRedisMessage(msgJson);
+            if (parsedMsg.instance) {
+                instanceName = parsedMsg.instance;
+                break;
+            }
+        } catch (e) {
+            console.warn("Could not parse message from history:", msgJson);
+        }
+    }
+    
+    const redisMessageForHistory: RedisMessage = {
+      texto: message.text,
+      tipo: message.sender,
+      timestamp: Math.floor(Date.now() / 1000).toString(),
+      operatorName: message.operatorName,
+      instance: instanceName,
+      needsAttention: false, 
+    };
+
+    const formattedText = `*${message.operatorName}*\n${message.text}`;
+    
+    const messageForQueue = {
+        instance: instanceName,
+        remoteJid: contactId.trim(),
+        text: formattedText,
+    };
+
+    await client.lPush(historyKey, JSON.stringify(redisMessageForHistory));
+    
+    await client.publish(channelName, JSON.stringify(messageForQueue));
+    
+    console.log(`Mensagem para ${contactId} com instância ${instanceName} publicada no canal ${channelName}.`);
+
+  } catch (error) {
+    console.error(`Falha ao adicionar mensagem para ${contactId} no Redis:`, error);
+    throw error;
+  }
+}
+
+export async function dismissAttention(contactId: string): Promise<void> {
+  try {
+    const client = await getClient();
+    const key = `chat:${contactId.trim()}`;
+    const lastMessageJson = await client.lIndex(key, 0); 
+
+    if (!lastMessageJson) return;
+
+    let lastMessage: RedisMessage;
+    try {
+        lastMessage = JSON.parse(lastMessageJson);
+    } catch (e) {
+        console.error("Could not parse last message to dismiss attention:", lastMessageJson);
+        return;
+    }
+    
+    if (lastMessage.needsAttention) {
+      const updatedMessage = { ...lastMessage, needsAttention: false };
+      await client.lSet(key, 0, JSON.stringify(updatedMessage));
+      console.log(`Alarme para o contato ${contactId} foi desativado.`);
+    }
+  } catch (error) {
+    console.error(`Falha ao desativar o alarme para ${contactId}:`, error);
+  }
+}
+
+const USERS_KEY = 'chatview:users';
+
+export async function getUsers(): Promise<User[]> {
+    try {
+        const client = await getClient();
+        let usersJson = await client.get(USERS_KEY);
+
+        if (!usersJson) {
+            await client.set(USERS_KEY, JSON.stringify(initialUsers));
+            usersJson = JSON.stringify(initialUsers);
+        }
+
+        return JSON.parse(usersJson);
+    } catch (error) {
+        console.error('Falha ao buscar usuários do Redis:', error);
+        return initialUsers;
+    }
+}
+
+export async function saveUsers(users: User[]): Promise<void> {
+    try {
+        const client = await getClient();
+        await client.set(USERS_KEY, JSON.stringify(users));
+    } catch (error) {
+        console.error('Falha ao salvar usuários no Redis:', error);
+        throw error;
+    }
+}
+
+// Stored Contacts Management
+const STORED_CONTACTS_KEY = 'chatview:stored_contacts';
+
+export async function getStoredContacts(): Promise<StoredContact[]> {
+    try {
+        const client = await getClient();
+        const contactsJson = await client.get(STORED_CONTACTS_KEY);
+        return contactsJson ? JSON.parse(contactsJson) : [];
+    } catch (error) {
+        console.error('Falha ao buscar contatos armazenados do Redis:', error);
+        return [];
+    }
+}
+
+export async function saveStoredContacts(contacts: StoredContact[]): Promise<void> {
+    try {
+        const client = await getClient();
+        await client.set(STORED_CONTACTS_KEY, JSON.stringify(contacts));
+    } catch (error) {
+        console.error('Falha ao salvar contatos no Redis:', error);
+        throw error;
+    }
 }

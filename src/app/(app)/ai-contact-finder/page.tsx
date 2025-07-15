@@ -1,191 +1,324 @@
+'use server';
 
-'use client';
+import { createClient } from 'redis';
+import type { Contact, RedisMessage, Message, User, StoredContact } from './data';
+import { initialUsers } from './data';
+import { formatRelative, fromUnixTime } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
 
-import React, { useState, useEffect } from 'react';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Loader2, Search, Sparkles, UserPlus, AlertTriangle } from 'lucide-react';
-import { useToast } from '@/hooks/use-toast';
-import { useRouter } from 'next/navigation';
-import { findContacts, FindContactsOutput } from '@/ai/flows/find-contact-flow';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import Link from 'next/link';
-import { getStoredContacts } from '@/lib/redis';
+let redisClient: ReturnType<typeof createClient> | null = null;
 
-export default function AiContactFinderPage() {
-  const [searchTerm, setSearchTerm] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-  const [foundContacts, setFoundContacts] = useState<FindContactsOutput | null>(null);
-  const [hasStoredContacts, setHasStoredContacts] = useState<boolean | null>(null);
-  const { toast } = useToast();
-  const router = useRouter();
+const BOT_ATTENTION_KEYWORDS = [
+    "transferindo para um de nossos atendentes",
+    "estou te transferindo para um especialista",
+    "vou te passar para um técnico",
+    "aguarde o nosso próximo agente",
+    "encaminhando sua conversa para o setor responsável",
+    "passando para um técnico",
+    "vou acionar um técnico humano pra te ajudar melhor"
+];
 
-  useEffect(() => {
-    async function checkContacts() {
-        setIsLoading(true);
+
+export async function getClient() {
+    if (redisClient && redisClient.isOpen) {
+        return redisClient;
+    }
+
+    const url = process.env.REDIS_URL;
+    if (!url) {
+        console.error('A variável de ambiente REDIS_URL não está definida.');
+        throw new Error('A variável de ambiente REDIS_URL não está definida. Por favor, configure-a no arquivo .env ou no painel do seu ambiente de produção.');
+    }
+    
+    try {
+        const client = createClient({ 
+            url,
+            socket: {
+                connectTimeout: 5000
+            }
+        });
+
+        client.on('error', (err) => {
+            console.error('Erro no Cliente Redis', err);
+            redisClient = null;
+        });
+
+        await client.connect();
+        console.log('Cliente Redis conectado com sucesso.');
+        redisClient = client;
+        return redisClient;
+    } catch (e) {
+        console.error('Falha ao conectar ao Redis:', e);
+        redisClient = null;
+        throw e;
+    }
+}
+
+
+function parseRedisMessage(jsonString: string): RedisMessage {
+  const cleanedString = jsonString.trim();
+  try {
+    const parsed = JSON.parse(cleanedString);
+    
+    if (typeof parsed.texto === 'string' && parsed.texto.startsWith('"') && parsed.texto.endsWith('"')) {
         try {
-            const contacts = await getStoredContacts();
-            setHasStoredContacts(contacts.length > 0);
-        } catch (error) {
-            console.error("Erro ao verificar contatos armazenados:", error);
-            setHasStoredContacts(false);
-             toast({
-                variant: 'destructive',
-                title: 'Erro de Banco de Dados',
-                description: 'Não foi possível verificar a lista de contatos armazenada.',
-            });
-        } finally {
-            setIsLoading(false);
+            parsed.texto = JSON.parse(parsed.texto);
+        } catch (e) {
+            // se o segundo parse falhar, mantem o texto como esta
         }
     }
-    checkContacts();
-  }, [toast]);
+    
+    // Verifica se a mensagem do bot deve acionar o alarme
+    const needsAttention = parsed.tipo === 'bot' && checkNeedsAttention(parsed.texto || '');
 
-
-  const handleSearch = async () => {
-    if (!searchTerm.trim()) {
-      toast({
-        variant: 'destructive',
-        title: 'Campo Obrigatório',
-        description: 'Por favor, forneça um nome para buscar.',
-      });
-      return;
-    }
-
-    setIsLoading(true);
-    setFoundContacts(null);
-
-    try {
-      const result = await findContacts({
-        searchTerm: searchTerm,
-      });
-      setFoundContacts(result);
-      if (result.contacts.length === 0) {
-        toast({
-            title: 'Nenhum Contato Encontrado',
-            description: `A IA não encontrou contatos correspondentes a "${searchTerm}".`,
-        });
-      }
-    } catch (error) {
-      console.error('Erro ao buscar contatos com IA:', error);
-      toast({
-        variant: 'destructive',
-        title: 'Erro da IA',
-        description: 'Ocorreu um erro ao processar sua solicitação. Tente novamente.',
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleStartChat = (contactId: string) => {
-    if (contactId) {
-        router.push(`/chat/${encodeURIComponent(contactId)}`);
-    }
-  };
-
-  const renderContent = () => {
-    if (hasStoredContacts === null || isLoading) {
-      return (
-        <div className="flex justify-center items-center p-8">
-            <Loader2 className="animate-spin h-8 w-8 text-primary" />
-        </div>
-      );
-    }
-
-    if (!hasStoredContacts) {
-        return (
-            <CardContent>
-                <Alert variant="destructive">
-                    <AlertTriangle className="h-4 w-4" />
-                    <AlertTitle>Nenhuma Lista de Contatos Encontrada</AlertTitle>
-                    <AlertDescription>
-                        Para usar a busca, você precisa primeiro importar sua lista de contatos.
-                        <Button asChild variant="link" className="p-0 h-auto ml-1">
-                            <Link href="/contacts">
-                                Ir para a página de Gerenciamento de Contatos
-                            </Link>
-                        </Button>
-                    </AlertDescription>
-                </Alert>
-            </CardContent>
-        )
-    }
-
-    return (
-       <>
-        <CardContent className="space-y-6">
-          <div className="space-y-2">
-            <label htmlFor="search-term" className="font-semibold">Digite o Nome a ser Buscado</label>
-            <div className="flex gap-2">
-              <Input
-                id="search-term"
-                placeholder="Ex: Leandro"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                disabled={isLoading}
-                onKeyDown={(e) => {
-                    if (e.key === 'Enter' && !e.shiftKey) {
-                        e.preventDefault();
-                        handleSearch();
-                    }
-                }}
-              />
-              <Button onClick={handleSearch} disabled={isLoading || !searchTerm.trim()}>
-                {isLoading ? <Loader2 className="animate-spin" /> : <Search />}
-                Buscar
-              </Button>
-            </div>
-             <p className="text-xs text-muted-foreground">
-                A busca será realizada na sua lista de contatos importada.
-            </p>
-          </div>
-        </CardContent>
-        {foundContacts && (
-            <CardFooter className="flex flex-col items-start gap-4 border-t pt-6">
-                <h3 className="font-semibold">Resultados da Busca:</h3>
-                {foundContacts.contacts.length > 0 ? (
-                    <ul className="w-full space-y-2">
-                        {foundContacts.contacts.map((contact, index) => (
-                           <li key={index} className="flex items-center justify-between p-3 rounded-md border bg-muted/50">
-                                <div>
-                                    <p className="font-bold">{contact.name}</p>
-                                    <p className="text-sm text-muted-foreground font-mono">{contact.id}</p>
-                                </div>
-                                <Button size="sm" onClick={() => handleStartChat(contact.id)}>
-                                    <UserPlus />
-                                    Iniciar Chat
-                                </Button>
-                           </li>
-                        ))}
-                    </ul>
-                ): (
-                     <p className="text-sm text-muted-foreground w-full text-center p-4">
-                        Nenhum contato correspondente encontrado.
-                    </p>
-                )}
-            </CardFooter>
-        )}
-       </>
-    )
+    return {
+      texto: parsed.texto || '',
+      tipo: parsed.tipo || 'user',
+      timestamp: parsed.timestamp || Math.floor(Date.now() / 1000).toString(),
+      contactName: parsed.contactName,
+      operatorName: parsed.operatorName,
+      contactPhotoUrl: parsed.contactPhotoUrl,
+      instance: parsed.instance,
+      needsAttention: parsed.needsAttention === true || needsAttention,
+    };
+  } catch (e) {
+    return { 
+        texto: cleanedString, 
+        tipo: 'user', 
+        timestamp: Math.floor(Date.now() / 1000).toString(),
+        needsAttention: false,
+    };
   }
+}
 
+function checkNeedsAttention(message: string): boolean {
+    const lowerCaseMessage = message.toLowerCase();
+    return BOT_ATTENTION_KEYWORDS.some(keyword => lowerCaseMessage.includes(keyword));
+}
 
-  return (
-    <div className="p-4 md:p-8 flex justify-center items-start">
-      <Card className="w-full max-w-2xl">
-        <CardHeader>
-          <div className="flex items-center gap-3">
-            <Sparkles className="h-8 w-8 text-primary" />
-            <div>
-                <CardTitle>Assistente de Busca de Contatos</CardTitle>
-                <CardDescription>Use IA para encontrar o ID de um contato a partir do nome, usando sua lista de contatos importada.</CardDescription>
-            </div>
-          </div>
-        </CardHeader>
-        {renderContent()}
-      </Card>
-    </div>
-  );
+export async function getContacts(): Promise<Contact[]> {
+  try {
+    const client = await getClient();
+    const contactKeys = [];
+    for await (const key of client.scanIterator({ MATCH: 'chat:*', COUNT: 100 })) {
+      contactKeys.push(key);
+    }
+
+    if (contactKeys.length === 0) {
+      return [];
+    }
+    
+    const contacts: Contact[] = await Promise.all(
+      contactKeys.map(async (key) => {
+        const contactId = key.replace(/^chat:/, '').trim();
+        const allMessagesJson = await client.lRange(key, 0, -1);
+        
+        let lastMessageText = 'Nenhuma mensagem ainda.';
+        let timestamp = Date.now();
+        let contactName = contactId.split('@')[0];
+        let avatar = `https://placehold.co/40x40.png`;
+        let needsAttention = false;
+
+        if (allMessagesJson.length > 0) {
+            const lastMsg = parseRedisMessage(allMessagesJson[0]); // Pega a mais recente
+            lastMessageText = lastMsg.texto;
+            timestamp = lastMsg.timestamp ? parseInt(lastMsg.timestamp, 10) * 1000 : Date.now();
+            needsAttention = lastMsg.needsAttention === true;
+        }
+        
+        for (const msgJson of allMessagesJson) {
+            const msg = parseRedisMessage(msgJson);
+            if (msg.tipo === 'user' && msg.contactName) contactName = msg.contactName;
+            if (msg.tipo === 'user' && msg.contactPhotoUrl) avatar = msg.contactPhotoUrl;
+            if (contactName !== contactId.split('@')[0] && avatar !== `https://placehold.co/40x40.png`) break;
+        }
+        
+        return {
+          id: contactId,
+          name: contactName,
+          avatar: avatar || `https://placehold.co/40x40.png`,
+          lastMessage: lastMessageText,
+          timestamp: formatRelative(fromUnixTime(timestamp / 1000), new Date(), { locale: ptBR }),
+          unreadCount: 0,
+          needsAttention,
+        };
+      })
+    );
+    
+    const validContacts = contacts.filter(c => c.id && !c.id.includes('$json'));
+    return validContacts.sort((a, b) => {
+        if (a.needsAttention && !b.needsAttention) return -1;
+        if (!a.needsAttention && b.needsAttention) return 1;
+        const dateA = new Date(a.timestamp.startsWith('hoje') || a.timestamp.startsWith('ontem') ? new Date() : a.timestamp);
+        const dateB = new Date(b.timestamp.startsWith('hoje') || b.timestamp.startsWith('ontem') ? new Date() : b.timestamp);
+        return dateB.getTime() - dateA.getTime();
+    });
+
+  } catch (error) {
+    console.error("Falha ao buscar contatos do Redis:", error);
+    return [];
+  }
+}
+
+export async function getMessages(contactId: string): Promise<Message[]> {
+  try {
+    const client = await getClient();
+    const key = `chat:${contactId.trim()}`;
+    const messagesJson = await client.lRange(key, 0, -1);
+
+    if (!messagesJson || messagesJson.length === 0) {
+      return [];
+    }
+    
+    messagesJson.reverse();
+
+    return messagesJson.map((jsonString, index) => {
+      const redisMsg = parseRedisMessage(jsonString);
+      const timestamp = redisMsg.timestamp ? parseInt(redisMsg.timestamp, 10) * 1000 : Date.now();
+      
+      const sender: Message['sender'] = ['user', 'bot', 'operator'].includes(redisMsg.tipo) ? redisMsg.tipo : 'user';
+
+      return {
+        id: `m-${contactId}-${index}`,
+        contactId: contactId,
+        text: redisMsg.texto,
+        sender: sender,
+        operatorName: redisMsg.operatorName,
+        timestamp: new Date(timestamp).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+        botAvatarUrl: sender === 'bot' ? redisMsg.contactPhotoUrl : undefined,
+      };
+    });
+
+  } catch (error) {
+    console.error(`Falha ao buscar mensagens para ${contactId} do Redis:`, error);
+    return [];
+  }
+}
+
+export async function addMessage(contactId: string, message: { text: string; sender: 'operator', operatorName: string }): Promise<void> {
+  try {
+    const client = await getClient();
+    const historyKey = `chat:${contactId.trim()}`;
+    const channelName = 'fila_envio_whatsapp';
+    
+    let instanceName = 'default';
+    const recentMessages = await client.lRange(historyKey, 0, 10);
+    for (const msgJson of recentMessages) {
+        try {
+            const parsedMsg = parseRedisMessage(msgJson);
+            if (parsedMsg.instance) {
+                instanceName = parsedMsg.instance;
+                break;
+            }
+        } catch (e) {
+            console.warn("Could not parse message from history:", msgJson);
+        }
+    }
+    
+    const redisMessageForHistory: RedisMessage = {
+      texto: message.text,
+      tipo: message.sender,
+      timestamp: Math.floor(Date.now() / 1000).toString(),
+      operatorName: message.operatorName,
+      instance: instanceName,
+      needsAttention: false, 
+    };
+
+    const formattedText = `*${message.operatorName}*\n${message.text}`;
+    
+    const messageForQueue = {
+        instance: instanceName,
+        remoteJid: contactId.trim(),
+        text: formattedText,
+    };
+
+    await client.lPush(historyKey, JSON.stringify(redisMessageForHistory));
+    
+    await client.publish(channelName, JSON.stringify(messageForQueue));
+    
+    console.log(`Mensagem para ${contactId} com instância ${instanceName} publicada no canal ${channelName}.`);
+
+  } catch (error) {
+    console.error(`Falha ao adicionar mensagem para ${contactId} no Redis:`, error);
+    throw error;
+  }
+}
+
+export async function dismissAttention(contactId: string): Promise<void> {
+  try {
+    const client = await getClient();
+    const key = `chat:${contactId.trim()}`;
+    const lastMessageJson = await client.lIndex(key, 0); 
+
+    if (!lastMessageJson) return;
+
+    let lastMessage: RedisMessage;
+    try {
+        lastMessage = JSON.parse(lastMessageJson);
+    } catch (e) {
+        console.error("Could not parse last message to dismiss attention:", lastMessageJson);
+        return;
+    }
+    
+    if (lastMessage.needsAttention) {
+      const updatedMessage = { ...lastMessage, needsAttention: false };
+      await client.lSet(key, 0, JSON.stringify(updatedMessage));
+      console.log(`Alarme para o contato ${contactId} foi desativado.`);
+    }
+  } catch (error) {
+    console.error(`Falha ao desativar o alarme para ${contactId}:`, error);
+  }
+}
+
+const USERS_KEY = 'chatview:users';
+
+export async function getUsers(): Promise<User[]> {
+    try {
+        const client = await getClient();
+        let usersJson = await client.get(USERS_KEY);
+
+        if (!usersJson) {
+            await client.set(USERS_KEY, JSON.stringify(initialUsers));
+            usersJson = JSON.stringify(initialUsers);
+        }
+
+        return JSON.parse(usersJson);
+    } catch (error) {
+        console.error('Falha ao buscar usuários do Redis:', error);
+        return initialUsers;
+    }
+}
+
+export async function saveUsers(users: User[]): Promise<void> {
+    try {
+        const client = await getClient();
+        await client.set(USERS_KEY, JSON.stringify(users));
+    } catch (error) {
+        console.error('Falha ao salvar usuários no Redis:', error);
+        throw error;
+    }
+}
+
+// Stored Contacts Management
+const STORED_CONTACTS_KEY = 'chatview:stored_contacts';
+
+export async function getStoredContacts(): Promise<StoredContact[]> {
+    try {
+        const client = await getClient();
+        const contactsJson = await client.get(STORED_CONTACTS_KEY);
+        return contactsJson ? JSON.parse(contactsJson) : [];
+    } catch (error) {
+        console.error('Falha ao buscar contatos armazenados do Redis:', error);
+        return [];
+    }
+}
+
+export async function saveStoredContacts(contacts: StoredContact[]): Promise<void> {
+    try {
+        const client = await getClient();
+        await client.set(STORED_CONTACTS_KEY, JSON.stringify(contacts));
+    } catch (error) {
+        console.error('Falha ao salvar contatos no Redis:', error);
+        throw error;
+    }
 }
