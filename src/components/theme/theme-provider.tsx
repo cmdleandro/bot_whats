@@ -23,7 +23,7 @@ const initialState: Omit<ThemeProviderState, 'setTheme' | 'toggleDarkMode' | 'se
   notificationSound: '/notification1.wav',
 };
 
-// Helper function to get initial state from localStorage
+// Helper function to get initial state from localStorage safely on the client
 const getInitialState = () => {
   if (typeof window === 'undefined') {
     return initialState;
@@ -46,7 +46,7 @@ const getInitialState = () => {
 
 
 const ThemeProviderContext = createContext<ThemeProviderState>({
-  ...getInitialState(),
+  ...initialState,
   setTheme: () => null,
   toggleDarkMode: () => null,
   setNotificationSound: () => null,
@@ -60,14 +60,14 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const body = window.document.body;
     
-    // 1. Clear all existing theme-related classes to start fresh.
+    // 1. Clear all theme-related classes to start fresh.
     const classesToRemove = Array.from(body.classList).filter(
       cls => cls.startsWith('theme-')
     );
     if (classesToRemove.length > 0) {
       body.classList.remove(...classesToRemove);
     }
-
+    
     // 2. Add the current theme class.
     body.classList.add(`theme-${theme}`);
 

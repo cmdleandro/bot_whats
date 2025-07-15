@@ -8,7 +8,7 @@
     font-family: 'Inter', sans-serif;
   }
 
-  /* Default Light Theme (Zinc) */
+  /* Default Theme: Zinc (Light) */
   body.theme-zinc {
     --background: 0 0% 100%;
     --foreground: 222.2 84% 4.9%;
@@ -38,7 +38,7 @@
     --sidebar-ring: 221.2 83.2% 53.3%;
   }
 
-  /* Default Dark Theme (Zinc) */
+  /* Default Theme: Zinc (Dark) */
   body.dark.theme-zinc {
     --background: 222.2 84% 4.9%;
     --foreground: 210 40% 98%;
@@ -67,7 +67,7 @@
     --sidebar-ring: 210 40% 98%;
   }
   
-  /* Blue Theme */
+  /* Theme: Blue (Light) */
   body.theme-blue {
     --background: 210 100% 98%;
     --foreground: 224 71% 4%;
@@ -88,6 +88,8 @@
     --sidebar-accent: 220 90% 60%;
     --sidebar-accent-foreground: 210 20% 98%;
   }
+
+  /* Theme: Blue (Dark) */
   body.dark.theme-blue {
     --background: 221 83% 9%;
     --foreground: 210 20% 98%;
@@ -109,7 +111,7 @@
     --sidebar-accent-foreground: 221 20% 98%;
   }
 
-  /* Green Theme */
+  /* Theme: Green (Light) */
   body.theme-green {
     --background: 140 70% 98%;
     --foreground: 145 60% 10%;
@@ -130,6 +132,8 @@
     --sidebar-accent: 142.1 76.2% 36.3%;
     --sidebar-accent-foreground: 140 20% 98%;
   }
+
+  /* Theme: Green (Dark) */
   body.dark.theme-green {
     --background: 141 78% 9%;
     --foreground: 140 20% 98%;
@@ -151,7 +155,7 @@
     --sidebar-accent-foreground: 140 20% 98%;
   }
 
-  /* Orange Theme */
+  /* Theme: Orange (Light) */
   body.theme-orange {
     --background: 25 100% 98%;
     --foreground: 20 80% 15%;
@@ -172,6 +176,8 @@
     --sidebar-accent: 24.6 95% 53.1%;
     --sidebar-accent-foreground: 20 20% 98%;
   }
+
+  /* Theme: Orange (Dark) */
   body.dark.theme-orange {
     --background: 24 90% 9%;
     --foreground: 24 20% 98%;
@@ -193,7 +199,7 @@
     --sidebar-accent-foreground: 24 20% 98%;
   }
 
-  /* Rose Theme */
+  /* Theme: Rose (Light) */
   body.theme-rose {
     --background: 345 100% 98%;
     --foreground: 345 80% 15%;
@@ -214,6 +220,8 @@
     --sidebar-accent: 346.8 77.2% 49.8%;
     --sidebar-accent-foreground: 345 20% 98%;
   }
+  
+  /* Theme: Rose (Dark) */
   body.dark.theme-rose {
     --background: 347 80% 9%;
     --foreground: 347 20% 98%;
@@ -235,7 +243,7 @@
     --sidebar-accent-foreground: 347 20% 98%;
   }
   
-  /* Violet Theme */
+  /* Theme: Violet (Light) */
   body.theme-violet {
     --background: 255 100% 98%;
     --foreground: 258 80% 15%;
@@ -256,6 +264,8 @@
     --sidebar-accent: 258.8 77.2% 55.8%;
     --sidebar-accent-foreground: 255 20% 98%;
   }
+
+  /* Theme: Violet (Dark) */
   body.dark.theme-violet {
     --background: 258 80% 9%;
     --foreground: 258 20% 98%;
@@ -277,7 +287,7 @@
     --sidebar-accent-foreground: 258 20% 98%;
   }
 
-  /* Yellow Theme */
+  /* Theme: Yellow (Light) */
   body.theme-yellow {
     --background: 45 100% 98%;
     --foreground: 40 80% 15%;
@@ -298,6 +308,8 @@
     --sidebar-accent: 44.6 95% 53.1%;
     --sidebar-accent-foreground: 40 20% 98%;
   }
+
+  /* Theme: Yellow (Dark) */
   body.dark.theme-yellow {
     --background: 40 80% 9%;
     --foreground: 40 20% 98%;
@@ -319,7 +331,7 @@
     --sidebar-accent-foreground: 40 20% 98%;
   }
 
-  /* Slate Theme */
+  /* Theme: Slate (Light) */
   body.theme-slate {
     --background: 215 30% 98%;
     --foreground: 215 30% 10%;
@@ -340,6 +352,8 @@
     --sidebar-accent: 215.4 16.3% 46.9%;
     --sidebar-accent-foreground: 210 20% 98%;
   }
+
+  /* Theme: Slate (Dark) */
   body.dark.theme-slate {
     --background: 215 30% 9%;
     --foreground: 215 20% 98%;
@@ -360,8 +374,4 @@
     --sidebar-accent: 215.4 16.3% 56.9%;
     --sidebar-accent-foreground: 210 20% 98%;
   }
-}
-
-@layer components {
-  /* This layer can be used for component-specific styles if needed in the future */
 }
