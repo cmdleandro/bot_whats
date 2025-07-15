@@ -133,9 +133,9 @@ const themes: Record<ThemeName, ThemeDefinition> = {
     light: {
       '--background': '210 100% 98%',
       '--foreground': '224 71% 4%',
-      '--card': '220 100% 100%',
       '--primary': '220 90% 60%',
       '--primary-foreground': '210 20% 98%',
+      '--card': '220 100% 100%',
       '--secondary': '220 15% 96%',
       '--muted': '220 15% 96%',
       '--muted-foreground': '220 9% 46%',
@@ -437,12 +437,6 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
       root.style.setProperty(property, value);
     }
     
-    // Add/remove dark class for components that might still use it (like from shadcn defaults)
-    if (isDarkMode) {
-      document.body.classList.add('dark');
-    } else {
-      document.body.classList.remove('dark');
-    }
   }, [theme, isDarkMode]);
 
   const setTheme = (newTheme: ThemeName) => {
