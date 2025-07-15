@@ -11,7 +11,6 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { ReplySuggestions } from '@/components/ai/reply-suggestions';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
 import { useToast } from '@/hooks/use-toast';
@@ -152,13 +151,6 @@ export default function ChatViewPage() {
     }
   };
 
-  const handleSuggestionClick = (suggestion: string) => {
-    setNewMessage(suggestion);
-    document.querySelector('textarea')?.focus();
-  };
-  
-  const lastUserMessage = messages.slice().reverse().find(m => m.sender === 'user');
-
   if (!contact && !isLoading) {
     return (
       <div className="flex h-full items-center justify-center bg-muted/20">
@@ -262,9 +254,6 @@ export default function ChatViewPage() {
       </ScrollArea>
       
       <footer className="border-t bg-background p-4">
-        {lastUserMessage && (
-          <ReplySuggestions lastMessage={lastUserMessage} onSuggestionClick={handleSuggestionClick} />
-        )}
         <div className="relative flex items-center">
           <Textarea
             value={newMessage}
