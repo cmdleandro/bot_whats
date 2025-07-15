@@ -1,30 +1,54 @@
 
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
-import { Loader2, Search, Sparkles, UserPlus } from 'lucide-react';
+import { Loader2, Search, Sparkles, UserPlus, AlertTriangle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
 import { findContacts, FindContactsOutput } from '@/ai/flows/find-contact-flow';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import Link from 'next/link';
+import { getStoredContacts } from '@/lib/redis';
 
 export default function AiContactFinderPage() {
-  const [contactList, setContactList] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [foundContacts, setFoundContacts] = useState<FindContactsOutput | null>(null);
+  const [hasStoredContacts, setHasStoredContacts] = useState<boolean | null>(null);
   const { toast } = useToast();
   const router = useRouter();
 
+  useEffect(() => {
+    async function checkContacts() {
+        setIsLoading(true);
+        try {
+            const contacts = await getStoredContacts();
+            setHasStoredContacts(contacts.length > 0);
+        } catch (error) {
+            console.error("Erro ao verificar contatos armazenados:", error);
+            setHasStoredContacts(false);
+             toast({
+                variant: 'destructive',
+                title: 'Erro de Banco de Dados',
+                description: 'Não foi possível verificar a lista de contatos armazenada.',
+            });
+        } finally {
+            setIsLoading(false);
+        }
+    }
+    checkContacts();
+  }, [toast]);
+
+
   const handleSearch = async () => {
-    if (!contactList.trim() || !searchTerm.trim()) {
+    if (!searchTerm.trim()) {
       toast({
         variant: 'destructive',
-        title: 'Campos Obrigatórios',
-        description: 'Por favor, forneça a lista de contatos e um nome para buscar.',
+        title: 'Campo Obrigatório',
+        description: 'Por favor, forneça um nome para buscar.',
       });
       return;
     }
@@ -34,7 +58,6 @@ export default function AiContactFinderPage() {
 
     try {
       const result = await findContacts({
-        contactList: contactList,
         searchTerm: searchTerm,
       });
       setFoundContacts(result);
@@ -62,33 +85,39 @@ export default function AiContactFinderPage() {
     }
   };
 
+  const renderContent = () => {
+    if (hasStoredContacts === null || isLoading) {
+      return (
+        <div className="flex justify-center items-center p-8">
+            <Loader2 className="animate-spin h-8 w-8 text-primary" />
+        </div>
+      );
+    }
 
-  return (
-    <div className="p-4 md:p-8 flex justify-center items-start">
-      <Card className="w-full max-w-2xl">
-        <CardHeader>
-          <div className="flex items-center gap-3">
-            <Sparkles className="h-8 w-8 text-primary" />
-            <div>
-                <CardTitle>Assistente de Busca de Contatos</CardTitle>
-                <CardDescription>Use IA para encontrar o ID de um contato a partir do nome, usando sua lista de contatos exportada.</CardDescription>
-            </div>
-          </div>
-        </CardHeader>
+    if (!hasStoredContacts) {
+        return (
+            <CardContent>
+                <Alert variant="destructive">
+                    <AlertTriangle className="h-4 w-4" />
+                    <AlertTitle>Nenhuma Lista de Contatos Encontrada</AlertTitle>
+                    <AlertDescription>
+                        Para usar a busca, você precisa primeiro importar sua lista de contatos.
+                        <Button asChild variant="link" className="p-0 h-auto ml-1">
+                            <Link href="/contacts">
+                                Ir para a página de Gerenciamento de Contatos
+                            </Link>
+                        </Button>
+                    </AlertDescription>
+                </Alert>
+            </CardContent>
+        )
+    }
+
+    return (
+       <>
         <CardContent className="space-y-6">
           <div className="space-y-2">
-            <label htmlFor="contact-list" className="font-semibold">1. Cole sua Lista de Contatos</label>
-            <Textarea
-              id="contact-list"
-              placeholder="Cole aqui sua lista de contatos exportada do WhatsApp ou de um arquivo de texto. Ex: Leandro (5511999998888), Maria (5521988887777)..."
-              value={contactList}
-              onChange={(e) => setContactList(e.target.value)}
-              className="min-h-[150px]"
-              disabled={isLoading}
-            />
-          </div>
-          <div className="space-y-2">
-            <label htmlFor="search-term" className="font-semibold">2. Digite o Nome a ser Buscado</label>
+            <label htmlFor="search-term" className="font-semibold">Digite o Nome a ser Buscado</label>
             <div className="flex gap-2">
               <Input
                 id="search-term"
@@ -103,11 +132,14 @@ export default function AiContactFinderPage() {
                     }
                 }}
               />
-              <Button onClick={handleSearch} disabled={isLoading || !contactList.trim() || !searchTerm.trim()}>
+              <Button onClick={handleSearch} disabled={isLoading || !searchTerm.trim()}>
                 {isLoading ? <Loader2 className="animate-spin" /> : <Search />}
                 Buscar
               </Button>
             </div>
+             <p className="text-xs text-muted-foreground">
+                A busca será realizada na sua lista de contatos importada.
+            </p>
           </div>
         </CardContent>
         {foundContacts && (
@@ -135,6 +167,24 @@ export default function AiContactFinderPage() {
                 )}
             </CardFooter>
         )}
+       </>
+    )
+  }
+
+
+  return (
+    <div className="p-4 md:p-8 flex justify-center items-start">
+      <Card className="w-full max-w-2xl">
+        <CardHeader>
+          <div className="flex items-center gap-3">
+            <Sparkles className="h-8 w-8 text-primary" />
+            <div>
+                <CardTitle>Assistente de Busca de Contatos</CardTitle>
+                <CardDescription>Use IA para encontrar o ID de um contato a partir do nome, usando sua lista de contatos importada.</CardDescription>
+            </div>
+          </div>
+        </CardHeader>
+        {renderContent()}
       </Card>
     </div>
   );

@@ -2,7 +2,7 @@
 'use server';
 
 import { createClient } from 'redis';
-import type { Contact, RedisMessage, Message, User } from './data';
+import type { Contact, RedisMessage, Message, User, StoredContact } from './data';
 import { initialUsers } from './data';
 import { formatRelative, fromUnixTime } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -69,6 +69,9 @@ function parseRedisMessage(jsonString: string): RedisMessage {
         }
     }
     
+    // Verifica se a mensagem do bot deve acionar o alarme
+    const needsAttention = parsed.tipo === 'bot' && checkNeedsAttention(parsed.texto || '');
+
     return {
       texto: parsed.texto || '',
       tipo: parsed.tipo || 'user',
@@ -77,7 +80,7 @@ function parseRedisMessage(jsonString: string): RedisMessage {
       operatorName: parsed.operatorName,
       contactPhotoUrl: parsed.contactPhotoUrl,
       instance: parsed.instance,
-      needsAttention: parsed.needsAttention === true,
+      needsAttention: parsed.needsAttention === true || needsAttention,
     };
   } catch (e) {
     return { 
@@ -219,7 +222,7 @@ export async function addMessage(contactId: string, message: { text: string; sen
       timestamp: Math.floor(Date.now() / 1000).toString(),
       operatorName: message.operatorName,
       instance: instanceName,
-      needsAttention: false, // Operator messages don't need attention
+      needsAttention: false, 
     };
 
     const formattedText = `*${message.operatorName}*\n${message.text}`;
@@ -246,25 +249,28 @@ export async function dismissAttention(contactId: string): Promise<void> {
   try {
     const client = await getClient();
     const key = `chat:${contactId.trim()}`;
-    const lastMessageJson = await client.lIndex(key, 0); // Pega a mensagem mais recente
+    const lastMessageJson = await client.lIndex(key, 0); 
 
     if (!lastMessageJson) return;
 
-    const lastMessage = parseRedisMessage(lastMessageJson);
-
+    let lastMessage: RedisMessage;
+    try {
+        lastMessage = JSON.parse(lastMessageJson);
+    } catch (e) {
+        console.error("Could not parse last message to dismiss attention:", lastMessageJson);
+        return;
+    }
+    
     if (lastMessage.needsAttention) {
-      // Cria uma nova mensagem com a flag de atenção desativada e a substitui
       const updatedMessage = { ...lastMessage, needsAttention: false };
       await client.lSet(key, 0, JSON.stringify(updatedMessage));
       console.log(`Alarme para o contato ${contactId} foi desativado.`);
     }
   } catch (error) {
     console.error(`Falha ao desativar o alarme para ${contactId}:`, error);
-    // Não lançamos o erro para não quebrar a UI
   }
 }
 
-// User Management Functions
 const USERS_KEY = 'chatview:users';
 
 export async function getUsers(): Promise<User[]> {
@@ -280,7 +286,7 @@ export async function getUsers(): Promise<User[]> {
         return JSON.parse(usersJson);
     } catch (error) {
         console.error('Falha ao buscar usuários do Redis:', error);
-        return initialUsers; // Fallback para dados iniciais em caso de erro
+        return initialUsers;
     }
 }
 
@@ -290,6 +296,30 @@ export async function saveUsers(users: User[]): Promise<void> {
         await client.set(USERS_KEY, JSON.stringify(users));
     } catch (error) {
         console.error('Falha ao salvar usuários no Redis:', error);
+        throw error;
+    }
+}
+
+// Stored Contacts Management
+const STORED_CONTACTS_KEY = 'chatview:stored_contacts';
+
+export async function getStoredContacts(): Promise<StoredContact[]> {
+    try {
+        const client = await getClient();
+        const contactsJson = await client.get(STORED_CONTACTS_KEY);
+        return contactsJson ? JSON.parse(contactsJson) : [];
+    } catch (error) {
+        console.error('Falha ao buscar contatos armazenados do Redis:', error);
+        return [];
+    }
+}
+
+export async function saveStoredContacts(contacts: StoredContact[]): Promise<void> {
+    try {
+        const client = await getClient();
+        await client.set(STORED_CONTACTS_KEY, JSON.stringify(contacts));
+    } catch (error) {
+        console.error('Falha ao salvar contatos no Redis:', error);
         throw error;
     }
 }

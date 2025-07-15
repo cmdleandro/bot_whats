@@ -5,7 +5,7 @@ import * as React from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
-import { LogOut, MessageSquare, Users, Loader2, Sparkles } from 'lucide-react';
+import { LogOut, MessageSquare, Users, Loader2, Sparkles, Contact } from 'lucide-react';
 import {
   SidebarProvider,
   Sidebar,
@@ -28,7 +28,7 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [currentUser, setCurrentUser] = React.useState<User | null>(null);
   const [isLoading, setIsLoading] = React.useState(true);
-  const appVersion = '1.0.7'; 
+  const appVersion = '1.0.8'; 
 
   React.useEffect(() => {
     const operatorName = localStorage.getItem('chatview_operator_name');
@@ -110,6 +110,17 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
                 <Link href="/ai-contact-finder">
                   <Sparkles />
                   <span>Busca de Contatos</span>
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+             <SidebarMenuItem>
+              <SidebarMenuButton
+                asChild
+                isActive={pathname.startsWith('/contacts')}
+              >
+                <Link href="/contacts">
+                  <Contact />
+                  <span>Gerenciar Contatos</span>
                 </Link>
               </SidebarMenuButton>
             </SidebarMenuItem>

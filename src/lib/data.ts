@@ -1,3 +1,4 @@
+
 export type User = {
   id: string;
   name: string;
@@ -37,6 +38,12 @@ export type Contact = {
   unreadCount: number; 
   needsAttention?: boolean;
 };
+
+export type StoredContact = {
+  name: string;
+  id: string; // The phone number, e.g., 5511999998888@c.us
+};
+
 
 export const initialUsers: User[] = [
     { id: '1', name: 'Leandro', email: 'leandro@email.com', password: '123', role: 'Admin', createdAt: '2023-01-15' },
