@@ -10,7 +10,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Search, BellRing } from 'lucide-react';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { getContacts } from '@/lib/redis';
 import { Skeleton } from '@/components/ui/skeleton';
 
@@ -25,14 +25,20 @@ export function ContactList() {
   const previousAttentionIds = useRef<Set<string>>(new Set());
 
   useEffect(() => {
-    // Inicializa o Audio object no cliente
+    // Inicializa o Audio object no cliente de forma segura
     if (typeof window !== 'undefined') {
-        audioRef.current = new Audio('/notification.mp3');
+        const audio = new Audio('/notification.mp3');
+        audio.oncanplaythrough = () => {
+            audioRef.current = audio;
+        };
+        audio.onerror = () => {
+            console.warn("Arquivo de áudio 'notification.mp3' não encontrado em /public. A notificação sonora está desativada.");
+            audioRef.current = null;
+        };
     }
   }, []);
 
-  useEffect(() => {
-    async function fetchContacts() {
+  const fetchContacts = useCallback(async () => {
       // Não mostra o loading para atualizações em background
       if (contacts.length === 0) {
         setIsLoading(true);
@@ -46,12 +52,12 @@ export function ContactList() {
         );
 
         // Verifica se há um *novo* contato que precisa de atenção
-        const newAttentionContact = Array.from(currentAttentionIds).some(
+        const hasNewAttention = Array.from(currentAttentionIds).some(
             id => !previousAttentionIds.current.has(id)
         );
 
-        if (newAttentionContact && audioRef.current) {
-            audioRef.current.play().catch(e => console.error("Erro ao tocar áudio:", e));
+        if (hasNewAttention && audioRef.current) {
+            audioRef.current.play().catch(e => console.error("Erro ao tocar áudio de notificação:", e));
         }
 
         setContacts(redisContacts);
@@ -60,17 +66,20 @@ export function ContactList() {
       } catch (error) {
         console.error("Erro ao buscar contatos:", error);
       } finally {
-        setIsLoading(false);
+        if (isLoading) {
+            setIsLoading(false);
+        }
       }
-    }
-    
+    }, [contacts.length, isLoading]);
+
+  useEffect(() => {
     fetchContacts();
     
     // Atualiza a lista a cada 15 segundos
     const interval = setInterval(fetchContacts, 15000);
     return () => clearInterval(interval);
 
-  }, [contacts.length]);
+  }, [fetchContacts]);
 
 
   const filteredContacts = contacts.filter(contact =>
