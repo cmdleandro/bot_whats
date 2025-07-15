@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from 'react';
@@ -19,18 +20,25 @@ import {
 import { cn } from '@/lib/utils';
 
 const themes = [
-  'zinc', 'blue', 'green', 'orange', 'rose', 'violet', 'yellow', 'slate'
+  { value: 'zinc', label: 'Zinc' },
+  { value: 'slate', label: 'Slate' },
+  { value: 'blue', label: 'Blue' },
+  { value: 'green', label: 'Green' },
+  { value: 'orange', label: 'Orange' },
+  { value: 'rose', label: 'Rose' },
+  { value: 'violet', label: 'Violet' },
+  { value: 'yellow', label: 'Yellow' },
 ];
 
 const themeColors: Record<string, string> = {
   zinc: 'hsl(221.2 83.2% 53.3%)',
+  slate: 'hsl(215.4 16.3% 46.9%)',
   blue: 'hsl(220 90% 60%)',
   green: 'hsl(142.1 76.2% 36.3%)',
   orange: 'hsl(24.6 95% 53.1%)',
   rose: 'hsl(346.8 77.2% 49.8%)',
   violet: 'hsl(258.8 77.2% 55.8%)',
   yellow: 'hsl(44.6 95% 53.1%)',
-  slate: 'hsl(215.4 16.3% 46.9%)',
 };
 
 
@@ -79,12 +87,12 @@ export function ThemeSwitcher() {
           </DropdownMenuSubTrigger>
           <DropdownMenuPortal>
             <DropdownMenuSubContent>
-              {themes.map((t) => (
-                <DropdownMenuItem key={t} onClick={() => setTheme(t)}>
-                   <div className="h-4 w-4 rounded-full mr-2" style={{ backgroundColor: themeColors[t] }}/>
+              {themes.map((item) => (
+                <DropdownMenuItem key={item.value} onClick={() => setTheme(item.value)}>
+                   <div className="h-4 w-4 rounded-full mr-2" style={{ backgroundColor: themeColors[item.value] }}/>
                    <span className="capitalize w-full flex items-center justify-between">
-                    {t}
-                    {theme === t && <Check className="h-4 w-4" />}
+                    {item.label}
+                    {theme === item.value && <Check className="h-4 w-4" />}
                   </span>
                 </DropdownMenuItem>
               ))}
