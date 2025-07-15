@@ -23,7 +23,7 @@ import { ThemeProvider } from '@/components/theme/theme-provider';
 import type { User } from '@/lib/data';
 import { getUsers } from '@/lib/redis';
 
-export default function AppLayout({ children }: { children: React.ReactNode }) {
+function AppLayoutContent({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
   const [currentUser, setCurrentUser] = React.useState<User | null>(null);
@@ -81,69 +81,74 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <ThemeProvider>
-      <SidebarProvider>
-        <Sidebar>
-          <SidebarHeader>
-            <div className="flex items-center gap-3">
-              <Image src="/logo.svg" alt="ChatView Logo" width={32} height={32} />
-              <span className="text-xl font-semibold">ChatView</span>
-            </div>
-          </SidebarHeader>
-          <SidebarContent>
-            <SidebarMenu>
-              <SidebarMenuItem>
-                <SidebarMenuButton
-                  asChild
-                  isActive={pathname.startsWith('/chat')}
-                >
-                  <Link href="/chat">
-                    <MessageSquare />
-                    <span>Mensageria</span>
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-              <SidebarMenuItem>
-                <SidebarMenuButton
-                  asChild
-                  isActive={pathname.startsWith('/users')}
-                >
-                  <Link href="/users">
-                    <Users />
-                    <span>{currentUser.role === 'Admin' ? 'Usuários' : 'Meu Perfil'}</span>
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-            </SidebarMenu>
-          </SidebarContent>
-          <SidebarFooter>
-             <div className="flex w-full items-center justify-between">
-                <div className="flex items-center gap-3">
-                    <Avatar className="h-10 w-10">
-                    <AvatarFallback>{getInitials(currentUser.name)}</AvatarFallback>
-                    </Avatar>
-                    <div className="flex flex-col">
-                      <span className="font-semibold">{currentUser.name}</span>
-                      <span className="text-xs text-muted-foreground">{currentUser.role}</span>
-                      <span className="text-xs text-muted-foreground/50 mt-1">Versão: {appVersion}</span>
-                    </div>
-                </div>
-                <ThemeSwitcher />
-            </div>
-            <SidebarMenu>
-              <SidebarMenuItem>
-                <SidebarMenuButton onClick={handleLogout}>
-                  <LogOut />
-                  <span>Sair</span>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-            </SidebarMenu>
-          </SidebarFooter>
-        </Sidebar>
-        <SidebarInset>{children}</SidebarInset>
-      </SidebarProvider>
-    </ThemeProvider>
+    <SidebarProvider>
+      <Sidebar>
+        <SidebarHeader>
+          <div className="flex items-center gap-3">
+            <Image src="/logo.svg" alt="ChatView Logo" width={32} height={32} />
+            <span className="text-xl font-semibold">ChatView</span>
+          </div>
+        </SidebarHeader>
+        <SidebarContent>
+          <SidebarMenu>
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                asChild
+                isActive={pathname.startsWith('/chat')}
+              >
+                <Link href="/chat">
+                  <MessageSquare />
+                  <span>Mensageria</span>
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                asChild
+                isActive={pathname.startsWith('/users')}
+              >
+                <Link href="/users">
+                  <Users />
+                  <span>{currentUser.role === 'Admin' ? 'Usuários' : 'Meu Perfil'}</span>
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          </SidebarMenu>
+        </SidebarContent>
+        <SidebarFooter>
+           <div className="flex w-full items-center justify-between">
+              <div className="flex items-center gap-3">
+                  <Avatar className="h-10 w-10">
+                  <AvatarFallback>{getInitials(currentUser.name)}</AvatarFallback>
+                  </Avatar>
+                  <div className="flex flex-col">
+                    <span className="font-semibold">{currentUser.name}</span>
+                    <span className="text-xs text-muted-foreground">{currentUser.role}</span>
+                    <span className="text-xs text-muted-foreground/50 mt-1">Versão: {appVersion}</span>
+                  </div>
+              </div>
+              <ThemeSwitcher />
+          </div>
+          <SidebarMenu>
+            <SidebarMenuItem>
+              <SidebarMenuButton onClick={handleLogout}>
+                <LogOut />
+                <span>Sair</span>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          </SidebarMenu>
+        </SidebarFooter>
+      </Sidebar>
+      <SidebarInset>{children}</SidebarInset>
+    </SidebarProvider>
   );
 }
 
-    
+
+export default function AppLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <ThemeProvider>
+      <AppLayoutContent>{children}</AppLayoutContent>
+    </ThemeProvider>
+  )
+}

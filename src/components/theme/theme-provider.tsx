@@ -17,9 +17,9 @@ type ThemeProviderState = {
 };
 
 const initialState: ThemeProviderState = {
-  theme: 'blue', // Set a default theme
+  theme: 'blue',
   isDarkMode: false,
-  notificationSound: '/notification1.wav', // Default sound
+  notificationSound: '/notification1.wav',
   setTheme: () => null,
   toggleDarkMode: () => null,
   setNotificationSound: () => null,
@@ -28,46 +28,39 @@ const initialState: ThemeProviderState = {
 const ThemeProviderContext = createContext<ThemeProviderState>(initialState);
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [theme, setThemeState] = useState<Theme>(() => {
-    if (typeof window === 'undefined') return initialState.theme;
-    return localStorage.getItem(THEME_STORAGE_KEY) || initialState.theme;
-  });
-
-  const [isDarkMode, setIsDarkModeState] = useState<boolean>(() => {
-    if (typeof window === 'undefined') return initialState.isDarkMode;
-    const storedValue = localStorage.getItem(DARK_MODE_STORAGE_KEY);
-    return storedValue ? JSON.parse(storedValue) : initialState.isDarkMode;
-  });
-
-  const [notificationSound, setNotificationSoundState] = useState<string>(() => {
-    if (typeof window === 'undefined') return initialState.notificationSound;
-    return localStorage.getItem(NOTIFICATION_SOUND_STORAGE_KEY) || initialState.notificationSound;
-  });
+  const [theme, setThemeState] = useState<Theme>(initialState.theme);
+  const [isDarkMode, setIsDarkModeState] = useState<boolean>(initialState.isDarkMode);
+  const [notificationSound, setNotificationSoundState] = useState<string>(initialState.notificationSound);
+  const [isMounted, setIsMounted] = useState(false);
 
   useEffect(() => {
-    const body = window.document.body;
-    
-    // Remove any existing theme classes
-    body.classList.forEach(className => {
-      if (className.startsWith('theme-')) {
-        body.classList.remove(className);
-      }
-    });
+    setIsMounted(true);
+    setThemeState(localStorage.getItem(THEME_STORAGE_KEY) || initialState.theme);
+    setIsDarkModeState(JSON.parse(localStorage.getItem(DARK_MODE_STORAGE_KEY) || 'false'));
+    setNotificationSoundState(localStorage.getItem(NOTIFICATION_SOUND_STORAGE_KEY) || initialState.notificationSound);
+  }, []);
 
-    // Add current theme class
-    if (theme) {
-      body.classList.add(`theme-${theme}`);
-    } else {
-      body.classList.add(`theme-${initialState.theme}`);
+
+  useEffect(() => {
+    if (isMounted) {
+        const body = window.document.body;
+        
+        // Remove old theme classes
+        body.classList.forEach(className => {
+            if (className.startsWith('theme-')) {
+                body.classList.remove(className);
+            }
+        });
+
+        // Add new theme class
+        body.classList.add(`theme-${theme}`);
+        if (isDarkMode) {
+          body.classList.add('dark');
+        } else {
+            body.classList.remove('dark');
+        }
     }
-    
-    // Toggle dark class
-    if (isDarkMode) {
-      body.classList.add('dark');
-    } else {
-      body.classList.remove('dark');
-    }
-  }, [theme, isDarkMode]);
+  }, [theme, isDarkMode, isMounted]);
 
   const setTheme = (newTheme: Theme) => {
     localStorage.setItem(THEME_STORAGE_KEY, newTheme);
@@ -93,6 +86,10 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     toggleDarkMode,
     setNotificationSound,
   }), [theme, isDarkMode, notificationSound]);
+
+  if (!isMounted) {
+    return null; // or a loading spinner
+  }
 
   return (
     <ThemeProviderContext.Provider value={value}>
