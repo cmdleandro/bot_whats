@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from 'react';
@@ -27,7 +28,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [currentUser, setCurrentUser] = React.useState<User | null>(null);
   const [isLoading, setIsLoading] = React.useState(true);
-  const appVersion = '1.0.6'; 
+  const appVersion = '1.0.7'; 
 
   React.useEffect(() => {
     const operatorName = localStorage.getItem('chatview_operator_name');
@@ -144,3 +145,5 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     </ThemeProvider>
   );
 }
+
+    

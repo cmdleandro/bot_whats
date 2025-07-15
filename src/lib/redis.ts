@@ -50,6 +50,7 @@ function parseRedisMessage(jsonString: string): RedisMessage {
   try {
     const parsed = JSON.parse(cleanedString);
     
+    // Tenta fazer um segundo parse se o texto ainda for uma string JSON.
     if (typeof parsed.texto === 'string' && parsed.texto.startsWith('"') && parsed.texto.endsWith('"')) {
         try {
             parsed.texto = JSON.parse(parsed.texto);
@@ -67,6 +68,7 @@ function parseRedisMessage(jsonString: string): RedisMessage {
       contactPhotoUrl: parsed.contactPhotoUrl,
     };
   } catch (e) {
+    // Se o parse inicial falhar, retorna a string como texto de um usuário.
     return { 
         texto: cleanedString, 
         tipo: 'user', 
@@ -183,8 +185,9 @@ export async function addMessage(contactId: string, message: { text: string; sen
     };
     
     const messageForQueue = {
-        para: contactId.trim(),
-        texto: message.text,
+        instance: "instancia_padrao", // Você vai substituir isso no N8N
+        remoteJid: contactId.trim(),
+        text: message.text,
     };
 
     // 1. Salva a mensagem no histórico do chat
@@ -231,3 +234,5 @@ export async function saveUsers(users: User[]): Promise<void> {
         throw error;
     }
 }
+
+    
