@@ -12,7 +12,7 @@
     THEME DEFINITIONS (NEW APPROACH)
     ================================================================= */
 
-  /* Default Theme: Zinc Light */
+  /* Theme: Zinc Light */
   body.theme-zincLight {
     --background: 0 0% 100%;
     --foreground: 222.2 84% 4.9%;
@@ -42,7 +42,7 @@
     --sidebar-ring: 221.2 83.2% 53.3%;
   }
 
-  /* Default Theme: Zinc Dark */
+  /* Theme: Zinc Dark */
   body.theme-zincDark {
     --background: 222.2 84% 4.9%;
     --foreground: 210 40% 98%;

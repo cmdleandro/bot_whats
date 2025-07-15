@@ -1,7 +1,7 @@
 
 'use client';
 
-import React, { createContext, useContext, useEffect, useState, useMemo } from 'react';
+import React, { createContext, useContext, useEffect, useState, useMemo, useCallback } from 'react';
 
 const THEME_STORAGE_KEY = 'chatview-theme';
 const DARK_MODE_STORAGE_KEY = 'chatview-dark-mode';
@@ -63,7 +63,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
       body.classList.remove(...classesToRemove);
     }
     
-    // 2. Construct the new, single class name based on the new architecture.
+    // 2. Construct the new, single class name.
     const modeSuffix = isDarkMode ? 'Dark' : 'Light';
     const newThemeClass = `theme-${theme}${modeSuffix}`;
     
