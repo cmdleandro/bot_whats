@@ -17,8 +17,10 @@ type ThemeProviderState = {
   setNotificationSound: (sound: string) => void;
 };
 
+// This function runs only on the client, once, to get the initial state.
 const getInitialState = () => {
   if (typeof window === 'undefined') {
+    // Return a default state for server-side rendering
     return {
       theme: 'zinc',
       isDarkMode: false,
@@ -36,6 +38,7 @@ const getInitialState = () => {
     };
   } catch (error) {
     console.warn('Failed to read theme from localStorage', error);
+    // Fallback to default state in case of any error
     return {
       theme: 'zinc',
       isDarkMode: false,
@@ -44,18 +47,19 @@ const getInitialState = () => {
   }
 };
 
-
 const ThemeProviderContext = createContext<ThemeProviderState | undefined>(undefined);
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [theme, setThemeState] = useState<Theme>(getInitialState().theme);
-  const [isDarkMode, setIsDarkModeState] = useState<boolean>(getInitialState().isDarkMode);
-  const [notificationSound, setNotificationSoundState] = useState<string>(getInitialState().notificationSound);
+  // Initialize state directly from the function, which reads from localStorage.
+  const [theme, setThemeState] = useState<Theme>(() => getInitialState().theme);
+  const [isDarkMode, setIsDarkModeState] = useState<boolean>(() => getInitialState().isDarkMode);
+  const [notificationSound, setNotificationSoundState] = useState<string>(() => getInitialState().notificationSound);
 
   useEffect(() => {
+    // This effect runs whenever the theme or dark mode state changes.
     const body = window.document.body;
 
-    // 1. Limpa todas as classes de tema antigas para um estado limpo.
+    // 1. Clean slate: Remove all old theme classes.
     const classesToRemove = Array.from(body.classList).filter(
       (cls) => cls.startsWith('theme-')
     );
@@ -63,17 +67,17 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
       body.classList.remove(...classesToRemove);
     }
     
-    // 2. Adiciona a classe do tema atual (ex: 'theme-orange').
+    // 2. Apply the new theme class.
     body.classList.add(`theme-${theme}`);
     
-    // 3. Aplica ou remove a classe 'dark' com base no estado.
+    // 3. Apply or remove the 'dark' class based on the current state.
     if (isDarkMode) {
       body.classList.add('dark');
     } else {
       body.classList.remove('dark');
     }
 
-  }, [theme, isDarkMode]);
+  }, [theme, isDarkMode]); // Re-run this logic ONLY when theme or isDarkMode changes.
 
   const setTheme = (newTheme: Theme) => {
     localStorage.setItem(THEME_STORAGE_KEY, newTheme);
@@ -81,9 +85,11 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   };
   
   const toggleDarkMode = () => {
-    const newIsDarkMode = !isDarkMode;
-    localStorage.setItem(DARK_MODE_STORAGE_KEY, JSON.stringify(newIsDarkMode));
-    setIsDarkModeState(newIsDarkMode);
+    setIsDarkModeState(prevIsDarkMode => {
+      const newIsDarkMode = !prevIsDarkMode;
+      localStorage.setItem(DARK_MODE_STORAGE_KEY, JSON.stringify(newIsDarkMode));
+      return newIsDarkMode;
+    });
   };
 
   const setNotificationSound = (newSound: string) => {
