@@ -13,10 +13,12 @@ import { Search, BellRing } from 'lucide-react';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { getContacts } from '@/lib/redis';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useTheme } from '@/components/theme/theme-provider';
 
 export function ContactList() {
   const params = useParams();
   const activeChatId = params.id as string | undefined;
+  const { notificationSound } = useTheme();
   const [searchTerm, setSearchTerm] = useState('');
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -25,21 +27,22 @@ export function ContactList() {
   const previousAttentionIds = useRef<Set<string>>(new Set());
 
   useEffect(() => {
-    // Inicializa o Audio object no cliente de forma segura
-    if (typeof window !== 'undefined') {
-        const audio = new Audio('/notification.mp3');
-        audio.oncanplaythrough = () => {
-            audioRef.current = audio;
-        };
-        audio.onerror = () => {
-            console.warn("Arquivo de áudio 'notification.mp3' não encontrado em /public. A notificação sonora está desativada.");
-            audioRef.current = null;
-        };
+    // Re-initialize audio object when sound choice changes
+    if (typeof window !== 'undefined' && notificationSound) {
+      const audio = new Audio(notificationSound);
+      audio.oncanplaythrough = () => {
+        audioRef.current = audio;
+      };
+      audio.onerror = () => {
+        console.warn(`Arquivo de áudio '${notificationSound}' não encontrado em /public. A notificação sonora está desativada.`);
+        audioRef.current = null;
+      };
+    } else {
+        audioRef.current = null;
     }
-  }, []);
+  }, [notificationSound]);
 
   const fetchContacts = useCallback(async () => {
-      // Não mostra o loading para atualizações em background
       if (contacts.length === 0) {
         setIsLoading(true);
       }
@@ -51,7 +54,6 @@ export function ContactList() {
             redisContacts.filter(c => c.needsAttention).map(c => c.id)
         );
 
-        // Verifica se há um *novo* contato que precisa de atenção
         const hasNewAttention = Array.from(currentAttentionIds).some(
             id => !previousAttentionIds.current.has(id)
         );
@@ -75,7 +77,6 @@ export function ContactList() {
   useEffect(() => {
     fetchContacts();
     
-    // Atualiza a lista a cada 15 segundos
     const interval = setInterval(fetchContacts, 15000);
     return () => clearInterval(interval);
 
