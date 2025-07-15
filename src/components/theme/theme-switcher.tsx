@@ -88,6 +88,7 @@ export function ThemeSwitcher() {
           <DropdownMenuPortal>
             <DropdownMenuSubContent>
               {themes.map((item) => (
+                
                 <DropdownMenuItem key={item.value} onClick={() => setTheme(item.value)}>
                    <div className="h-4 w-4 rounded-full mr-2" style={{ backgroundColor: themeColors[item.value] }}/>
                    <span className="capitalize w-full flex items-center justify-between">

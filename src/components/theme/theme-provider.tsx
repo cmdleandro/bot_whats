@@ -75,18 +75,24 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
       body.classList.remove('dark');
     }
     
-    // 4. Debug log via Toast, showing the exact CSS selector.
+    // 4. Debug log via Toast, showing the source variables and the resulting selector.
     let activeSelector = 'body';
     if (isDarkMode) {
-        activeSelector += '.dark';
+      activeSelector += '.dark';
     }
     activeSelector += `.theme-${theme}`;
 
     toast({
-      title: "Debug: Seletor CSS Ativo",
+      title: "Debug: Theme State & Resulting Selector",
       description: (
         <pre className="mt-2 w-[340px] rounded-md bg-slate-950 p-4">
-          <code className="text-white">{activeSelector}</code>
+          <code className="text-white">
+            {`// Original State Variables\n`}
+            {`theme: "${theme}"\n`}
+            {`isDarkMode: ${isDarkMode}\n\n`}
+            {`// Resulting CSS Selector\n`}
+            {`${activeSelector}`}
+          </code>
         </pre>
       ),
     });
