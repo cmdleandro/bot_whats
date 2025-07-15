@@ -47,7 +47,6 @@ export async function getClient() {
 function parseRedisMessage(jsonString: string): RedisMessage {
   try {
     const parsed = JSON.parse(jsonString);
-    // Garante que o resultado é um objeto com as propriedades esperadas
     return {
       texto: parsed.texto || '',
       tipo: parsed.tipo || 'user',
@@ -57,7 +56,7 @@ function parseRedisMessage(jsonString: string): RedisMessage {
       contactPhotoUrl: parsed.contactPhotoUrl,
     };
   } catch (e) {
-    // Se o parse falhar, assume que a string inteira é o texto da mensagem de um usuário.
+    // Se o parse falhar, trata a string como texto simples de um usuário.
     return { 
         texto: jsonString, 
         tipo: 'user', 
@@ -94,11 +93,10 @@ export async function getContacts(): Promise<Contact[]> {
             timestamp = lastMsg.timestamp ? parseInt(lastMsg.timestamp, 10) * 1000 : Date.now();
         }
         
-        // Tenta encontrar nome e foto em qualquer mensagem, começando pelas mais recentes
         for (const msgJson of allMessagesJson) {
             const msg = parseRedisMessage(msgJson);
-            if (msg.contactName) contactName = msg.contactName;
-            if (msg.contactPhotoUrl) avatar = msg.contactPhotoUrl;
+            if (msg.tipo === 'user' && msg.contactName) contactName = msg.contactName;
+            if (msg.tipo === 'user' && msg.contactPhotoUrl) avatar = msg.contactPhotoUrl;
             if (contactName !== contactId.split('@')[0] && avatar !== `https://placehold.co/40x40.png`) break;
         }
         
@@ -136,11 +134,9 @@ export async function getMessages(contactId: string): Promise<Message[]> {
       return [];
     }
     
-    // As mensagens são adicionadas com lPush, então a lista já está da mais nova para a mais antiga.
-    // Invertemos para exibir na ordem cronológica correta (mais antiga primeiro).
     messagesJson.reverse();
 
-    const parsedMessages = messagesJson.map((jsonString, index) => {
+    return messagesJson.map((jsonString, index) => {
       const redisMsg = parseRedisMessage(jsonString);
       const timestamp = redisMsg.timestamp ? parseInt(redisMsg.timestamp, 10) * 1000 : Date.now();
       
@@ -153,10 +149,9 @@ export async function getMessages(contactId: string): Promise<Message[]> {
         sender: sender,
         operatorName: redisMsg.operatorName,
         timestamp: new Date(timestamp).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+        botAvatarUrl: sender === 'bot' ? redisMsg.contactPhotoUrl : undefined,
       };
     });
-    
-    return parsedMessages;
 
   } catch (error) {
     console.error(`Falha ao buscar mensagens para ${contactId} do Redis:`, error);
@@ -176,7 +171,6 @@ export async function addMessage(contactId: string, message: { text: string; sen
       operatorName: message.operatorName,
     };
     
-    // lPush adiciona ao início da lista, mantendo a mensagem mais recente no topo.
     await client.lPush(key, JSON.stringify(redisMessage));
 
   } catch (error) {

@@ -40,14 +40,12 @@ export default function ChatViewPage() {
         async function fetchContactAndMessages() {
             setIsLoading(true);
             try {
-                // Busca o contato específico para obter nome e avatar atualizados
                 const allContacts = await getContacts();
                 const currentContact = allContacts.find(c => c.id === contactId);
                 
                 if (currentContact) {
                     setContact(currentContact);
                 } else {
-                    // Fallback se o contato não for encontrado na lista (improvável)
                     setContact({
                         id: contactId,
                         name: contactId.split('@')[0],
@@ -116,7 +114,6 @@ export default function ChatViewPage() {
         title: 'Erro de Rede',
         description: 'Não foi possível enviar a mensagem. Por favor, tente novamente.',
       });
-      // Reverter a adição da mensagem na UI se a chamada de API falhar
       setMessages(prevMessages => prevMessages.filter(m => m.id !== message.id));
     } finally {
       setIsSending(false);
@@ -149,17 +146,6 @@ export default function ChatViewPage() {
         return 'rounded-bl-none bg-background';
     }
   };
-
-  const getSenderNameStyle = (sender: Message['sender']) => {
-    switch (sender) {
-      case 'operator':
-        return {}; // Usa a cor padrão do `primary-foreground`
-      case 'bot':
-        return { color: 'hsl(var(--accent-foreground))' }; // Usa cor de destaque
-      default:
-        return {};
-    }
-  }
 
   return (
     <div className="flex h-screen flex-col bg-card">
@@ -202,7 +188,7 @@ export default function ChatViewPage() {
                   {msg.sender === 'operator' ? (
                     <AvatarFallback>{operatorName.charAt(0)}</AvatarFallback>
                   ) : msg.sender === 'bot' ? (
-                     <AvatarImage src="/logo.svg" alt="Bot Logo" />
+                     <AvatarImage src={msg.botAvatarUrl || "/logo.svg"} alt="Bot Logo" />
                   ) : (
                     <>
                     <AvatarImage src={contact.avatar} alt={contact.name} />
@@ -217,7 +203,7 @@ export default function ChatViewPage() {
                   )}
                 >
                   {(msg.sender === 'bot' || msg.sender === 'operator') && (
-                      <p className="text-xs font-bold mb-1" style={getSenderNameStyle(msg.sender)}>
+                      <p className="text-xs font-bold mb-1">
                           {msg.sender === 'bot' ? 'BOT' : msg.operatorName}
                       </p>
                   )}

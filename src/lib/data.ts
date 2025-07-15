@@ -23,6 +23,7 @@ export type Message = {
   sender: 'user' | 'bot' | 'operator'; 
   operatorName?: string;
   timestamp: string;
+  botAvatarUrl?: string; // Adicionado para carregar a foto do bot
 };
 
 export type Contact = {
