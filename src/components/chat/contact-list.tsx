@@ -2,14 +2,25 @@
 'use client';
 
 import Link from 'next/link';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { type Contact } from '@/lib/data';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
-import { Search, BellRing } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
+import { Search, BellRing, PlusCircle } from 'lucide-react';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { getContacts } from '@/lib/redis';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -17,17 +28,20 @@ import { useTheme } from '@/components/theme/theme-provider';
 
 export function ContactList() {
   const params = useParams();
+  const router = useRouter();
   const activeChatId = params.id as string | undefined;
   const { notificationSound } = useTheme();
+
   const [searchTerm, setSearchTerm] = useState('');
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isNewChatOpen, setIsNewChatOpen] = useState(false);
+  const [newContactId, setNewContactId] = useState('');
   
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const previousAttentionIds = useRef<Set<string>>(new Set());
 
   useEffect(() => {
-    // Re-initialize audio object when sound choice changes
     if (typeof window !== 'undefined' && notificationSound) {
       const audio = new Audio(notificationSound);
       audio.oncanplaythrough = () => {
@@ -83,15 +97,65 @@ export function ContactList() {
   }, [fetchContacts]);
 
 
+  const handleStartNewChat = () => {
+    if (newContactId.trim()) {
+      const formattedId = newContactId.trim();
+      router.push(`/chat/${encodeURIComponent(formattedId)}`);
+      setNewContactId('');
+      setIsNewChatOpen(false);
+    }
+  };
+
   const filteredContacts = contacts.filter(contact =>
     contact.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   return (
     <aside className="hidden md:flex flex-col h-full w-full max-w-xs border-r bg-background/50">
-      <div className="p-4">
-        <h2 className="text-2xl font-bold">Contatos</h2>
-         <div className="relative mt-4">
+      <div className="p-4 space-y-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-2xl font-bold">Contatos</h2>
+          <Dialog open={isNewChatOpen} onOpenChange={setIsNewChatOpen}>
+            <DialogTrigger asChild>
+              <Button variant="ghost" size="icon">
+                <PlusCircle className="h-6 w-6" />
+                <span className="sr-only">Nova Conversa</span>
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-[425px]">
+              <DialogHeader>
+                <DialogTitle>Iniciar Nova Conversa</DialogTitle>
+                <DialogDescription>
+                  Digite o ID do contato para iniciar um novo chat. Ex: 5511999998888@c.us
+                </DialogDescription>
+              </DialogHeader>
+              <div className="grid gap-4 py-4">
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="contact-id" className="text-right">
+                    ID do Contato
+                  </Label>
+                  <Input
+                    id="contact-id"
+                    value={newContactId}
+                    onChange={(e) => setNewContactId(e.target.value)}
+                    className="col-span-3"
+                    placeholder="ex: 5511999998888@c.us"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        handleStartNewChat();
+                      }
+                    }}
+                  />
+                </div>
+              </div>
+              <DialogFooter>
+                <Button onClick={handleStartNewChat} disabled={!newContactId.trim()}>Iniciar Conversa</Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        </div>
+         <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input 
                 placeholder="Pesquisar contato..." 
