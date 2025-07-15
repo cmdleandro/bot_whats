@@ -11,8 +11,8 @@
   /* =================================================================
     THEME DEFINITIONS
     ================================================================= */
-  
-  /* Theme: Zinc (Light) */
+
+  /* Default Theme: Zinc (Light) */
   body.theme-zinc {
     --background: 0 0% 100%;
     --foreground: 222.2 84% 4.9%;
@@ -42,7 +42,7 @@
     --sidebar-ring: 221.2 83.2% 53.3%;
   }
 
-  /* Theme: Zinc (Dark) */
+  /* Default Theme: Zinc (Dark) */
   body.dark.theme-zinc {
     --background: 222.2 84% 4.9%;
     --foreground: 210 40% 98%;
@@ -70,7 +70,7 @@
     --sidebar-accent-foreground: 222.2 47.4% 11.2%;
     --sidebar-ring: 210 40% 98%;
   }
-  
+
   /* Theme: Blue (Light) */
   body.theme-blue {
     --background: 210 100% 98%;
