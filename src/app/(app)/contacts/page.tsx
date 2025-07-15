@@ -11,7 +11,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Upload, Trash2, Loader2, Info, UserPlus } from 'lucide-react';
 import { StoredContact } from '@/lib/data';
 import { getStoredContacts, saveStoredContacts } from '@/lib/redis';
-import { processContactsCsv } from '@/ai/flows/process-csv-flow';
+import { processContactsFile } from '@/ai/flows/process-csv-flow';
 import { useRouter } from 'next/navigation';
 
 export default function ContactsPage() {
@@ -19,7 +19,7 @@ export default function ContactsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isProcessing, setIsProcessing] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [csvContent, setCsvContent] = useState<string>('');
+  const [fileContent, setFileContent] = useState<string>('');
   const { toast } = useToast();
   const router = useRouter();
   
@@ -49,24 +49,24 @@ export default function ContactsPage() {
       const reader = new FileReader();
       reader.onload = (e) => {
         const text = e.target?.result as string;
-        setCsvContent(text);
+        setFileContent(text);
       };
       reader.readAsText(file);
     }
   };
 
   const handleImport = async () => {
-    if (!csvContent) {
+    if (!fileContent) {
       toast({
         variant: 'destructive',
         title: 'Nenhum Arquivo Selecionado',
-        description: 'Por favor, selecione um arquivo CSV para importar.',
+        description: 'Por favor, selecione um arquivo CSV ou VCF para importar.',
       });
       return;
     }
     setIsProcessing(true);
     try {
-      const result = await processContactsCsv({ csvContent });
+      const result = await processContactsFile({ fileContent: fileContent });
       if (result.contacts.length > 0) {
         await saveStoredContacts(result.contacts);
         await fetchContacts(); 
@@ -75,20 +75,20 @@ export default function ContactsPage() {
           description: `${result.contacts.length} contatos foram importados e salvos com sucesso.`,
         });
         setIsDialogOpen(false);
-        setCsvContent('');
+        setFileContent('');
       } else {
         toast({
           variant: 'destructive',
           title: 'Nenhum Contato Encontrado',
-          description: 'A IA não conseguiu extrair contatos válidos do arquivo CSV.',
+          description: 'A IA não conseguiu extrair contatos válidos do arquivo fornecido.',
         });
       }
     } catch (error) {
-      console.error('Erro ao processar CSV:', error);
+      console.error('Erro ao processar arquivo:', error);
       toast({
         variant: 'destructive',
         title: 'Erro na Importação',
-        description: 'Ocorreu um erro ao processar o arquivo. Verifique se o formato está correto.',
+        description: 'Ocorreu um erro ao processar o arquivo. Verifique se o formato (CSV ou VCF) está correto.',
       });
     } finally {
       setIsProcessing(false);
@@ -144,30 +144,30 @@ export default function ContactsPage() {
               </DialogTrigger>
               <DialogContent>
                 <DialogHeader>
-                  <DialogTitle>Importar do Google Contacts (CSV)</DialogTitle>
+                  <DialogTitle>Importar Contatos (CSV ou VCF)</DialogTitle>
                   <DialogDescription>
-                    Selecione o arquivo CSV exportado do Google Contacts para importar.
+                    Selecione o arquivo CSV (do Google) ou VCF para importar.
                   </DialogDescription>
                 </DialogHeader>
                 <div className="space-y-4 py-4">
                     <div className="bg-muted/50 p-3 rounded-lg text-sm space-y-2">
                         <p className="font-semibold flex items-center gap-2"><Info className="h-5 w-5 text-primary"/> Instruções</p>
-                        <ol className="list-decimal list-inside space-y-1 text-muted-foreground">
-                            <li>No Google Contacts, selecione os contatos desejados e clique em "Exportar".</li>
-                            <li>Escolha o formato "CSV do Google".</li>
+                        <ul className="list-disc list-inside space-y-1 text-muted-foreground">
+                            <li>Exporte seus contatos do Google (formato CSV) ou de outro aplicativo (formato VCF).</li>
                             <li>Faça o upload do arquivo exportado abaixo.</li>
-                        </ol>
+                            <li>A IA irá processar o arquivo e adicionar os contatos à sua lista.</li>
+                        </ul>
                     </div>
                   <input
                     type="file"
-                    accept=".csv"
+                    accept=".csv,.vcf"
                     onChange={handleFileChange}
                     className="w-full text-sm text-foreground file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary/10 file:text-primary hover:file:bg-primary/20"
                     disabled={isProcessing}
                   />
                 </div>
                 <DialogFooter>
-                  <Button onClick={handleImport} disabled={isProcessing || !csvContent}>
+                  <Button onClick={handleImport} disabled={isProcessing || !fileContent}>
                     {isProcessing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4" />}
                     Processar e Salvar
                   </Button>
