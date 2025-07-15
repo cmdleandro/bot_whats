@@ -63,7 +63,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
       body.classList.remove(...classesToRemove);
     }
     
-    // 2. Construct the new, single class name.
+    // 2. Construct the new, single class name based on the new architecture.
     const modeSuffix = isDarkMode ? 'Dark' : 'Light';
     const newThemeClass = `theme-${theme}${modeSuffix}`;
     
