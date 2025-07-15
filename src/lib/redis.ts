@@ -45,11 +45,16 @@ export async function getClient() {
 
 function parseRedisMessage(jsonString: string): RedisMessage {
   try {
+    // Tenta analisar a string como JSON.
     const parsed = JSON.parse(jsonString);
-    return parsed;
+    // Verifica se o resultado é um objeto e tem a propriedade 'texto'.
+    if (typeof parsed === 'object' && parsed !== null && 'texto' in parsed) {
+        return parsed;
+    }
+    // Se não for um JSON válido ou não tiver 'texto', trata a string inteira como o texto da mensagem.
+    return { texto: jsonString, tipo: 'user', timestamp: Math.floor(Date.now() / 1000).toString() };
   } catch (e) {
-    console.error("Falha ao analisar JSON da mensagem do Redis:", jsonString, e);
-    // Retorna um objeto padrão para evitar que a aplicação quebre
+    // Se o JSON.parse falhar, assume que a string inteira é a mensagem.
     return { texto: jsonString, tipo: 'user', timestamp: Math.floor(Date.now() / 1000).toString() };
   }
 }
