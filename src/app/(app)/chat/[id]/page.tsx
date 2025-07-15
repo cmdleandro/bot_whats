@@ -32,7 +32,7 @@ export default function ChatViewPage() {
 
   const viewportRef = useRef<HTMLDivElement>(null);
 
-  const fetchMessages = React.useCallback(async (id: string) => {
+  const fetchMessages = React.useCallback(async (id: string, isBackground: boolean) => {
     try {
         const redisMessages = await getMessages(id);
         setMessages(prevMessages => {
@@ -44,8 +44,7 @@ export default function ChatViewPage() {
         });
     } catch (error) {
         console.error("Erro ao buscar mensagens:", error);
-        // Avoid showing toasts for background updates
-        if (isLoading) {
+        if (!isBackground) {
             toast({
                 variant: 'destructive',
                 title: 'Erro de Rede',
@@ -53,7 +52,7 @@ export default function ChatViewPage() {
             });
         }
     }
-  }, [toast, isLoading]);
+  }, [toast]);
 
   useEffect(() => {
     const name = localStorage.getItem('chatview_operator_name');
@@ -80,7 +79,7 @@ export default function ChatViewPage() {
                     });
                 }
 
-                await fetchMessages(contactId);
+                await fetchMessages(contactId, false);
 
             } catch (error) {
                 console.error("Erro ao buscar dados do chat:", error);
@@ -97,7 +96,7 @@ export default function ChatViewPage() {
         fetchContactAndInitialMessages();
 
         const interval = setInterval(() => {
-          fetchMessages(contactId);
+          fetchMessages(contactId, true);
         }, 3000); // Check every 3 seconds
 
         return () => clearInterval(interval);
