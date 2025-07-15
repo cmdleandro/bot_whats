@@ -45,8 +45,13 @@ export async function getClient() {
 
 
 function parseRedisMessage(jsonString: string): RedisMessage {
+  const cleanedString = jsonString.trim();
   try {
-    const parsed = JSON.parse(jsonString);
+    // Se não começar com '{', não é um JSON que nos interessa.
+    if (!cleanedString.startsWith('{') || !cleanedString.endsWith('}')) {
+      return { texto: jsonString, tipo: 'user', timestamp: Math.floor(Date.now() / 1000).toString() };
+    }
+    const parsed = JSON.parse(cleanedString);
     return {
       texto: parsed.texto || '',
       tipo: parsed.tipo || 'user',
@@ -56,7 +61,7 @@ function parseRedisMessage(jsonString: string): RedisMessage {
       contactPhotoUrl: parsed.contactPhotoUrl,
     };
   } catch (e) {
-    // Se o parse falhar, trata a string como texto simples de um usuário.
+    // Se o parse falhar (JSON inválido), retorna como texto simples de usuário.
     return { 
         texto: jsonString, 
         tipo: 'user', 
