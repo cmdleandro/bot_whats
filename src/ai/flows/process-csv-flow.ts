@@ -69,9 +69,9 @@ const processContactsFileFlow = ai.defineFlow(
     inputSchema: ProcessContactsFileInputSchema,
     outputSchema: ProcessContactsFileOutputSchema,
     retry: genkit.backoff({
-      maxRetries: 3, // Tenta até 3 vezes
-      delay: 2000, // Começa com 2 segundos de atraso
-      multiplier: 2, // Dobra o atraso a cada tentativa
+      maxRetries: 3,
+      delay: 2000,
+      multiplier: 2,
     }),
   },
   async (input) => {
