@@ -1,3 +1,4 @@
+
 'use server';
 
 import { createClient } from 'redis';
@@ -45,17 +46,23 @@ export async function getClient() {
 
 function parseRedisMessage(jsonString: string): RedisMessage {
   try {
-    // Tenta analisar a string como JSON.
     const parsed = JSON.parse(jsonString);
-    // Verifica se o resultado é um objeto e tem a propriedade 'texto'.
-    if (typeof parsed === 'object' && parsed !== null && 'texto' in parsed) {
-        return parsed;
-    }
-    // Se não for um JSON válido ou não tiver 'texto', trata a string inteira como o texto da mensagem.
-    return { texto: jsonString, tipo: 'user', timestamp: Math.floor(Date.now() / 1000).toString() };
+    // Garante que o resultado é um objeto com as propriedades esperadas
+    return {
+      texto: parsed.texto || '',
+      tipo: parsed.tipo || 'user',
+      timestamp: parsed.timestamp || Math.floor(Date.now() / 1000).toString(),
+      contactName: parsed.contactName,
+      operatorName: parsed.operatorName,
+      contactPhotoUrl: parsed.contactPhotoUrl,
+    };
   } catch (e) {
-    // Se o JSON.parse falhar, assume que a string inteira é a mensagem.
-    return { texto: jsonString, tipo: 'user', timestamp: Math.floor(Date.now() / 1000).toString() };
+    // Se o parse falhar, assume que a string inteira é o texto da mensagem de um usuário.
+    return { 
+        texto: jsonString, 
+        tipo: 'user', 
+        timestamp: Math.floor(Date.now() / 1000).toString() 
+    };
   }
 }
 
