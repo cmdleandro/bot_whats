@@ -136,6 +136,7 @@ export async function getContacts(): Promise<Contact[]> {
         if (!storedContactsMap.has(contactId)) {
             for (const msgJson of allMessagesJson) {
                 const msg = parseRedisMessage(msgJson);
+                // CRITICAL FIX: Only consider 'user' messages for contactName and contactPhotoUrl
                 if (msg.tipo === 'user') {
                     if (msg.contactName) {
                         contactName = msg.contactName;
@@ -143,7 +144,7 @@ export async function getContacts(): Promise<Contact[]> {
                     if (msg.contactPhotoUrl) {
                         avatar = msg.contactPhotoUrl;
                     }
-                    // If we found both, we can stop searching
+                    // If we found both from a user message, we can stop searching
                     if (contactName !== contactId.split('@')[0] && avatar !== `https://placehold.co/40x40.png`) {
                         break;
                     }
