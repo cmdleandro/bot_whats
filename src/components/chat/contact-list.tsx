@@ -20,11 +20,18 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
-import { Search, BellRing, PlusCircle } from 'lucide-react';
+import { Search, BellRing, PlusCircle, Sparkles } from 'lucide-react';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { getContacts } from '@/lib/redis';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useTheme } from '@/components/theme/theme-provider';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
+
 
 export function ContactList() {
   const params = useParams();
@@ -115,45 +122,68 @@ export function ContactList() {
       <div className="p-4 space-y-4">
         <div className="flex items-center justify-between">
           <h2 className="text-2xl font-bold">Contatos</h2>
-          <Dialog open={isNewChatOpen} onOpenChange={setIsNewChatOpen}>
-            <DialogTrigger asChild>
-              <Button variant="ghost" size="icon">
-                <PlusCircle className="h-6 w-6" />
-                <span className="sr-only">Nova Conversa</span>
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-[425px]">
-              <DialogHeader>
-                <DialogTitle>Iniciar Nova Conversa</DialogTitle>
-                <DialogDescription>
-                  Digite o ID do contato para iniciar um novo chat. Ex: 5511999998888@c.us
-                </DialogDescription>
-              </DialogHeader>
-              <div className="grid gap-4 py-4">
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="contact-id" className="text-right">
-                    ID do Contato
-                  </Label>
-                  <Input
-                    id="contact-id"
-                    value={newContactId}
-                    onChange={(e) => setNewContactId(e.target.value)}
-                    className="col-span-3"
-                    placeholder="ex: 5511999998888@c.us"
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault();
-                        handleStartNewChat();
-                      }
-                    }}
-                  />
-                </div>
-              </div>
-              <DialogFooter>
-                <Button onClick={handleStartNewChat} disabled={!newContactId.trim()}>Iniciar Conversa</Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
+          <div className="flex items-center gap-1">
+            <TooltipProvider>
+                <Tooltip>
+                    <TooltipTrigger asChild>
+                        <Button variant="ghost" size="icon" onClick={() => router.push('/ai-contact-finder')}>
+                            <Sparkles className="h-6 w-6" />
+                            <span className="sr-only">Busca com IA</span>
+                        </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                        <p>Busca Inteligente de Contatos</p>
+                    </TooltipContent>
+                </Tooltip>
+
+                <Dialog open={isNewChatOpen} onOpenChange={setIsNewChatOpen}>
+                <Tooltip>
+                    <TooltipTrigger asChild>
+                        <DialogTrigger asChild>
+                        <Button variant="ghost" size="icon">
+                            <PlusCircle className="h-6 w-6" />
+                            <span className="sr-only">Nova Conversa</span>
+                        </Button>
+                        </DialogTrigger>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                        <p>Iniciar Nova Conversa por ID</p>
+                    </TooltipContent>
+                </Tooltip>
+                <DialogContent className="sm:max-w-[425px]">
+                    <DialogHeader>
+                        <DialogTitle>Iniciar Nova Conversa</DialogTitle>
+                        <DialogDescription>
+                        Digite o ID do contato para iniciar um novo chat. Ex: 5511999998888@c.us
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="grid gap-4 py-4">
+                        <div className="grid grid-cols-4 items-center gap-4">
+                        <Label htmlFor="contact-id" className="text-right">
+                            ID do Contato
+                        </Label>
+                        <Input
+                            id="contact-id"
+                            value={newContactId}
+                            onChange={(e) => setNewContactId(e.target.value)}
+                            className="col-span-3"
+                            placeholder="ex: 5511999998888@c.us"
+                            onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                                e.preventDefault();
+                                handleStartNewChat();
+                            }
+                            }}
+                        />
+                        </div>
+                    </div>
+                    <DialogFooter>
+                        <Button onClick={handleStartNewChat} disabled={!newContactId.trim()}>Iniciar Conversa</Button>
+                    </DialogFooter>
+                </DialogContent>
+                </Dialog>
+            </TooltipProvider>
+          </div>
         </div>
          <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
