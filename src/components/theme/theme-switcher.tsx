@@ -19,15 +19,18 @@ import {
 import { cn } from '@/lib/utils';
 
 const themes = [
-  'zinc', 'blue', 'rose', 'orange', 'green'
+  'zinc', 'blue', 'green', 'orange', 'rose', 'violet', 'yellow', 'slate'
 ];
 
 const themeColors: Record<string, string> = {
   zinc: 'hsl(221.2 83.2% 53.3%)',
   blue: 'hsl(220 90% 60%)',
-  rose: 'hsl(346.8 77.2% 49.8%)',
-  orange: 'hsl(24.6 95% 53.1%)',
   green: 'hsl(142.1 76.2% 36.3%)',
+  orange: 'hsl(24.6 95% 53.1%)',
+  rose: 'hsl(346.8 77.2% 49.8%)',
+  violet: 'hsl(258.8 77.2% 55.8%)',
+  yellow: 'hsl(44.6 95% 53.1%)',
+  slate: 'hsl(215.4 16.3% 46.9%)',
 };
 
 
