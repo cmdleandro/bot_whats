@@ -226,7 +226,7 @@ export async function addMessage(contactId: string, message: { text: string; sen
     };
 
     // Formata a mensagem para o WhatsApp com nome do operador em negrito
-    const formattedText = `*${message.operatorName}*\\n${message.text}`;
+    const formattedText = `*${message.operatorName}*\n${message.text}`;
     
     const messageForQueue = {
         instance: instanceName,
