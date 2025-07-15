@@ -16,55 +16,65 @@ type ThemeProviderState = {
   setNotificationSound: (sound: string) => void;
 };
 
-const initialState: ThemeProviderState = {
+const initialState: Omit<ThemeProviderState, 'setTheme' | 'toggleDarkMode' | 'setNotificationSound'> = {
   theme: 'zinc',
   isDarkMode: false,
   notificationSound: '/notification1.wav',
+};
+
+// Helper function to get initial state from localStorage
+const getInitialState = () => {
+  if (typeof window === 'undefined') {
+    return initialState;
+  }
+  try {
+    const storedTheme = localStorage.getItem(THEME_STORAGE_KEY);
+    const storedIsDarkMode = localStorage.getItem(DARK_MODE_STORAGE_KEY);
+    const storedNotificationSound = localStorage.getItem(NOTIFICATION_SOUND_STORAGE_KEY);
+
+    return {
+      theme: storedTheme || initialState.theme,
+      isDarkMode: storedIsDarkMode ? JSON.parse(storedIsDarkMode) : initialState.isDarkMode,
+      notificationSound: storedNotificationSound || initialState.notificationSound,
+    };
+  } catch (error) {
+    console.warn('Failed to read theme from localStorage', error);
+    return initialState;
+  }
+};
+
+
+const ThemeProviderContext = createContext<ThemeProviderState>({
+  ...initialState,
   setTheme: () => null,
   toggleDarkMode: () => null,
   setNotificationSound: () => null,
-};
-
-const ThemeProviderContext = createContext<ThemeProviderState>(initialState);
+});
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [theme, setThemeState] = useState<Theme>(initialState.theme);
-  const [isDarkMode, setIsDarkModeState] = useState<boolean>(initialState.isDarkMode);
-  const [notificationSound, setNotificationSoundState] = useState<string>(initialState.notificationSound);
-  const [isMounted, setIsMounted] = useState(false);
+  const [theme, setThemeState] = useState<Theme>(() => getInitialState().theme);
+  const [isDarkMode, setIsDarkModeState] = useState<boolean>(() => getInitialState().isDarkMode);
+  const [notificationSound, setNotificationSoundState] = useState<string>(() => getInitialState().notificationSound);
 
   useEffect(() => {
-    setThemeState(localStorage.getItem(THEME_STORAGE_KEY) || initialState.theme);
-    setIsDarkModeState(JSON.parse(localStorage.getItem(DARK_MODE_STORAGE_KEY) || 'false'));
-    setNotificationSoundState(localStorage.getItem(NOTIFICATION_SOUND_STORAGE_KEY) || initialState.notificationSound);
-    setIsMounted(true);
-  }, []);
+      const body = window.document.body;
+      
+      // Clear all theme classes first
+      const classesToRemove = Array.from(body.classList).filter(cls => cls.startsWith('theme-'));
+      if (classesToRemove.length > 0) {
+        body.classList.remove(...classesToRemove);
+      }
 
+      // Add current theme class
+      body.classList.add(`theme-${theme}`);
 
-  useEffect(() => {
-    if (isMounted) {
-        const body = window.document.body;
-        
-        // Clear all theme classes
-        body.classList.forEach(className => {
-            if (className.startsWith('theme-')) {
-                body.classList.remove(className);
-            }
-        });
-
-        // Add current theme class
-        if (theme) {
-          body.classList.add(`theme-${theme}`);
-        }
-
-        // Toggle dark class
-        if (isDarkMode) {
-          body.classList.add('dark');
-        } else {
-          body.classList.remove('dark');
-        }
-    }
-  }, [theme, isDarkMode, isMounted]);
+      // Toggle dark class
+      if (isDarkMode) {
+        body.classList.add('dark');
+      } else {
+        body.classList.remove('dark');
+      }
+  }, [theme, isDarkMode]);
 
   const setTheme = (newTheme: Theme) => {
     localStorage.setItem(THEME_STORAGE_KEY, newTheme);
@@ -90,11 +100,6 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     toggleDarkMode,
     setNotificationSound,
   }), [theme, isDarkMode, notificationSound]);
-
-  if (!isMounted) {
-    // Render nothing on the server to avoid hydration mismatch
-    return <>{children}</>;
-  }
 
   return (
     <ThemeProviderContext.Provider value={value}>
