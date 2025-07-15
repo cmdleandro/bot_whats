@@ -4,7 +4,7 @@
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
-import { type Contact } from '@/lib/data';
+import { type Contact, type StoredContact } from '@/lib/data';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
@@ -14,15 +14,14 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
-import { Label } from '@/components/ui/label';
-import { Search, BellRing, PlusCircle } from 'lucide-react';
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { Search, BellRing, PlusCircle, Loader2 } from 'lucide-react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { getContacts } from '@/lib/redis';
+import { getStoredContacts } from '@/actions/contact-actions';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useTheme } from '@/components/theme/theme-provider';
 import {
@@ -42,8 +41,12 @@ export function ContactList() {
   const [searchTerm, setSearchTerm] = useState('');
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+
+  // For the "New Chat" Dialog
   const [isNewChatOpen, setIsNewChatOpen] = useState(false);
-  const [newContactId, setNewContactId] = useState('');
+  const [storedContacts, setStoredContacts] = useState<StoredContact[]>([]);
+  const [isStoredContactsLoading, setIsStoredContactsLoading] = useState(false);
+  const [newChatSearchTerm, setNewChatSearchTerm] = useState('');
   
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const previousAttentionIds = useRef<Set<string>>(new Set());
@@ -104,14 +107,35 @@ export function ContactList() {
   }, [fetchContacts]);
 
 
-  const handleStartNewChat = () => {
-    if (newContactId.trim()) {
-      const formattedId = newContactId.trim();
+  const handleStartNewChat = (contactId: string) => {
+    if (contactId.trim()) {
+      const formattedId = contactId.trim();
       router.push(`/chat/${encodeURIComponent(formattedId)}`);
-      setNewContactId('');
       setIsNewChatOpen(false);
+      setNewChatSearchTerm('');
     }
   };
+  
+  const handleOpenNewChatDialog = async () => {
+    setIsStoredContactsLoading(true);
+    try {
+        const fetchedContacts = await getStoredContacts();
+        setStoredContacts(fetchedContacts);
+    } catch (error) {
+        console.error("Failed to fetch stored contacts", error);
+        // Optionally show a toast error
+    } finally {
+        setIsStoredContactsLoading(false);
+    }
+  }
+
+  const filteredStoredContacts = useMemo(() => {
+    return storedContacts.filter(contact =>
+        contact.name.toLowerCase().includes(newChatSearchTerm.toLowerCase()) ||
+        contact.id.toLowerCase().includes(newChatSearchTerm.toLowerCase())
+    );
+  }, [storedContacts, newChatSearchTerm]);
+
 
   const filteredContacts = contacts.filter(contact =>
     contact.name.toLowerCase().includes(searchTerm.toLowerCase())
@@ -128,46 +152,60 @@ export function ContactList() {
                 <Tooltip>
                     <TooltipTrigger asChild>
                         <DialogTrigger asChild>
-                        <Button variant="ghost" size="icon">
+                        <Button variant="ghost" size="icon" onClick={handleOpenNewChatDialog}>
                             <PlusCircle className="h-6 w-6" />
                             <span className="sr-only">Nova Conversa</span>
                         </Button>
                         </DialogTrigger>
                     </TooltipTrigger>
                     <TooltipContent>
-                        <p>Iniciar Nova Conversa por ID</p>
+                        <p>Iniciar Nova Conversa</p>
                     </TooltipContent>
                 </Tooltip>
-                <DialogContent className="sm:max-w-[425px]">
+                <DialogContent className="sm:max-w-md h-[70vh] flex flex-col">
                     <DialogHeader>
                         <DialogTitle>Iniciar Nova Conversa</DialogTitle>
                         <DialogDescription>
-                        Digite o ID do contato para iniciar um novo chat. Ex: 5511999998888@c.us
+                            Selecione um contato salvo para iniciar uma conversa.
                         </DialogDescription>
                     </DialogHeader>
-                    <div className="grid gap-4 py-4">
-                        <div className="grid grid-cols-4 items-center gap-4">
-                        <Label htmlFor="contact-id" className="text-right">
-                            ID do Contato
-                        </Label>
+                    <div className="relative">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                         <Input
-                            id="contact-id"
-                            value={newContactId}
-                            onChange={(e) => setNewContactId(e.target.value)}
-                            className="col-span-3"
-                            placeholder="ex: 5511999998888@c.us"
-                            onKeyDown={(e) => {
-                            if (e.key === 'Enter') {
-                                e.preventDefault();
-                                handleStartNewChat();
-                            }
-                            }}
+                            placeholder="Buscar por nome ou ID..."
+                            className="pl-10"
+                            value={newChatSearchTerm}
+                            onChange={(e) => setNewChatSearchTerm(e.target.value)}
                         />
-                        </div>
                     </div>
-                    <DialogFooter>
-                        <Button onClick={handleStartNewChat} disabled={!newContactId.trim()}>Iniciar Conversa</Button>
-                    </DialogFooter>
+                    <ScrollArea className="flex-1 -mx-6">
+                        <div className="px-6">
+                        {isStoredContactsLoading ? (
+                           <div className="flex justify-center items-center h-full">
+                                <Loader2 className="h-6 w-6 animate-spin" />
+                           </div>
+                        ) : filteredStoredContacts.length > 0 ? (
+                           filteredStoredContacts.map(contact => (
+                            <button
+                                key={contact.id}
+                                onClick={() => handleStartNewChat(contact.id)}
+                                className="w-full text-left p-3 flex items-center gap-3 rounded-md hover:bg-accent transition-colors"
+                            >
+                               <Avatar className="h-10 w-10">
+                                  <AvatarImage src={`https://placehold.co/40x40.png`} alt={contact.name} data-ai-hint="person portrait" />
+                                  <AvatarFallback>{contact.name.charAt(0)}</AvatarFallback>
+                               </Avatar>
+                               <div className="flex-1 truncate">
+                                    <p className="font-semibold">{contact.name}</p>
+                                    <p className="text-sm text-muted-foreground">{contact.id}</p>
+                               </div>
+                            </button>
+                           ))
+                        ) : (
+                            <p className="text-center text-sm text-muted-foreground pt-8">Nenhum contato encontrado.</p>
+                        )}
+                        </div>
+                    </ScrollArea>
                 </DialogContent>
                 </Dialog>
             </TooltipProvider>
@@ -176,7 +214,7 @@ export function ContactList() {
          <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input 
-                placeholder="Pesquisar contato..." 
+                placeholder="Pesquisar conversa..." 
                 className="pl-10"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
@@ -228,7 +266,7 @@ export function ContactList() {
             ))
           )}
            {!isLoading && filteredContacts.length === 0 && (
-            <p className="p-4 text-center text-sm text-muted-foreground">Nenhum contato encontrado.</p>
+            <p className="p-4 text-center text-sm text-muted-foreground">Nenhuma conversa encontrada.</p>
            )}
         </nav>
       </ScrollArea>
