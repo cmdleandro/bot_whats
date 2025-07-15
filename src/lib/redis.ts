@@ -47,11 +47,16 @@ export async function getClient() {
 function parseRedisMessage(jsonString: string): RedisMessage {
   const cleanedString = jsonString.trim();
   try {
-    // Se não começar com '{', não é um JSON que nos interessa.
-    if (!cleanedString.startsWith('{') || !cleanedString.endsWith('}')) {
-      return { texto: jsonString, tipo: 'user', timestamp: Math.floor(Date.now() / 1000).toString() };
-    }
     const parsed = JSON.parse(cleanedString);
+
+    if (typeof parsed.texto === 'string' && parsed.texto.startsWith('"') && parsed.texto.endsWith('"')) {
+        try {
+            parsed.texto = JSON.parse(parsed.texto);
+        } catch (e) {
+            // Se o segundo parse falhar, mantém o texto como está.
+        }
+    }
+    
     return {
       texto: parsed.texto || '',
       tipo: parsed.tipo || 'user',
@@ -61,9 +66,8 @@ function parseRedisMessage(jsonString: string): RedisMessage {
       contactPhotoUrl: parsed.contactPhotoUrl,
     };
   } catch (e) {
-    // Se o parse falhar (JSON inválido), retorna como texto simples de usuário.
     return { 
-        texto: jsonString, 
+        texto: cleanedString, 
         tipo: 'user', 
         timestamp: Math.floor(Date.now() / 1000).toString() 
     };
@@ -167,16 +171,29 @@ export async function getMessages(contactId: string): Promise<Message[]> {
 export async function addMessage(contactId: string, message: { text: string; sender: 'operator', operatorName: string }): Promise<void> {
   try {
     const client = await getClient();
-    const key = `chat:${contactId.trim()}`;
+    const historyKey = `chat:${contactId.trim()}`;
+    const queueKey = 'fila_envio_whatsapp';
     
-    const redisMessage: RedisMessage = {
+    const redisMessageForHistory: RedisMessage = {
       texto: message.text,
       tipo: message.sender,
       timestamp: Math.floor(Date.now() / 1000).toString(),
       operatorName: message.operatorName,
     };
     
-    await client.lPush(key, JSON.stringify(redisMessage));
+    // Objeto para a fila de envio, contendo o destinatário
+    const messageForQueue = {
+        para: contactId.trim(),
+        texto: message.text,
+    };
+
+    // Usar um pipeline para garantir que ambas as operações sejam atômicas
+    const multi = client.multi();
+    multi.lPush(historyKey, JSON.stringify(redisMessageForHistory));
+    multi.lPush(queueKey, JSON.stringify(messageForQueue));
+    await multi.exec();
+
+    console.log(`Mensagem para ${contactId} adicionada ao histórico e à fila de envio.`);
 
   } catch (error) {
     console.error(`Falha ao adicionar mensagem para ${contactId} no Redis:`, error);

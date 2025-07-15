@@ -26,7 +26,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
   const [currentUser, setCurrentUser] = React.useState<User | null>(null);
-  const appVersion = '1.0.3'; // Version number
+  const appVersion = '1.0.4'; // Version number
 
   React.useEffect(() => {
     const operatorName = localStorage.getItem('chatview_operator_name');
