@@ -187,14 +187,12 @@ export async function addMessage(contactId: string, message: { text: string; sen
         texto: message.text,
     };
 
-    const multi = client.multi();
     // 1. Salva a mensagem no histórico do chat
-    multi.lPush(historyKey, JSON.stringify(redisMessageForHistory));
-    // 2. Publica a mensagem no canal para o n8n ouvir
-    multi.publish(channelName, JSON.stringify(messageForQueue));
+    await client.lPush(historyKey, JSON.stringify(redisMessageForHistory));
     
-    await multi.exec();
-
+    // 2. Publica a mensagem no canal para o n8n ouvir
+    await client.publish(channelName, JSON.stringify(messageForQueue));
+    
     console.log(`Mensagem para ${contactId} salva no histórico e publicada no canal ${channelName}.`);
 
   } catch (error) {
