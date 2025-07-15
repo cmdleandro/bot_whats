@@ -39,7 +39,7 @@
   }
 
   /* Default Dark Theme (Zinc) */
-  body.dark {
+  body.dark.theme-zinc {
     --background: 222.2 84% 4.9%;
     --foreground: 210 40% 98%;
     --card: 222.2 84% 4.9%;
@@ -66,9 +66,7 @@
     --sidebar-accent-foreground: 222.2 47.4% 11.2%;
     --sidebar-ring: 210 40% 98%;
   }
-}
-
-@layer components {
+  
   /* Blue Theme */
   body.theme-blue {
     --background: 210 100% 98%;
@@ -236,7 +234,7 @@
     --sidebar-accent: 346.8 77.2% 49.8%;
     --sidebar-accent-foreground: 347 20% 98%;
   }
-
+  
   /* Violet Theme */
   body.theme-violet {
     --background: 255 100% 98%;
@@ -362,4 +360,8 @@
     --sidebar-accent: 215.4 16.3% 56.9%;
     --sidebar-accent-foreground: 210 20% 98%;
   }
+}
+
+@layer components {
+  /* This layer can be used for component-specific styles if needed in the future */
 }
