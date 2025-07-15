@@ -30,7 +30,7 @@ export default function ChatViewPage() {
   const [isSending, setIsSending] = useState(false);
 
 
-  const scrollAreaRef = useRef<HTMLDivElement>(null);
+  const viewportRef = useRef<HTMLDivElement>(null);
 
   const fetchMessages = React.useCallback(async (id: string) => {
     try {
@@ -101,9 +101,9 @@ export default function ChatViewPage() {
   }, [contactId, toast, fetchMessages]);
 
   useEffect(() => {
-    if (scrollAreaRef.current) {
-      scrollAreaRef.current.scrollTo({
-        top: scrollAreaRef.current.scrollHeight,
+    if (viewportRef.current) {
+        viewportRef.current.scrollTo({
+        top: viewportRef.current.scrollHeight,
         behavior: 'smooth',
       });
     }
@@ -190,7 +190,7 @@ export default function ChatViewPage() {
         </div>
       </header>
 
-      <ScrollArea className="flex-1" ref={scrollAreaRef}>
+      <ScrollArea className="flex-1" viewportRef={viewportRef}>
         <div className="p-4 md:p-6 space-y-6">
           {isLoading ? (
             <div className="flex justify-center items-center h-full p-8">
