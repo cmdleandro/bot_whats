@@ -92,9 +92,8 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   }), [theme, isDarkMode, notificationSound]);
 
   if (!isMounted) {
-    // Render children without theme classes on the server and before hydration
-    // But add a default theme to avoid FOUC (flash of unstyled content)
-    return <body className="theme-zinc">{children}</body>;
+    // Render nothing on the server to avoid hydration mismatch
+    return <>{children}</>;
   }
 
   return (
