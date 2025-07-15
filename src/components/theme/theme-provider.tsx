@@ -2,6 +2,7 @@
 'use client';
 
 import React, { createContext, useContext, useEffect, useState, useMemo } from 'react';
+import { useToast } from '@/hooks/use-toast';
 
 const THEME_STORAGE_KEY = 'chatview-theme';
 const DARK_MODE_STORAGE_KEY = 'chatview-dark-mode';
@@ -47,9 +48,11 @@ const getInitialState = () => {
 const ThemeProviderContext = createContext<ThemeProviderState | undefined>(undefined);
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [theme, setThemeState] = useState<Theme>(getInitialState().theme);
-  const [isDarkMode, setIsDarkModeState] = useState<boolean>(getInitialState().isDarkMode);
-  const [notificationSound, setNotificationSoundState] = useState<string>(getInitialState().notificationSound);
+  const initialState = useMemo(() => getInitialState(), []);
+  const [theme, setThemeState] = useState<Theme>(initialState.theme);
+  const [isDarkMode, setIsDarkModeState] = useState<boolean>(initialState.isDarkMode);
+  const [notificationSound, setNotificationSoundState] = useState<string>(initialState.notificationSound);
+  const { toast } = useToast();
 
   useEffect(() => {
     const body = window.document.body;
@@ -71,8 +74,19 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     } else {
       body.classList.remove('dark');
     }
+    
+    // 4. Debug log via Toast
+    const currentClasses = Array.from(body.classList).join(' ');
+    toast({
+      title: "Debug: Classes aplicadas no <body>",
+      description: (
+        <pre className="mt-2 w-[340px] rounded-md bg-slate-950 p-4">
+          <code className="text-white">{currentClasses}</code>
+        </pre>
+      ),
+    });
 
-  }, [theme, isDarkMode]);
+  }, [theme, isDarkMode, toast]);
 
   const setTheme = (newTheme: Theme) => {
     localStorage.setItem(THEME_STORAGE_KEY, newTheme);
