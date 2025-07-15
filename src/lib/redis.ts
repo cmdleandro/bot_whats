@@ -9,14 +9,13 @@ import { ptBR } from 'date-fns/locale';
 
 let redisClient: ReturnType<typeof createClient> | null = null;
 
-const ATTENTION_KEYWORDS = [
-    "falar com atendente",
-    "falar com humano",
-    "falar com técnico",
-    "falar com pessoa",
-    "atendente",
-    "suporte",
-    "ajuda humana"
+const BOT_ATTENTION_KEYWORDS = [
+    "transferindo para um de nossos atendentes",
+    "estou te transferindo para um especialista",
+    "vou te passar para um técnico",
+    "aguarde o nosso próximo agente",
+    "encaminhando sua conversa para o setor responsável",
+    "passando para um técnico"
 ];
 
 
@@ -91,7 +90,7 @@ function parseRedisMessage(jsonString: string): RedisMessage {
 
 function checkNeedsAttention(message: string): boolean {
     const lowerCaseMessage = message.toLowerCase();
-    return ATTENTION_KEYWORDS.some(keyword => lowerCaseMessage.includes(keyword));
+    return BOT_ATTENTION_KEYWORDS.some(keyword => lowerCaseMessage.includes(keyword));
 }
 
 export async function getContacts(): Promise<Contact[]> {
@@ -121,8 +120,9 @@ export async function getContacts(): Promise<Contact[]> {
             const lastMsg = parseRedisMessage(allMessagesJson[0]); // Pega a mais recente
             lastMessageText = lastMsg.texto;
             timestamp = lastMsg.timestamp ? parseInt(lastMsg.timestamp, 10) * 1000 : Date.now();
-            // Verifica se a última mensagem é do usuário e contém a palavra-chave
-            if (lastMsg.tipo === 'user') {
+            
+            // Verifica se a última mensagem é do BOT e contém a palavra-chave de transferência.
+            if (lastMsg.tipo === 'bot') {
                 needsAttention = checkNeedsAttention(lastMsg.texto);
             }
         }
