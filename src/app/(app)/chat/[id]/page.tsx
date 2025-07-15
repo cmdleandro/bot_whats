@@ -36,20 +36,24 @@ export default function ChatViewPage() {
     try {
         const redisMessages = await getMessages(id);
         setMessages(prevMessages => {
-            if (JSON.stringify(prevMessages) !== JSON.stringify(redisMessages)) {
+            // Only update if the number of messages has changed to avoid unnecessary re-renders.
+            if (prevMessages.length !== redisMessages.length) {
                 return redisMessages;
             }
             return prevMessages;
         });
     } catch (error) {
         console.error("Erro ao buscar mensagens:", error);
-        toast({
-            variant: 'destructive',
-            title: 'Erro de Rede',
-            description: 'Não foi possível carregar novas mensagens.',
-        });
+        // Avoid showing toasts for background updates
+        if (isLoading) {
+            toast({
+                variant: 'destructive',
+                title: 'Erro de Rede',
+                description: 'Não foi possível carregar novas mensagens.',
+            });
+        }
     }
-  }, [toast]);
+  }, [toast, isLoading]);
 
   useEffect(() => {
     const name = localStorage.getItem('chatview_operator_name');
@@ -65,11 +69,12 @@ export default function ChatViewPage() {
                 if (currentContact) {
                     setContact(currentContact);
                 } else {
+                     // If contact is not in the list, create a temporary one.
                     setContact({
                         id: contactId,
                         name: contactId.split('@')[0],
                         avatar: `https://placehold.co/40x40.png`,
-                        lastMessage: '',
+                        lastMessage: 'Nenhuma mensagem recente.',
                         timestamp: '',
                         unreadCount: 0
                     });
@@ -93,7 +98,7 @@ export default function ChatViewPage() {
 
         const interval = setInterval(() => {
           fetchMessages(contactId);
-        }, 5000); // Verifica a cada 5 segundos
+        }, 3000); // Check every 3 seconds
 
         return () => clearInterval(interval);
     }
@@ -139,22 +144,26 @@ export default function ChatViewPage() {
         title: 'Erro de Rede',
         description: 'Não foi possível enviar a mensagem. Por favor, tente novamente.',
       });
+      // Rollback UI on failure
       setMessages(prevMessages => prevMessages.filter(m => m.id !== message.id));
     } finally {
       setIsSending(false);
+      // Refocus the textarea after sending
+      document.querySelector('textarea')?.focus();
     }
   };
 
   const handleSuggestionClick = (suggestion: string) => {
     setNewMessage(suggestion);
+    document.querySelector('textarea')?.focus();
   };
   
   const lastUserMessage = messages.slice().reverse().find(m => m.sender === 'user');
 
-  if (!contact) {
+  if (!contact && !isLoading) {
     return (
       <div className="flex h-full items-center justify-center bg-muted/20">
-        <p>Selecione uma conversa.</p>
+        <p>Selecione uma conversa para começar.</p>
       </div>
     );
   }
@@ -180,14 +189,26 @@ export default function ChatViewPage() {
                 <ChevronLeft className="h-6 w-6" />
             </Link>
         </Button>
-        <Avatar>
-          <AvatarImage src={contact.avatar} alt={contact.name} data-ai-hint="person portrait" />
-          <AvatarFallback>{contact.name.charAt(0)}</AvatarFallback>
-        </Avatar>
-        <div className="flex-1">
-          <h2 className="font-semibold">{contact.name}</h2>
-          <p className="text-xs text-muted-foreground">Online</p>
-        </div>
+        {contact ? (
+          <>
+            <Avatar>
+              <AvatarImage src={contact.avatar} alt={contact.name} data-ai-hint="person portrait" />
+              <AvatarFallback>{contact.name.charAt(0)}</AvatarFallback>
+            </Avatar>
+            <div className="flex-1">
+              <h2 className="font-semibold">{contact.name}</h2>
+              <p className="text-xs text-muted-foreground">Online</p>
+            </div>
+          </>
+        ) : (
+          <div className="flex items-center gap-4 animate-pulse">
+            <div className="h-10 w-10 rounded-full bg-muted" />
+            <div className="space-y-2">
+                <div className="h-4 w-24 rounded-md bg-muted" />
+                <div className="h-3 w-16 rounded-md bg-muted" />
+            </div>
+          </div>
+        )}
       </header>
 
       <ScrollArea className="flex-1" viewportRef={viewportRef}>
@@ -216,8 +237,8 @@ export default function ChatViewPage() {
                      <AvatarImage src={msg.botAvatarUrl || "/logo.svg"} alt="Bot Logo" />
                   ) : (
                     <>
-                    <AvatarImage src={contact.avatar} alt={contact.name} />
-                    <AvatarFallback>{contact.name.charAt(0)}</AvatarFallback>
+                    <AvatarImage src={contact?.avatar} alt={contact?.name} />
+                    <AvatarFallback>{contact?.name.charAt(0)}</AvatarFallback>
                     </>
                   )}
                 </Avatar>
