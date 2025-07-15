@@ -32,12 +32,31 @@ export default function ChatViewPage() {
 
   const scrollAreaRef = useRef<HTMLDivElement>(null);
 
+  const fetchMessages = React.useCallback(async (id: string) => {
+    try {
+        const redisMessages = await getMessages(id);
+        setMessages(prevMessages => {
+            if (JSON.stringify(prevMessages) !== JSON.stringify(redisMessages)) {
+                return redisMessages;
+            }
+            return prevMessages;
+        });
+    } catch (error) {
+        console.error("Erro ao buscar mensagens:", error);
+        toast({
+            variant: 'destructive',
+            title: 'Erro de Rede',
+            description: 'Não foi possível carregar novas mensagens.',
+        });
+    }
+  }, [toast]);
+
   useEffect(() => {
     const name = localStorage.getItem('chatview_operator_name');
     setOperatorName(name || 'Operador');
     
     if (contactId) {
-        async function fetchContactAndMessages() {
+        async function fetchContactAndInitialMessages() {
             setIsLoading(true);
             try {
                 const allContacts = await getContacts();
@@ -56,8 +75,8 @@ export default function ChatViewPage() {
                     });
                 }
 
-                const redisMessages = await getMessages(contactId);
-                setMessages(redisMessages);
+                await fetchMessages(contactId);
+
             } catch (error) {
                 console.error("Erro ao buscar dados do chat:", error);
                 toast({
@@ -70,10 +89,16 @@ export default function ChatViewPage() {
             }
         }
 
-        fetchContactAndMessages();
+        fetchContactAndInitialMessages();
+
+        const interval = setInterval(() => {
+          fetchMessages(contactId);
+        }, 5000); // Verifica a cada 5 segundos
+
+        return () => clearInterval(interval);
     }
     
-  }, [contactId, toast]);
+  }, [contactId, toast, fetchMessages]);
 
   useEffect(() => {
     if (scrollAreaRef.current) {

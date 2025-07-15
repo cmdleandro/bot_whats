@@ -196,11 +196,14 @@ export async function addMessage(contactId: string, message: { text: string; sen
       operatorName: message.operatorName,
       instance: instanceName
     };
+
+    // Formata a mensagem para o WhatsApp com nome do operador em negrito
+    const formattedText = `*${message.operatorName}*\n${message.text}`;
     
     const messageForQueue = {
         instance: instanceName,
         remoteJid: contactId.trim(),
-        text: message.text,
+        text: formattedText,
     };
 
     // 2. Salva a mensagem no histórico do chat
