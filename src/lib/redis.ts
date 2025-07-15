@@ -173,7 +173,7 @@ export async function addMessage(contactId: string, message: { text: string; sen
   try {
     const client = await getClient();
     const historyKey = `chat:${contactId.trim()}`;
-    const queueKey = 'fila_envio_whatsapp';
+    const channelName = 'fila_envio_whatsapp';
     
     const redisMessageForHistory: RedisMessage = {
       texto: message.text,
@@ -188,11 +188,14 @@ export async function addMessage(contactId: string, message: { text: string; sen
     };
 
     const multi = client.multi();
+    // 1. Salva a mensagem no histórico do chat
     multi.lPush(historyKey, JSON.stringify(redisMessageForHistory));
-    multi.lPush(queueKey, JSON.stringify(messageForQueue));
+    // 2. Publica a mensagem no canal para o n8n ouvir
+    multi.publish(channelName, JSON.stringify(messageForQueue));
+    
     await multi.exec();
 
-    console.log(`Mensagem para ${contactId} adicionada ao histórico e à fila de envio.`);
+    console.log(`Mensagem para ${contactId} salva no histórico e publicada no canal ${channelName}.`);
 
   } catch (error) {
     console.error(`Falha ao adicionar mensagem para ${contactId} no Redis:`, error);
