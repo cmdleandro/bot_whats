@@ -132,11 +132,13 @@ export async function getMessages(contactId: string): Promise<Message[]> {
       const redisMsg = parseRedisMessage(jsonString);
       const timestamp = redisMsg.timestamp ? parseInt(redisMsg.timestamp, 10) * 1000 : Date.now();
       
+      const sender: Message['sender'] = ['user', 'bot', 'operator'].includes(redisMsg.tipo) ? redisMsg.tipo : 'user';
+
       return {
         id: `m-${contactId}-${index}`,
         contactId: contactId,
         text: redisMsg.texto,
-        sender: redisMsg.tipo,
+        sender: sender,
         operatorName: redisMsg.operatorName,
         timestamp: new Date(timestamp).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
       };
