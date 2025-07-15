@@ -5,7 +5,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useParams } from 'next/navigation';
 import Image from 'next/image';
 import { Send, Bot, User, ChevronLeft, Loader2 } from 'lucide-react';
-import { getMessages, addMessage, getContacts } from '@/lib/redis';
+import { getMessages, addMessage, getContacts, dismissAttention } from '@/lib/redis';
 import { Message, Contact } from '@/lib/data';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -35,7 +35,6 @@ export default function ChatViewPage() {
     try {
         const redisMessages = await getMessages(id);
         setMessages(prevMessages => {
-            // Only update if the number of messages has changed to avoid unnecessary re-renders.
             if (prevMessages.length !== redisMessages.length) {
                 return redisMessages;
             }
@@ -61,13 +60,15 @@ export default function ChatViewPage() {
         async function fetchContactAndInitialMessages() {
             setIsLoading(true);
             try {
+                // Desativa o alarme assim que o chat é aberto
+                await dismissAttention(contactId);
+
                 const allContacts = await getContacts();
                 const currentContact = allContacts.find(c => c.id === contactId);
                 
                 if (currentContact) {
                     setContact(currentContact);
                 } else {
-                     // If contact is not in the list, create a temporary one.
                     setContact({
                         id: contactId,
                         name: contactId.split('@')[0],

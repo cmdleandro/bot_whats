@@ -61,7 +61,6 @@ function parseRedisMessage(jsonString: string): RedisMessage {
   try {
     const parsed = JSON.parse(cleanedString);
     
-    // Tenta fazer um segundo parse se o texto ainda for uma string JSON.
     if (typeof parsed.texto === 'string' && parsed.texto.startsWith('"') && parsed.texto.endsWith('"')) {
         try {
             parsed.texto = JSON.parse(parsed.texto);
@@ -77,14 +76,15 @@ function parseRedisMessage(jsonString: string): RedisMessage {
       contactName: parsed.contactName,
       operatorName: parsed.operatorName,
       contactPhotoUrl: parsed.contactPhotoUrl,
-      instance: parsed.instance
+      instance: parsed.instance,
+      needsAttention: parsed.needsAttention === true,
     };
   } catch (e) {
-    // Se o parse inicial falhar, retorna a string como texto de um usuário.
     return { 
         texto: cleanedString, 
         tipo: 'user', 
-        timestamp: Math.floor(Date.now() / 1000).toString() 
+        timestamp: Math.floor(Date.now() / 1000).toString(),
+        needsAttention: false,
     };
   }
 }
@@ -121,11 +121,7 @@ export async function getContacts(): Promise<Contact[]> {
             const lastMsg = parseRedisMessage(allMessagesJson[0]); // Pega a mais recente
             lastMessageText = lastMsg.texto;
             timestamp = lastMsg.timestamp ? parseInt(lastMsg.timestamp, 10) * 1000 : Date.now();
-            
-            // Verifica se a última mensagem é do BOT e contém a palavra-chave de transferência.
-            if (lastMsg.tipo === 'bot') {
-                needsAttention = checkNeedsAttention(lastMsg.texto);
-            }
+            needsAttention = lastMsg.needsAttention === true;
         }
         
         for (const msgJson of allMessagesJson) {
@@ -203,9 +199,8 @@ export async function addMessage(contactId: string, message: { text: string; sen
     const historyKey = `chat:${contactId.trim()}`;
     const channelName = 'fila_envio_whatsapp';
     
-    // 1. Busca o nome da instância no histórico de mensagens
-    let instanceName = 'default'; // Fallback
-    const recentMessages = await client.lRange(historyKey, 0, 10); // Procura nas últimas 10 mensagens
+    let instanceName = 'default';
+    const recentMessages = await client.lRange(historyKey, 0, 10);
     for (const msgJson of recentMessages) {
         try {
             const parsedMsg = parseRedisMessage(msgJson);
@@ -223,10 +218,10 @@ export async function addMessage(contactId: string, message: { text: string; sen
       tipo: message.sender,
       timestamp: Math.floor(Date.now() / 1000).toString(),
       operatorName: message.operatorName,
-      instance: instanceName
+      instance: instanceName,
+      needsAttention: false, // Operator messages don't need attention
     };
 
-    // Formata a mensagem para o WhatsApp com nome do operador em negrito
     const formattedText = `*${message.operatorName}*\n${message.text}`;
     
     const messageForQueue = {
@@ -235,10 +230,8 @@ export async function addMessage(contactId: string, message: { text: string; sen
         text: formattedText,
     };
 
-    // 2. Salva a mensagem no histórico do chat
     await client.lPush(historyKey, JSON.stringify(redisMessageForHistory));
     
-    // 3. Publica a mensagem no canal para o n8n ouvir
     await client.publish(channelName, JSON.stringify(messageForQueue));
     
     console.log(`Mensagem para ${contactId} com instância ${instanceName} publicada no canal ${channelName}.`);
@@ -249,6 +242,27 @@ export async function addMessage(contactId: string, message: { text: string; sen
   }
 }
 
+export async function dismissAttention(contactId: string): Promise<void> {
+  try {
+    const client = await getClient();
+    const key = `chat:${contactId.trim()}`;
+    const lastMessageJson = await client.lIndex(key, 0); // Pega a mensagem mais recente
+
+    if (!lastMessageJson) return;
+
+    const lastMessage = parseRedisMessage(lastMessageJson);
+
+    if (lastMessage.needsAttention) {
+      // Cria uma nova mensagem com a flag de atenção desativada e a substitui
+      const updatedMessage = { ...lastMessage, needsAttention: false };
+      await client.lSet(key, 0, JSON.stringify(updatedMessage));
+      console.log(`Alarme para o contato ${contactId} foi desativado.`);
+    }
+  } catch (error) {
+    console.error(`Falha ao desativar o alarme para ${contactId}:`, error);
+    // Não lançamos o erro para não quebrar a UI
+  }
+}
 
 // User Management Functions
 const USERS_KEY = 'chatview:users';

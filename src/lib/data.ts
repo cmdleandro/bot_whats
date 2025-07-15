@@ -15,6 +15,7 @@ export type RedisMessage = {
   operatorName?: string;
   contactPhotoUrl?: string; 
   instance?: string;
+  needsAttention?: boolean;
 };
 
 export type Message = {
