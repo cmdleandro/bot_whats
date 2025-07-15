@@ -15,7 +15,8 @@ const BOT_ATTENTION_KEYWORDS = [
     "vou te passar para um técnico",
     "aguarde o nosso próximo agente",
     "encaminhando sua conversa para o setor responsável",
-    "passando para um técnico"
+    "passando para um técnico",
+    "vou acionar um técnico humano pra te ajudar melhor"
 ];
 
 
