@@ -66,6 +66,7 @@ function parseRedisMessage(jsonString: string): RedisMessage {
       contactName: parsed.contactName,
       operatorName: parsed.operatorName,
       contactPhotoUrl: parsed.contactPhotoUrl,
+      instance: parsed.instance
     };
   } catch (e) {
     // Se o parse inicial falhar, retorna a string como texto de um usuário.
@@ -177,26 +178,38 @@ export async function addMessage(contactId: string, message: { text: string; sen
     const historyKey = `chat:${contactId.trim()}`;
     const channelName = 'fila_envio_whatsapp';
     
+    // 1. Busca o nome da instância no histórico de mensagens
+    let instanceName = 'default'; // Fallback
+    const recentMessages = await client.lRange(historyKey, 0, 10); // Procura nas últimas 10 mensagens
+    for (const msgJson of recentMessages) {
+        const parsedMsg = parseRedisMessage(msgJson);
+        if (parsedMsg.instance) {
+            instanceName = parsedMsg.instance;
+            break;
+        }
+    }
+    
     const redisMessageForHistory: RedisMessage = {
       texto: message.text,
       tipo: message.sender,
       timestamp: Math.floor(Date.now() / 1000).toString(),
       operatorName: message.operatorName,
+      instance: instanceName
     };
     
     const messageForQueue = {
-        instance: "instancia_padrao", // Você vai substituir isso no N8N
+        instance: instanceName,
         remoteJid: contactId.trim(),
         text: message.text,
     };
 
-    // 1. Salva a mensagem no histórico do chat
+    // 2. Salva a mensagem no histórico do chat
     await client.lPush(historyKey, JSON.stringify(redisMessageForHistory));
     
-    // 2. Publica a mensagem no canal para o n8n ouvir
+    // 3. Publica a mensagem no canal para o n8n ouvir
     await client.publish(channelName, JSON.stringify(messageForQueue));
     
-    console.log(`Mensagem para ${contactId} salva no histórico e publicada no canal ${channelName}.`);
+    console.log(`Mensagem para ${contactId} com instância ${instanceName} publicada no canal ${channelName}.`);
 
   } catch (error) {
     console.error(`Falha ao adicionar mensagem para ${contactId} no Redis:`, error);
@@ -234,5 +247,3 @@ export async function saveUsers(users: User[]): Promise<void> {
         throw error;
     }
 }
-
-    
