@@ -278,7 +278,7 @@
   }
 
   /* Yellow Theme */
-  body.dark.theme-yellow {
+  body.theme-yellow {
     --background: 45 100% 98%;
     --foreground: 40 80% 15%;
     --card: 45 100% 100%;
@@ -298,7 +298,7 @@
     --sidebar-accent: 44.6 95% 53.1%;
     --sidebar-accent-foreground: 40 20% 98%;
   }
-  body.theme-yellow {
+  body.dark.theme-yellow {
     --background: 40 80% 9%;
     --foreground: 40 20% 98%;
     --card: 40 80% 12%;
