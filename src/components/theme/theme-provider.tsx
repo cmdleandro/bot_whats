@@ -59,16 +59,16 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
       const body = window.document.body;
       
-      // Clear all theme classes first
+      // 1. Limpa todas as classes de tema existentes para evitar conflitos.
       const classesToRemove = Array.from(body.classList).filter(cls => cls.startsWith('theme-'));
       if (classesToRemove.length > 0) {
         body.classList.remove(...classesToRemove);
       }
 
-      // Add current theme class
+      // 2. Adiciona a classe do tema atual (ex: 'theme-violet').
       body.classList.add(`theme-${theme}`);
 
-      // Toggle dark class
+      // 3. Aplica ou remove a classe 'dark' com base no estado.
       if (isDarkMode) {
         body.classList.add('dark');
       } else {
