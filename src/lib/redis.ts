@@ -6,6 +6,7 @@ import type { Contact, RedisMessage, Message, User, StoredContact } from './data
 import { initialUsers } from './data';
 import { formatRelative, fromUnixTime } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { getStoredContacts } from '@/actions/contact-actions';
 
 let redisClient: ReturnType<typeof createClient> | null = null;
 
@@ -100,10 +101,12 @@ function checkNeedsAttention(message: string): boolean {
 export async function getContacts(): Promise<Contact[]> {
   try {
     const client = await getClient();
-    const contactKeys = [];
-    for await (const key of client.scanIterator({ MATCH: 'chat:*', COUNT: 100 })) {
-      contactKeys.push(key);
-    }
+    const [storedContacts, contactKeys] = await Promise.all([
+        getStoredContacts(), // Fetch the saved contacts list
+        client.keys('chat:*')
+    ]);
+    const storedContactsMap = new Map(storedContacts.map(c => [c.id, c.name]));
+
 
     if (contactKeys.length === 0) {
       return [];
@@ -116,22 +119,36 @@ export async function getContacts(): Promise<Contact[]> {
         
         let lastMessageText = 'Nenhuma mensagem ainda.';
         let timestamp = Date.now();
-        let contactName = contactId.split('@')[0];
+        
+        // Priority for naming: 1. Stored Contact Name, 2. Name from user message, 3. Default from ID
+        let contactName = storedContactsMap.get(contactId) || contactId.split('@')[0];
         let avatar = `https://placehold.co/40x40.png`;
         let needsAttention = false;
 
         if (allMessagesJson.length > 0) {
-            const lastMsg = parseRedisMessage(allMessagesJson[0]); // Pega a mais recente
+            const lastMsg = parseRedisMessage(allMessagesJson[0]); // Get the most recent
             lastMessageText = lastMsg.texto;
             timestamp = lastMsg.timestamp ? parseInt(lastMsg.timestamp, 10) * 1000 : Date.now();
             needsAttention = lastMsg.needsAttention === true;
         }
         
-        for (const msgJson of allMessagesJson) {
-            const msg = parseRedisMessage(msgJson);
-            if (msg.tipo === 'user' && msg.contactName) contactName = msg.contactName;
-            if (msg.tipo === 'user' && msg.contactPhotoUrl) avatar = msg.contactPhotoUrl;
-            if (contactName !== contactId.split('@')[0] && avatar !== `https://placehold.co/40x40.png`) break;
+        // Find the most recent name and avatar from a USER message, if not already in stored contacts
+        if (!storedContactsMap.has(contactId)) {
+            for (const msgJson of allMessagesJson) {
+                const msg = parseRedisMessage(msgJson);
+                if (msg.tipo === 'user') {
+                    if (msg.contactName) {
+                        contactName = msg.contactName;
+                    }
+                    if (msg.contactPhotoUrl) {
+                        avatar = msg.contactPhotoUrl;
+                    }
+                    // If we found both, we can stop searching
+                    if (contactName !== contactId.split('@')[0] && avatar !== `https://placehold.co/40x40.png`) {
+                        break;
+                    }
+                }
+            }
         }
         
         return {
@@ -296,30 +313,6 @@ export async function saveUsers(users: User[]): Promise<void> {
         await client.set(USERS_KEY, JSON.stringify(users));
     } catch (error) {
         console.error('Falha ao salvar usuários no Redis:', error);
-        throw error;
-    }
-}
-
-// Stored Contacts Management
-const STORED_CONTACTS_KEY = 'chatview:stored_contacts';
-
-export async function getStoredContacts(): Promise<StoredContact[]> {
-    try {
-        const client = await getClient();
-        const contactsJson = await client.get(STORED_CONTACTS_KEY);
-        return contactsJson ? JSON.parse(contactsJson) : [];
-    } catch (error) {
-        console.error('Falha ao buscar contatos armazenados do Redis:', error);
-        return [];
-    }
-}
-
-export async function saveStoredContacts(contacts: StoredContact[]): Promise<void> {
-    try {
-        const client = await getClient();
-        await client.set(STORED_CONTACTS_KEY, JSON.stringify(contacts));
-    } catch (error) {
-        console.error('Falha ao salvar contatos no Redis:', error);
         throw error;
     }
 }
