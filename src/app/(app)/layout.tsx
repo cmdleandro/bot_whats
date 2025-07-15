@@ -26,6 +26,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
   const [currentUser, setCurrentUser] = React.useState<User | null>(null);
+  const appVersion = '1.0.1'; // Version number
 
   React.useEffect(() => {
     const operatorName = localStorage.getItem('chatview_operator_name');
@@ -108,8 +109,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                     <AvatarFallback>{getInitials(currentUser.name)}</AvatarFallback>
                     </Avatar>
                     <div className="flex flex-col">
-                    <span className="font-semibold">{currentUser.name}</span>
-                    <span className="text-xs text-muted-foreground">{currentUser.role}</span>
+                      <span className="font-semibold">{currentUser.name}</span>
+                      <span className="text-xs text-muted-foreground">{currentUser.role}</span>
+                      <span className="text-xs text-muted-foreground/50 mt-1">Versão: {appVersion}</span>
                     </div>
                 </div>
                 <ThemeSwitcher />
