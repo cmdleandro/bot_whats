@@ -12,6 +12,7 @@
 import { ai } from '@/ai/genkit';
 import { z } from 'zod';
 import { StoredContact } from '@/lib/data';
+import { backoff } from 'genkit';
 
 const ProcessContactsCsvInputSchema = z.object({
   csvContent: z.string().describe('O conteúdo completo de um arquivo CSV exportado do Google Contacts.'),
@@ -58,6 +59,11 @@ const processContactsCsvFlow = ai.defineFlow(
     name: 'processContactsCsvFlow',
     inputSchema: ProcessContactsCsvInputSchema,
     outputSchema: ProcessContactsCsvOutputSchema,
+    retry: backoff({
+      maxRetries: 3, // Tenta até 3 vezes
+      delay: 2000, // Começa com 2 segundos de atraso
+      multiplier: 2, // Dobra o atraso a cada tentativa
+    }),
   },
   async (input) => {
     const { output } = await prompt(input);
