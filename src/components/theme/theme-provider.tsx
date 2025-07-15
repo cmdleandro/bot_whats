@@ -2,7 +2,6 @@
 'use client';
 
 import React, { createContext, useContext, useEffect, useState, useMemo } from 'react';
-import { useToast } from '@/hooks/use-toast';
 
 const THEME_STORAGE_KEY = 'chatview-theme';
 const DARK_MODE_STORAGE_KEY = 'chatview-dark-mode';
@@ -56,23 +55,20 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const body = window.document.body;
 
-    // 1. Clean Slate: Remove all old theme-related classes.
+    // 1. Clean Slate: Remove all old theme-related classes and dark mode.
     const classesToRemove = Array.from(body.classList).filter(
       (cls) => cls.startsWith('theme-')
     );
-    if (classesToRemove.length > 0) {
-      body.classList.remove(...classesToRemove);
-    }
-    
+    body.classList.remove(...classesToRemove, 'dark');
+
     // 2. Apply the new theme class.
     body.classList.add(`theme-${theme}`);
     
-    // 3. Apply or remove the 'dark' class based on the current state.
+    // 3. Apply the 'dark' class if needed.
     if (isDarkMode) {
       body.classList.add('dark');
-    } else {
-      body.classList.remove('dark');
     }
+
   }, [theme, isDarkMode]);
 
   const setTheme = (newTheme: Theme) => {
