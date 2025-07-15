@@ -17,7 +17,7 @@ type ThemeProviderState = {
 };
 
 const initialState: ThemeProviderState = {
-  theme: 'blue',
+  theme: 'zinc',
   isDarkMode: false,
   notificationSound: '/notification1.wav',
   setTheme: () => null,
@@ -93,7 +93,8 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 
   if (!isMounted) {
     // Render children without theme classes on the server and before hydration
-    return <>{children}</>;
+    // But add a default theme to avoid FOUC (flash of unstyled content)
+    return <body className="theme-zinc">{children}</body>;
   }
 
   return (

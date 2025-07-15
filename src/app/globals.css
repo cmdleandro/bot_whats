@@ -3,6 +3,11 @@
 @tailwind utilities;
 
 @layer base {
+  body {
+    @apply bg-background text-foreground;
+    font-family: 'Inter', sans-serif;
+  }
+
   :root {
     --background: 0 0% 100%;
     --foreground: 222.2 84% 4.9%;
@@ -32,7 +37,7 @@
     --sidebar-ring: 221.2 83.2% 53.3%;
   }
 
-  .dark {
+  body.dark {
     --background: 222.2 84% 4.9%;
     --foreground: 210 40% 98%;
     --card: 222.2 84% 4.9%;
@@ -59,17 +64,12 @@
     --sidebar-accent-foreground: 222.2 47.4% 11.2%;
     --sidebar-ring: 210 40% 98%;
   }
-
-  body {
-    @apply bg-background text-foreground;
-    font-family: 'Inter', sans-serif;
-  }
 }
 
 @layer components {
   /* Light Themes */
-  .theme-zinc { /* This is default light theme */ }
-  .theme-blue {
+  body.theme-zinc { /* This is default light theme */ }
+  body.theme-blue {
     --background: 210 100% 98%;
     --foreground: 224 71% 4%;
     --card: 220 100% 100%;
@@ -89,7 +89,7 @@
     --sidebar-accent: 220 90% 60%;
     --sidebar-accent-foreground: 210 20% 98%;
   }
-  .theme-green {
+  body.theme-green {
     --background: 140 70% 98%;
     --foreground: 145 60% 10%;
     --card: 140 100% 100%;
@@ -109,7 +109,7 @@
     --sidebar-accent: 142.1 76.2% 36.3%;
     --sidebar-accent-foreground: 140 20% 98%;
   }
-  .theme-orange {
+  body.theme-orange {
     --background: 25 100% 98%;
     --foreground: 20 80% 15%;
     --card: 25 100% 100%;
@@ -129,7 +129,7 @@
     --sidebar-accent: 24.6 95% 53.1%;
     --sidebar-accent-foreground: 20 20% 98%;
   }
-  .theme-rose {
+  body.theme-rose {
     --background: 345 100% 98%;
     --foreground: 345 80% 15%;
     --card: 345 100% 100%;
@@ -149,7 +149,7 @@
     --sidebar-accent: 346.8 77.2% 49.8%;
     --sidebar-accent-foreground: 345 20% 98%;
   }
-  .theme-violet {
+  body.theme-violet {
     --background: 255 100% 98%;
     --foreground: 258 80% 15%;
     --card: 255 100% 100%;
@@ -169,7 +169,7 @@
     --sidebar-accent: 258.8 77.2% 55.8%;
     --sidebar-accent-foreground: 255 20% 98%;
   }
-  .theme-yellow {
+  body.theme-yellow {
     --background: 45 100% 98%;
     --foreground: 40 80% 15%;
     --card: 45 100% 100%;
@@ -189,7 +189,7 @@
     --sidebar-accent: 44.6 95% 53.1%;
     --sidebar-accent-foreground: 40 20% 98%;
   }
-  .theme-slate {
+  body.theme-slate {
     --background: 215 30% 98%;
     --foreground: 215 30% 10%;
     --card: 215 30% 100%;
@@ -211,8 +211,8 @@
   }
 
   /* Dark Themes */
-  .dark.theme-zinc { /* This is default dark theme */ }
-  .dark.theme-blue {
+  body.dark.theme-zinc { /* This is default dark theme */ }
+  body.dark.theme-blue {
     --background: 221 83% 9%;
     --foreground: 210 20% 98%;
     --card: 221 83% 12%;
@@ -232,7 +232,7 @@
     --sidebar-accent: 217 91% 60%;
     --sidebar-accent-foreground: 221 20% 98%;
   }
-  .dark.theme-green {
+  body.dark.theme-green {
     --background: 141 78% 9%;
     --foreground: 140 20% 98%;
     --card: 141 78% 12%;
@@ -252,7 +252,7 @@
     --sidebar-accent: 142.1 70.2% 45.3%;
     --sidebar-accent-foreground: 140 20% 98%;
   }
-  .dark.theme-orange {
+  body.dark.theme-orange {
     --background: 24 90% 9%;
     --foreground: 24 20% 98%;
     --card: 24 90% 12%;
@@ -272,7 +272,7 @@
     --sidebar-accent: 24.6 95% 53.1%;
     --sidebar-accent-foreground: 24 20% 98%;
   }
-  .dark.theme-rose {
+  body.dark.theme-rose {
     --background: 347 80% 9%;
     --foreground: 347 20% 98%;
     --card: 347 80% 12%;
@@ -292,7 +292,7 @@
     --sidebar-accent: 346.8 77.2% 49.8%;
     --sidebar-accent-foreground: 347 20% 98%;
   }
-  .dark.theme-violet {
+  body.dark.theme-violet {
     --background: 258 80% 9%;
     --foreground: 258 20% 98%;
     --card: 258 80% 12%;
@@ -312,7 +312,7 @@
     --sidebar-accent: 258.8 77.2% 55.8%;
     --sidebar-accent-foreground: 258 20% 98%;
   }
-  .dark.theme-yellow {
+  body.dark.theme-yellow {
     --background: 40 80% 9%;
     --foreground: 40 20% 98%;
     --card: 40 80% 12%;
@@ -332,7 +332,7 @@
     --sidebar-accent: 44.6 95% 53.1%;
     --sidebar-accent-foreground: 40 20% 98%;
   }
-  .dark.theme-slate {
+  body.dark.theme-slate {
     --background: 215 30% 9%;
     --foreground: 215 20% 98%;
     --card: 215 30% 12%;
