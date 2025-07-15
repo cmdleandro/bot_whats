@@ -23,7 +23,7 @@ export type Message = {
   sender: 'user' | 'bot' | 'operator'; 
   operatorName?: string;
   timestamp: string;
-  botAvatarUrl?: string; // Adicionado para carregar a foto do bot
+  botAvatarUrl?: string;
 };
 
 export type Contact = {
@@ -38,14 +38,4 @@ export type Contact = {
 export const initialUsers: User[] = [
     { id: '1', name: 'Leandro', email: 'leandro@email.com', password: '123', role: 'Admin', createdAt: '2023-01-15' },
     { id: '2', name: 'Alice', email: 'alice@email.com', password: '123', role: 'Operador', createdAt: '2023-02-20' },
-];
-
-export const contacts: Contact[] = [
-  { id: '1', name: 'Maria Silva', avatar: 'https://placehold.co/40x40.png', lastMessage: 'Olá, preciso de ajuda com meu pedido.', timestamp: '10:40 AM', unreadCount: 2 },
-  { id: '2', name: 'João Pereira', avatar: 'https://placehold.co/40x40.png', lastMessage: 'Obrigado pela resposta rápida!', timestamp: '10:35 AM', unreadCount: 0 },
-];
-
-export const messages: Message[] = [
-  { id: 'm1', contactId: '1', text: 'Olá, preciso de ajuda com meu pedido 12345.', sender: 'user', timestamp: '10:38 AM' },
-  { id: 'm2', contactId: '1', text: 'BOT: Olá! Para qual pedido você precisa de ajuda? Por favor, informe o número.', sender: 'bot', timestamp: '10:39 AM' },
 ];

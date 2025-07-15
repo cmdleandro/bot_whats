@@ -39,9 +39,9 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import type { User } from '@/lib/data';
-import { initialUsers } from '@/lib/data';
 import { useToast } from '@/hooks/use-toast';
 import { checkRedisConnection, type RedisStatus } from '@/actions/redis-status';
+import { getUsers, saveUsers } from '@/lib/redis';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 function RedisStatusCard() {
@@ -98,9 +98,6 @@ function RedisStatusCard() {
           <AlertTitle>Falha na Conexão Externa</AlertTitle>
           <AlertDescription>
             <p className="font-semibold mb-2">A aplicação não conseguiu se conectar ao banco de dados Redis.</p>
-            <p className="mb-1"><strong>Diagnóstico:</strong> Testes indicam que o firewall do servidor (UFW) está inativo, mas a conexão externa ainda falha. Isso aponta para um bloqueio a nível de rede.</p>
-            <p className="mb-1"><strong>Causa Provável:</strong> O firewall do seu provedor de internet ou data center está bloqueando a porta <strong>6379</strong>.</p>
-            <p><strong>Ação Necessária:</strong> Contate o suporte do seu provedor ou acesse o painel de controle da sua rede para criar uma regra de "Port Forwarding" ou "Firewall" que libere o tráfego TCP na porta <strong>6379</strong> para o seu servidor.</p>
             {status.error && (
               <div className="mt-4">
                 <h3 className="font-semibold">Detalhes do Erro Técnico:</h3>
@@ -174,6 +171,7 @@ export default function UserManagementPage() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -183,30 +181,33 @@ export default function UserManagementPage() {
   const router = useRouter();
   const { toast } = useToast();
 
-  useEffect(() => {
+  const fetchUsers = React.useCallback(async () => {
+    setIsLoading(true);
     const operatorName = localStorage.getItem('chatview_operator_name');
     if (!operatorName) {
       router.replace('/login');
       return;
     }
-    
-    const storedUsers = localStorage.getItem('chatview_users');
-    let allUsers: User[] = [];
-    if (storedUsers) {
-      allUsers = JSON.parse(storedUsers);
-    } else {
-      allUsers = initialUsers;
-      localStorage.setItem('chatview_users', JSON.stringify(initialUsers));
-    }
-    setUsers(allUsers);
+    try {
+      const allUsers = await getUsers();
+      setUsers(allUsers);
 
-    const user = allUsers.find(u => u.name === operatorName);
-    if (user) {
-      setCurrentUser(user);
-    } else {
-      router.replace('/login');
+      const user = allUsers.find(u => u.name === operatorName);
+      if (user) {
+        setCurrentUser(user);
+      } else {
+        router.replace('/login');
+      }
+    } catch (error) {
+      toast({ variant: 'destructive', title: 'Erro de Rede', description: 'Não foi possível buscar os usuários.' });
+    } finally {
+      setIsLoading(false);
     }
-  }, [router]);
+  }, [router, toast]);
+
+  useEffect(() => {
+    fetchUsers();
+  }, [fetchUsers]);
 
   useEffect(() => {
     if (isDialogOpen && editingUser) {
@@ -214,7 +215,7 @@ export default function UserManagementPage() {
         setEmail(editingUser.email);
         setRole(editingUser.role);
         setPassword('');
-    } else {
+    } else if (!isDialogOpen) {
         setName('');
         setEmail('');
         setPassword('');
@@ -222,16 +223,22 @@ export default function UserManagementPage() {
     }
   }, [isDialogOpen, editingUser]);
 
-  const persistUsers = (updatedUsers: User[]) => {
-      setUsers(updatedUsers);
-      localStorage.setItem('chatview_users', JSON.stringify(updatedUsers));
+  const persistUsers = async (updatedUsers: User[]) => {
+      try {
+        await saveUsers(updatedUsers);
+        setUsers(updatedUsers);
+      } catch (error) {
+         toast({ variant: 'destructive', title: 'Erro de Rede', description: 'Não foi possível salvar as alterações.' });
+      }
   }
 
-  const handleAdminFormSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+  const handleAdminFormSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
+    let updatedUsers: User[];
+
     if (editingUser) {
-        const updatedUsers = users.map(user =>
+        updatedUsers = users.map(user =>
             user.id === editingUser.id ? { 
                 ...user, 
                 name, 
@@ -240,7 +247,6 @@ export default function UserManagementPage() {
                 password: password ? password : user.password 
             } : user
         );
-        persistUsers(updatedUsers);
         toast({ title: 'Sucesso', description: 'Usuário atualizado com sucesso.' });
     } else {
         const newUser: User = {
@@ -251,15 +257,16 @@ export default function UserManagementPage() {
             role,
             createdAt: new Date().toISOString().split('T')[0],
         };
-        persistUsers([...users, newUser]);
+        updatedUsers = [...users, newUser];
         toast({ title: 'Sucesso', description: 'Usuário criado com sucesso.' });
     }
-
+    
+    await persistUsers(updatedUsers);
     setEditingUser(null);
     setIsDialogOpen(false);
   };
   
-  const handleOperatorPasswordChange = (event: React.FormEvent<HTMLFormElement>) => {
+  const handleOperatorPasswordChange = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!password) {
         toast({ variant: 'destructive', title: 'Erro', description: 'A nova senha não pode estar em branco.' });
@@ -269,20 +276,19 @@ export default function UserManagementPage() {
         const updatedUsers = users.map(user =>
             user.id === currentUser.id ? { ...user, password } : user
         );
-        persistUsers(updatedUsers);
+        await persistUsers(updatedUsers);
         setPassword('');
         toast({ title: 'Sucesso', description: 'Sua senha foi alterada com sucesso.' });
     }
   };
 
-
-  const handleDeleteUser = (userId: string) => {
+  const handleDeleteUser = async (userId: string) => {
     if (currentUser?.id === userId) {
         toast({ variant: 'destructive', title: 'Ação não permitida', description: 'Você não pode excluir sua própria conta.' });
         return;
     }
     const updatedUsers = users.filter(user => user.id !== userId);
-    persistUsers(updatedUsers);
+    await persistUsers(updatedUsers);
     toast({ title: 'Sucesso', description: 'Usuário excluído com sucesso.' });
   };
   
@@ -291,8 +297,12 @@ export default function UserManagementPage() {
     setIsDialogOpen(true);
   }
 
-  if (!currentUser) {
-    return null; // or a loading spinner
+  if (isLoading || !currentUser) {
+    return (
+        <div className="flex h-full items-center justify-center p-8">
+            <Loader2 className="h-8 w-8 animate-spin" />
+        </div>
+    );
   }
 
   // Operator View
@@ -443,7 +453,6 @@ export default function UserManagementPage() {
           </Table>
         </CardContent>
       </Card>
-
       <RedisStatusCard />
     </div>
   );

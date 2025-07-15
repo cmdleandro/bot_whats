@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { LogIn } from 'lucide-react';
+import { LogIn, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -14,7 +14,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import type { User } from '@/lib/data';
-import { initialUsers } from '@/lib/data';
+import { getUsers } from '@/lib/redis';
 import Image from 'next/image';
 
 export default function LoginPage() {
@@ -22,36 +22,37 @@ export default function LoginPage() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
 
-  useEffect(() => {
-    // Seed initial users into localStorage if not already there
-    if (!localStorage.getItem('chatview_users')) {
-      localStorage.setItem('chatview_users', JSON.stringify(initialUsers));
-    }
-  }, []);
-
-
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    setIsLoading(true);
 
     if (!username.trim() || !password.trim()) {
       setError('Usuário e senha são obrigatórios.');
+      setIsLoading(false);
       return;
     }
 
-    const storedUsers = localStorage.getItem('chatview_users');
-    const users: User[] = storedUsers ? JSON.parse(storedUsers) : initialUsers;
+    try {
+      const users: User[] = await getUsers();
 
-    const foundUser = users.find(
-      (user) => user.name.toLowerCase() === username.toLowerCase() && user.password === password
-    );
+      const foundUser = users.find(
+        (user) => user.name.toLowerCase() === username.toLowerCase() && user.password === password
+      );
 
-    if (foundUser) {
-      localStorage.setItem('chatview_operator_name', foundUser.name);
-      router.replace('/chat');
-    } else {
-      setError('Usuário ou senha inválidos.');
+      if (foundUser) {
+        localStorage.setItem('chatview_operator_name', foundUser.name);
+        router.replace('/chat');
+      } else {
+        setError('Usuário ou senha inválidos.');
+      }
+    } catch (err) {
+       console.error("Login error:", err);
+       setError('Não foi possível conectar ao servidor. Tente novamente mais tarde.');
+    } finally {
+        setIsLoading(false);
     }
   };
 
@@ -78,6 +79,7 @@ export default function LoginPage() {
                 value={username}
                 onChange={e => setUsername(e.target.value)}
                 required
+                disabled={isLoading}
               />
             </div>
             <div className="space-y-2">
@@ -89,11 +91,12 @@ export default function LoginPage() {
                 value={password}
                 onChange={e => setPassword(e.target.value)}
                 required
+                disabled={isLoading}
               />
             </div>
             {error && <p className="text-sm text-destructive">{error}</p>}
-            <Button type="submit" className="w-full gap-2">
-              <LogIn className="h-4 w-4" />
+            <Button type="submit" className="w-full gap-2" disabled={isLoading}>
+              {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <LogIn className="h-4 w-4" />}
               Entrar
             </Button>
           </form>

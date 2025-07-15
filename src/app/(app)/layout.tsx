@@ -4,8 +4,7 @@ import * as React from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
-import { LogOut, MessageSquare, Users } from 'lucide-react';
-
+import { LogOut, MessageSquare, Users, Loader2 } from 'lucide-react';
 import {
   SidebarProvider,
   Sidebar,
@@ -21,36 +20,42 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { ThemeSwitcher } from '@/components/theme/theme-switcher';
 import { ThemeProvider } from '@/components/theme/theme-provider';
 import type { User } from '@/lib/data';
+import { getUsers } from '@/lib/redis';
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
   const [currentUser, setCurrentUser] = React.useState<User | null>(null);
-  const appVersion = '1.0.4'; // Version number
+  const [isLoading, setIsLoading] = React.useState(true);
+  const appVersion = '1.0.5'; 
 
   React.useEffect(() => {
     const operatorName = localStorage.getItem('chatview_operator_name');
-    const storedUsers = localStorage.getItem('chatview_users');
     
     if (!operatorName) {
       router.replace('/login');
       return;
     }
 
-    if (storedUsers) {
-      const users: User[] = JSON.parse(storedUsers);
-      const user = users.find(u => u.name === operatorName);
-      if (user) {
-        setCurrentUser(user);
-      } else {
-        // Logged-in user not found in user list, force logout
-        handleLogout();
+    async function fetchUser() {
+      try {
+        const users = await getUsers();
+        const user = users.find(u => u.name === operatorName);
+        if (user) {
+          setCurrentUser(user);
+        } else {
+          // Logged-in user not found in user list, force logout
+          handleLogout();
+        }
+      } catch (error) {
+        console.error("Failed to fetch users from Redis", error);
+        handleLogout(); // Force logout on error
+      } finally {
+        setIsLoading(false);
       }
-    } else {
-       // No users stored, something is wrong, force logout
-       handleLogout();
     }
 
+    fetchUser();
   }, [router]);
 
   const handleLogout = () => {
@@ -58,8 +63,16 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     router.replace('/login');
   };
 
+  if (isLoading) {
+    return (
+      <div className="flex h-screen w-full items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin" />
+      </div>
+    );
+  }
+
   if (!currentUser) {
-    return null; // or a loading spinner
+    return null; 
   }
   
   const getInitials = (name: string) => {

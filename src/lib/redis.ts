@@ -2,7 +2,8 @@
 'use server';
 
 import { createClient } from 'redis';
-import type { Contact, RedisMessage, Message } from './data';
+import type { Contact, RedisMessage, Message, User } from './data';
+import { initialUsers } from './data';
 import { formatRelative, fromUnixTime } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
@@ -23,7 +24,7 @@ export async function getClient() {
         const client = createClient({ 
             url,
             socket: {
-                connectTimeout: 5000 // Timeout de 5 segundos
+                connectTimeout: 5000
             }
         });
 
@@ -48,12 +49,12 @@ function parseRedisMessage(jsonString: string): RedisMessage {
   const cleanedString = jsonString.trim();
   try {
     const parsed = JSON.parse(cleanedString);
-
+    
     if (typeof parsed.texto === 'string' && parsed.texto.startsWith('"') && parsed.texto.endsWith('"')) {
         try {
             parsed.texto = JSON.parse(parsed.texto);
         } catch (e) {
-            // Se o segundo parse falhar, mantém o texto como está.
+            // se o segundo parse falhar, mantem o texto como esta
         }
     }
     
@@ -97,7 +98,7 @@ export async function getContacts(): Promise<Contact[]> {
         let avatar = `https://placehold.co/40x40.png`;
 
         if (allMessagesJson.length > 0) {
-            const lastMsg = parseRedisMessage(allMessagesJson[0]); // A mensagem mais recente é a primeira (lPush)
+            const lastMsg = parseRedisMessage(allMessagesJson[0]);
             lastMessageText = lastMsg.texto;
             timestamp = lastMsg.timestamp ? parseInt(lastMsg.timestamp, 10) * 1000 : Date.now();
         }
@@ -181,13 +182,11 @@ export async function addMessage(contactId: string, message: { text: string; sen
       operatorName: message.operatorName,
     };
     
-    // Objeto para a fila de envio, contendo o destinatário
     const messageForQueue = {
         para: contactId.trim(),
         texto: message.text,
     };
 
-    // Usar um pipeline para garantir que ambas as operações sejam atômicas
     const multi = client.multi();
     multi.lPush(historyKey, JSON.stringify(redisMessageForHistory));
     multi.lPush(queueKey, JSON.stringify(messageForQueue));
@@ -199,4 +198,35 @@ export async function addMessage(contactId: string, message: { text: string; sen
     console.error(`Falha ao adicionar mensagem para ${contactId} no Redis:`, error);
     throw error;
   }
+}
+
+
+// User Management Functions
+const USERS_KEY = 'chatview:users';
+
+export async function getUsers(): Promise<User[]> {
+    try {
+        const client = await getClient();
+        let usersJson = await client.get(USERS_KEY);
+
+        if (!usersJson) {
+            await client.set(USERS_KEY, JSON.stringify(initialUsers));
+            usersJson = JSON.stringify(initialUsers);
+        }
+
+        return JSON.parse(usersJson);
+    } catch (error) {
+        console.error('Falha ao buscar usuários do Redis:', error);
+        return initialUsers; // Fallback para dados iniciais em caso de erro
+    }
+}
+
+export async function saveUsers(users: User[]): Promise<void> {
+    try {
+        const client = await getClient();
+        await client.set(USERS_KEY, JSON.stringify(users));
+    } catch (error) {
+        console.error('Falha ao salvar usuários no Redis:', error);
+        throw error;
+    }
 }
