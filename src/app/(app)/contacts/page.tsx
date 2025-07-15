@@ -1,8 +1,9 @@
+
 'use server';
 
 import { createClient } from 'redis';
-import type { Contact, RedisMessage, Message, User, StoredContact } from './data';
-import { initialUsers } from './data';
+import type { Contact, RedisMessage, Message, User, StoredContact } from '@/lib/data';
+import { initialUsers } from '@/lib/data';
 import { formatRelative, fromUnixTime } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
@@ -322,3 +323,5 @@ export async function saveStoredContacts(contacts: StoredContact[]): Promise<voi
         throw error;
     }
 }
+
+    
