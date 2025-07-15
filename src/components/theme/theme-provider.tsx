@@ -46,7 +46,7 @@ const getInitialState = () => {
 
 
 const ThemeProviderContext = createContext<ThemeProviderState>({
-  ...initialState,
+  ...getInitialState(),
   setTheme: () => null,
   toggleDarkMode: () => null,
   setNotificationSound: () => null,
@@ -60,19 +60,16 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const body = window.document.body;
     
-    // 1. Remove any theme class that is NOT the current theme.
-    const currentThemeClass = `theme-${theme}`;
+    // 1. Clear all existing theme-related classes to start fresh.
     const classesToRemove = Array.from(body.classList).filter(
-      cls => cls.startsWith('theme-') && cls !== currentThemeClass
+      cls => cls.startsWith('theme-')
     );
     if (classesToRemove.length > 0) {
       body.classList.remove(...classesToRemove);
     }
-    
-    // 2. Add the current theme class if it's not already there.
-    if (!body.classList.contains(currentThemeClass)) {
-      body.classList.add(currentThemeClass);
-    }
+
+    // 2. Add the current theme class.
+    body.classList.add(`theme-${theme}`);
 
     // 3. Apply or remove the 'dark' class based on the state.
     if (isDarkMode) {
