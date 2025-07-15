@@ -55,19 +55,20 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const body = window.document.body;
 
-    // 1. Clean Slate: Remove all old theme-related classes and dark mode.
+    // 1. Clean Slate: Remove all old theme-related classes.
     const classesToRemove = Array.from(body.classList).filter(
       (cls) => cls.startsWith('theme-')
     );
-    body.classList.remove(...classesToRemove, 'dark');
-
-    // 2. Apply the new theme class.
-    body.classList.add(`theme-${theme}`);
-    
-    // 3. Apply the 'dark' class if needed.
-    if (isDarkMode) {
-      body.classList.add('dark');
+    if (classesToRemove.length > 0) {
+      body.classList.remove(...classesToRemove);
     }
+    
+    // 2. Construct the new, single class name.
+    const modeSuffix = isDarkMode ? 'Dark' : 'Light';
+    const newThemeClass = `theme-${theme}${modeSuffix}`;
+    
+    // 3. Apply the new class.
+    body.classList.add(newThemeClass);
 
   }, [theme, isDarkMode]);
 
