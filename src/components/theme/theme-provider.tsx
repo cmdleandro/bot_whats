@@ -34,10 +34,10 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [isMounted, setIsMounted] = useState(false);
 
   useEffect(() => {
-    setIsMounted(true);
     setThemeState(localStorage.getItem(THEME_STORAGE_KEY) || initialState.theme);
     setIsDarkModeState(JSON.parse(localStorage.getItem(DARK_MODE_STORAGE_KEY) || 'false'));
     setNotificationSoundState(localStorage.getItem(NOTIFICATION_SOUND_STORAGE_KEY) || initialState.notificationSound);
+    setIsMounted(true);
   }, []);
 
 
@@ -45,19 +45,23 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     if (isMounted) {
         const body = window.document.body;
         
-        // Remove old theme classes
+        // Clear all theme classes
         body.classList.forEach(className => {
             if (className.startsWith('theme-')) {
                 body.classList.remove(className);
             }
         });
 
-        // Add new theme class
-        body.classList.add(`theme-${theme}`);
+        // Add current theme class
+        if (theme) {
+          body.classList.add(`theme-${theme}`);
+        }
+
+        // Toggle dark class
         if (isDarkMode) {
           body.classList.add('dark');
         } else {
-            body.classList.remove('dark');
+          body.classList.remove('dark');
         }
     }
   }, [theme, isDarkMode, isMounted]);
@@ -88,7 +92,8 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   }), [theme, isDarkMode, notificationSound]);
 
   if (!isMounted) {
-    return null; // or a loading spinner
+    // Render children without theme classes on the server and before hydration
+    return <>{children}</>;
   }
 
   return (
