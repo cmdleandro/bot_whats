@@ -1,3 +1,4 @@
+
 'use client';
 
 import Link from 'next/link';
@@ -8,8 +9,8 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
-import { Search } from 'lucide-react';
-import { useState, useEffect } from 'react';
+import { Search, BellRing } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
 import { getContacts } from '@/lib/redis';
 import { Skeleton } from '@/components/ui/skeleton';
 
@@ -19,16 +20,45 @@ export function ContactList() {
   const [searchTerm, setSearchTerm] = useState('');
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const previousAttentionIds = useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    // Inicializa o Audio object no cliente
+    if (typeof window !== 'undefined') {
+        audioRef.current = new Audio('/notification.mp3');
+    }
+  }, []);
 
   useEffect(() => {
     async function fetchContacts() {
-      setIsLoading(true);
+      // Não mostra o loading para atualizações em background
+      if (contacts.length === 0) {
+        setIsLoading(true);
+      }
+
       try {
         const redisContacts = await getContacts();
+        
+        const currentAttentionIds = new Set(
+            redisContacts.filter(c => c.needsAttention).map(c => c.id)
+        );
+
+        // Verifica se há um *novo* contato que precisa de atenção
+        const newAttentionContact = Array.from(currentAttentionIds).some(
+            id => !previousAttentionIds.current.has(id)
+        );
+
+        if (newAttentionContact && audioRef.current) {
+            audioRef.current.play().catch(e => console.error("Erro ao tocar áudio:", e));
+        }
+
         setContacts(redisContacts);
+        previousAttentionIds.current = currentAttentionIds;
+
       } catch (error) {
         console.error("Erro ao buscar contatos:", error);
-        // Poderia setar um estado de erro aqui para exibir na UI
       } finally {
         setIsLoading(false);
       }
@@ -36,11 +66,11 @@ export function ContactList() {
     
     fetchContacts();
     
-    // Atualiza a lista a cada 30 segundos
-    const interval = setInterval(fetchContacts, 30000);
+    // Atualiza a lista a cada 15 segundos
+    const interval = setInterval(fetchContacts, 15000);
     return () => clearInterval(interval);
 
-  }, []);
+  }, [contacts.length]);
 
 
   const filteredContacts = contacts.filter(contact =>
@@ -80,7 +110,8 @@ export function ContactList() {
                 href={`/chat/${contact.id}`}
                 className={cn(
                   'flex items-center gap-3 rounded-lg p-3 text-muted-foreground transition-all hover:bg-accent/50 hover:text-foreground',
-                  activeChatId === contact.id && 'bg-accent/80 text-accent-foreground'
+                  activeChatId === contact.id && 'bg-accent/80 text-accent-foreground',
+                  contact.needsAttention && 'bg-yellow-400/20 animate-pulse hover:bg-yellow-400/30'
                 )}
               >
                 <Avatar className="h-10 w-10">
@@ -93,11 +124,13 @@ export function ContactList() {
                 </div>
                 <div className="flex flex-col items-end text-xs text-nowrap">
                   <span>{contact.timestamp}</span>
-                  {contact.unreadCount > 0 && (
-                    <Badge className="mt-1 h-5 w-5 justify-center p-0">
-                      {contact.unreadCount}
-                    </Badge>
-                  )}
+                   {contact.needsAttention ? (
+                        <BellRing className="mt-1 h-5 w-5 text-yellow-500" />
+                   ) : contact.unreadCount > 0 && (
+                        <Badge className="mt-1 h-5 w-5 justify-center p-0">
+                          {contact.unreadCount}
+                        </Badge>
+                   )}
                 </div>
               </Link>
             ))

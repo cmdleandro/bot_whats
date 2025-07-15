@@ -34,6 +34,7 @@ export type Contact = {
   lastMessage: string;
   timestamp: string;
   unreadCount: number; 
+  needsAttention?: boolean;
 };
 
 export const initialUsers: User[] = [

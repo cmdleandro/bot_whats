@@ -9,6 +9,17 @@ import { ptBR } from 'date-fns/locale';
 
 let redisClient: ReturnType<typeof createClient> | null = null;
 
+const ATTENTION_KEYWORDS = [
+    "falar com atendente",
+    "falar com humano",
+    "falar com técnico",
+    "falar com pessoa",
+    "atendente",
+    "suporte",
+    "ajuda humana"
+];
+
+
 export async function getClient() {
     if (redisClient && redisClient.isOpen) {
         return redisClient;
@@ -78,6 +89,11 @@ function parseRedisMessage(jsonString: string): RedisMessage {
   }
 }
 
+function checkNeedsAttention(message: string): boolean {
+    const lowerCaseMessage = message.toLowerCase();
+    return ATTENTION_KEYWORDS.some(keyword => lowerCaseMessage.includes(keyword));
+}
+
 export async function getContacts(): Promise<Contact[]> {
   try {
     const client = await getClient();
@@ -99,11 +115,16 @@ export async function getContacts(): Promise<Contact[]> {
         let timestamp = Date.now();
         let contactName = contactId.split('@')[0];
         let avatar = `https://placehold.co/40x40.png`;
+        let needsAttention = false;
 
         if (allMessagesJson.length > 0) {
-            const lastMsg = parseRedisMessage(allMessagesJson[0]);
+            const lastMsg = parseRedisMessage(allMessagesJson[0]); // Pega a mais recente
             lastMessageText = lastMsg.texto;
             timestamp = lastMsg.timestamp ? parseInt(lastMsg.timestamp, 10) * 1000 : Date.now();
+            // Verifica se a última mensagem é do usuário e contém a palavra-chave
+            if (lastMsg.tipo === 'user') {
+                needsAttention = checkNeedsAttention(lastMsg.texto);
+            }
         }
         
         for (const msgJson of allMessagesJson) {
@@ -120,12 +141,15 @@ export async function getContacts(): Promise<Contact[]> {
           lastMessage: lastMessageText,
           timestamp: formatRelative(fromUnixTime(timestamp / 1000), new Date(), { locale: ptBR }),
           unreadCount: 0,
+          needsAttention,
         };
       })
     );
     
     const validContacts = contacts.filter(c => c.id && !c.id.includes('$json'));
     return validContacts.sort((a, b) => {
+        if (a.needsAttention && !b.needsAttention) return -1;
+        if (!a.needsAttention && b.needsAttention) return 1;
         const dateA = new Date(a.timestamp.startsWith('hoje') || a.timestamp.startsWith('ontem') ? new Date() : a.timestamp);
         const dateB = new Date(b.timestamp.startsWith('hoje') || b.timestamp.startsWith('ontem') ? new Date() : b.timestamp);
         return dateB.getTime() - dateA.getTime();
@@ -182,10 +206,14 @@ export async function addMessage(contactId: string, message: { text: string; sen
     let instanceName = 'default'; // Fallback
     const recentMessages = await client.lRange(historyKey, 0, 10); // Procura nas últimas 10 mensagens
     for (const msgJson of recentMessages) {
-        const parsedMsg = parseRedisMessage(msgJson);
-        if (parsedMsg.instance) {
-            instanceName = parsedMsg.instance;
-            break;
+        try {
+            const parsedMsg = parseRedisMessage(msgJson);
+            if (parsedMsg.instance) {
+                instanceName = parsedMsg.instance;
+                break;
+            }
+        } catch (e) {
+            console.warn("Could not parse message from history:", msgJson);
         }
     }
     
@@ -198,7 +226,7 @@ export async function addMessage(contactId: string, message: { text: string; sen
     };
 
     // Formata a mensagem para o WhatsApp com nome do operador em negrito
-    const formattedText = `*${message.operatorName}*\n${message.text}`;
+    const formattedText = `*${message.operatorName}*\\n${message.text}`;
     
     const messageForQueue = {
         instance: instanceName,
