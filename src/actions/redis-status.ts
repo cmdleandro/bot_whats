@@ -6,7 +6,6 @@ export interface RedisStatus {
   connected: boolean;
   error: string | null;
   sampleKeys: string[];
-  firstKeyContent: string | null;
 }
 
 // Helper function para timeout
@@ -34,7 +33,6 @@ async function performRedisCheck(): Promise<RedisStatus> {
         connected: false,
         error: null,
         sampleKeys: [],
-        firstKeyContent: null,
     };
 
     let client;
@@ -53,10 +51,6 @@ async function performRedisCheck(): Promise<RedisStatus> {
         }
         status.sampleKeys = keys;
 
-        if (keys.length > 0) {
-            const rawContent = await client.lRange(keys[0], 0, -1);
-            status.firstKeyContent = JSON.stringify(rawContent, null, 2);
-        }
     } catch (e: any) {
         status.connected = false;
         // Captura o erro específico para exibir na UI.
@@ -81,7 +75,6 @@ export async function checkRedisConnection(): Promise<RedisStatus> {
             // Exibe a mensagem de erro do timeout ou outra falha.
             error: error.message,
             sampleKeys: [],
-            firstKeyContent: null,
         };
     }
 }

@@ -61,7 +61,6 @@ function RedisStatusCard() {
           connected: false,
           error: error.message || "Não foi possível comunicar com o servidor para verificar o status do Redis.",
           sampleKeys: [],
-          firstKeyContent: null,
         });
       } finally {
         setIsLoading(false);
@@ -123,16 +122,6 @@ function RedisStatusCard() {
             </ul>
           ) : (
             <p className="text-sm text-muted-foreground">Nenhuma chave com o padrão `chat:*` foi encontrada.</p>
-          )}
-        </div>
-         <div>
-          <h3 className="font-semibold">Conteúdo Bruto da Primeira Chave</h3>
-           {status.firstKeyContent ? (
-            <pre className="text-xs font-mono bg-muted p-2 rounded-md overflow-x-auto">
-              {status.firstKeyContent}
-            </pre>
-          ) : (
-            <p className="text-sm text-muted-foreground">Nenhum conteúdo para exibir.</p>
           )}
         </div>
       </div>
