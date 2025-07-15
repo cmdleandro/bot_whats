@@ -19,9 +19,25 @@ import {
 import { cn } from '@/lib/utils';
 
 const themes = [
-  'zinc', 'slate', 'stone', 'gray', 'neutral', 'red', 'rose', 
-  'orange', 'green', 'blue', 'yellow', 'violet',
+  'blue', 'zinc', 'slate', 'stone', 'gray', 'neutral', 'red', 'rose', 
+  'orange', 'green', 'yellow', 'violet',
 ];
+
+const themeColors: Record<string, string> = {
+  blue: 'hsl(206 90% 68%)',
+  zinc: 'hsl(221.2 83.2% 53.3%)',
+  slate: 'hsl(215.4 16.3% 46.9%)',
+  stone: 'hsl(25 5.3% 44.7%)',
+  gray: 'hsl(220 8.9% 46.1%)',
+  neutral: 'hsl(0 0% 45.1%)',
+  red: 'hsl(0 72.2% 50.6%)',
+  rose: 'hsl(346.8 77.2% 49.8%)',
+  orange: 'hsl(24.6 95% 53.1%)',
+  green: 'hsl(142.1 76.2% 36.3%)',
+  yellow: 'hsl(47.9 95.8% 53.1%)',
+  violet: 'hsl(262.1 83.3% 57.8%)',
+};
+
 
 const notificationSounds = Array.from({ length: 9 }, (_, i) => `/notification${i + 1}.wav`);
 
@@ -70,7 +86,7 @@ export function ThemeSwitcher() {
             <DropdownMenuSubContent>
               {themes.map((t) => (
                 <DropdownMenuItem key={t} onClick={() => setTheme(t)}>
-                   <div className="h-4 w-4 rounded-full mr-2" style={{ backgroundColor: `hsl(var(--primary-for-theme-${t}))` }}/>
+                   <div className="h-4 w-4 rounded-full mr-2" style={{ backgroundColor: themeColors[t] }}/>
                    <span className="capitalize w-full flex items-center justify-between">
                     {t}
                     {theme === t && <Check className="h-4 w-4" />}

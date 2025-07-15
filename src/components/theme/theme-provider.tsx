@@ -17,7 +17,7 @@ type ThemeProviderState = {
 };
 
 const initialState: ThemeProviderState = {
-  theme: 'zinc', // Set a default theme
+  theme: 'blue', // Set a default theme
   isDarkMode: false,
   notificationSound: '/notification1.wav', // Default sound
   setTheme: () => null,
@@ -46,16 +46,22 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const body = window.document.body;
+    
+    // Remove any existing theme classes
     body.classList.forEach(className => {
       if (className.startsWith('theme-')) {
         body.classList.remove(className);
       }
     });
 
+    // Add current theme class
     if (theme) {
       body.classList.add(`theme-${theme}`);
+    } else {
+      body.classList.add(`theme-${initialState.theme}`);
     }
     
+    // Toggle dark class
     if (isDarkMode) {
       body.classList.add('dark');
     } else {
