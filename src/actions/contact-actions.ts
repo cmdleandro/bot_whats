@@ -2,7 +2,6 @@
 
 import { getClient } from '@/lib/redis';
 import type { StoredContact } from '@/lib/data';
-import vCard from 'vcard-parser';
 
 const STORED_CONTACTS_KEY = 'chatview:stored_contacts';
 
@@ -32,27 +31,50 @@ function cleanPhoneNumber(phone: string): string {
     return phone.replace(/\D/g, '');
 }
 
+// Manual VCF parser to be more resilient
+function manualVcfParser(vcfContent: string): StoredContact[] {
+  const contacts: StoredContact[] = [];
+  const cards = vcfContent.split('BEGIN:VCARD');
+
+  for (const card of cards) {
+    if (!card.trim()) continue;
+
+    const lines = card.split('\n');
+    let name: string | null = null;
+    let phone: string | null = null;
+
+    for (const line of lines) {
+      if (line.startsWith('FN:')) {
+        name = line.substring(3).trim();
+      } else if (line.startsWith('TEL')) {
+        // Find the phone number, which is after the colon
+        const parts = line.split(':');
+        if (parts.length > 1) {
+            phone = parts[1].trim();
+        }
+      }
+    }
+    
+    if (name && phone) {
+      const cleanedPhone = cleanPhoneNumber(phone);
+      if (cleanedPhone) {
+          const id = `${cleanedPhone}@c.us`;
+          contacts.push({ name, id });
+      }
+    }
+  }
+  return contacts;
+}
+
+
 export async function processVcfFile(vcfContent: string): Promise<StoredContact[]> {
   try {
-    const parsedCards = vCard.parse(vcfContent);
-    
-    const contacts: StoredContact[] = parsedCards.map(card => {
-        const name = card.fn?.[0]?.value || 'Nome não encontrado';
-        
-        let phone = '';
-        if (card.tel && card.tel.length > 0) {
-            // Prioritize cellular phone numbers if available
-            const cell = card.tel.find(t => t.meta?.type?.includes('cell'));
-            phone = cell?.value || card.tel[0].value;
-        }
+    // Use the new manual parser
+    const contacts = manualVcfParser(vcfContent);
 
-        const cleanedPhone = cleanPhoneNumber(phone);
-        
-        // Format to WhatsApp JID format
-        const id = `${cleanedPhone}@c.us`;
-
-        return { name, id };
-    }).filter(contact => contact.name && contact.id.length > 5); // Basic validation
+    if (contacts.length === 0) {
+      throw new Error("No valid contacts found in the VCF file.");
+    }
 
     // Remove duplicates based on ID
     const uniqueContacts = Array.from(new Map(contacts.map(item => [item.id, item])).values());
@@ -64,3 +86,4 @@ export async function processVcfFile(vcfContent: string): Promise<StoredContact[
     throw new Error('Failed to parse VCF file. Please check the file format and try again.');
   }
 }
+
