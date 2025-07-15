@@ -12,7 +12,7 @@
     THEME DEFINITIONS (NEW APPROACH)
     ================================================================= */
 
-  /* Theme: Zinc Light */
+  /* --- Zinc --- */
   body.theme-zincLight {
     --background: 0 0% 100%;
     --foreground: 222.2 84% 4.9%;
@@ -41,8 +41,6 @@
     --sidebar-accent-foreground: 210 40% 98%;
     --sidebar-ring: 221.2 83.2% 53.3%;
   }
-
-  /* Theme: Zinc Dark */
   body.theme-zincDark {
     --background: 222.2 84% 4.9%;
     --foreground: 210 40% 98%;
@@ -71,7 +69,7 @@
     --sidebar-ring: 210 40% 98%;
   }
 
-  /* Theme: Slate Light */
+  /* --- Slate --- */
   body.theme-slateLight {
     --background: 215 30% 98%;
     --foreground: 215 30% 10%;
@@ -92,8 +90,6 @@
     --sidebar-accent: 215.4 16.3% 46.9%;
     --sidebar-accent-foreground: 210 20% 98%;
   }
-
-  /* Theme: Slate Dark */
   body.theme-slateDark {
     --background: 215 30% 9%;
     --foreground: 215 20% 98%;
@@ -115,7 +111,7 @@
     --sidebar-accent-foreground: 210 20% 98%;
   }
 
-  /* Theme: Blue Light */
+  /* --- Blue --- */
   body.theme-blueLight {
     --background: 210 100% 98%;
     --foreground: 224 71% 4%;
@@ -136,8 +132,6 @@
     --sidebar-accent: 220 90% 60%;
     --sidebar-accent-foreground: 210 20% 98%;
   }
-
-  /* Theme: Blue Dark */
   body.theme-blueDark {
     --background: 221 83% 9%;
     --foreground: 210 20% 98%;
@@ -159,7 +153,7 @@
     --sidebar-accent-foreground: 221 20% 98%;
   }
 
-  /* Theme: Green Light */
+  /* --- Green --- */
   body.theme-greenLight {
     --background: 140 70% 98%;
     --foreground: 145 60% 10%;
@@ -180,8 +174,6 @@
     --sidebar-accent: 142.1 76.2% 36.3%;
     --sidebar-accent-foreground: 140 20% 98%;
   }
-
-  /* Theme: Green Dark */
   body.theme-greenDark {
     --background: 141 78% 9%;
     --foreground: 140 20% 98%;
@@ -203,7 +195,7 @@
     --sidebar-accent-foreground: 140 20% 98%;
   }
 
-  /* Theme: Orange Light */
+  /* --- Orange --- */
   body.theme-orangeLight {
     --background: 25 100% 98%;
     --foreground: 20 80% 15%;
@@ -224,8 +216,6 @@
     --sidebar-accent: 24.6 95% 53.1%;
     --sidebar-accent-foreground: 20 20% 98%;
   }
-
-  /* Theme: Orange Dark */
   body.theme-orangeDark {
     --background: 24 90% 9%;
     --foreground: 24 20% 98%;
@@ -247,7 +237,7 @@
     --sidebar-accent-foreground: 24 20% 98%;
   }
 
-  /* Theme: Rose Light */
+  /* --- Rose --- */
   body.theme-roseLight {
     --background: 345 100% 98%;
     --foreground: 345 80% 15%;
@@ -268,8 +258,6 @@
     --sidebar-accent: 346.8 77.2% 49.8%;
     --sidebar-accent-foreground: 345 20% 98%;
   }
-  
-  /* Theme: Rose Dark */
   body.theme-roseDark {
     --background: 347 80% 9%;
     --foreground: 347 20% 98%;
@@ -291,7 +279,7 @@
     --sidebar-accent-foreground: 347 20% 98%;
   }
   
-  /* Theme: Violet Light */
+  /* --- Violet --- */
   body.theme-violetLight {
     --background: 255 100% 98%;
     --foreground: 258 80% 15%;
@@ -312,8 +300,6 @@
     --sidebar-accent: 258.8 77.2% 55.8%;
     --sidebar-accent-foreground: 255 20% 98%;
   }
-
-  /* Theme: Violet Dark */
   body.theme-violetDark {
     --background: 258 80% 9%;
     --foreground: 258 20% 98%;
@@ -335,7 +321,7 @@
     --sidebar-accent-foreground: 258 20% 98%;
   }
 
-  /* Theme: Yellow Light */
+  /* --- Yellow --- */
   body.theme-yellowLight {
     --background: 45 100% 98%;
     --foreground: 40 80% 15%;
@@ -356,8 +342,6 @@
     --sidebar-accent: 44.6 95% 53.1%;
     --sidebar-accent-foreground: 40 20% 98%;
   }
-
-  /* Theme: Yellow Dark */
   body.theme-yellowDark {
     --background: 40 80% 9%;
     --foreground: 40 20% 98%;

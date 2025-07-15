@@ -1,11 +1,13 @@
 import type {Config} from 'tailwindcss';
 
 export default {
-  darkMode: ['class'],
+  darkMode: 'class', // This can stay, but our theme logic won't use it.
   content: [
     './src/pages/**/*.{js,ts,jsx,tsx,mdx}',
     './src/components/**/*.{js,ts,jsx,tsx,mdx}',
     './src/app/**/*.{js,ts,jsx,tsx,mdx}',
+    // CRUCIAL: Add the ThemeProvider file to the content list.
+    // This allows Tailwind to "see" the dynamically constructed class names.
     './src/components/theme/theme-provider.tsx'
   ],
   theme: {

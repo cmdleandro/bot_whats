@@ -54,7 +54,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   
   useEffect(() => {
     const body = window.document.body;
-
+    
     // 1. Clean Slate: Remove all old theme-related classes.
     const classesToRemove = Array.from(body.classList).filter(
       (cls) => cls.startsWith('theme-')
@@ -63,7 +63,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
       body.classList.remove(...classesToRemove);
     }
     
-    // 2. Construct the new, single class name.
+    // 2. Construct the new, single class name based on the new architecture.
     const modeSuffix = isDarkMode ? 'Dark' : 'Light';
     const newThemeClass = `theme-${theme}${modeSuffix}`;
     
