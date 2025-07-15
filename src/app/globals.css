@@ -3,30 +3,107 @@
 @tailwind utilities;
 
 @layer base {
-  :root, .theme-zinc {
+  :root,
+  .theme-zinc {
     --background: 0 0% 100%;
     --foreground: 222.2 84% 4.9%;
     --card: 0 0% 100%;
     --card-foreground: 222.2 84% 4.9%;
     --popover: 0 0% 100%;
     --popover-foreground: 222.2 84% 4.9%;
-    --primary: 202 90% 48%; /* #64B5F6 soft blue */
-    --primary-foreground: 210 40% 98%;
+    --primary: 202 85% 68%;
+    --primary-foreground: 222.2 47.4% 11.2%;
     --secondary: 210 40% 96.1%;
     --secondary-foreground: 222.2 47.4% 11.2%;
     --muted: 210 40% 96.1%;
     --muted-foreground: 215.4 16.3% 46.9%;
-    --accent: 174 45% 61%; /* #4DB6AC teal */
+    --accent: 174 70% 68%;
     --accent-foreground: 222.2 47.4% 11.2%;
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 210 40% 98%;
     --border: 214.3 31.8% 91.4%;
     --input: 214.3 31.8% 91.4%;
-    --ring: 202 90% 48%;
+    --ring: 202 85% 68%;
     --radius: 0.5rem;
-    --background-app: 220 13% 95%; /* #F5F5F5 light gray */
+    --background-app: 220 13% 95%;
+
+    --sidebar-background: 220 13% 91%;
+    --sidebar-foreground: 222.2 84% 4.9%;
+    --sidebar-border: 220 13% 85%;
+    --sidebar-accent: 202 85% 68%;
+    --sidebar-accent-foreground: 222.2 47.4% 11.2%;
+    --sidebar-ring: 202 85% 68%;
+
+    --primary-for-theme-zinc: 221.2 83.2% 53.3%;
+    --primary-for-theme-slate: 215.4 16.3% 46.9%;
+    --primary-for-theme-stone: 25 5.3% 44.7%;
+    --primary-for-theme-gray: 220 8.9% 46.1%;
+    --primary-for-theme-neutral: 0 0% 45.1%;
+    --primary-for-theme-red: 0 72.2% 50.6%;
+    --primary-for-theme-rose: 346.8 77.2% 49.8%;
+    --primary-for-theme-orange: 24.6 95% 53.1%;
+    --primary-for-theme-green: 142.1 76.2% 36.3%;
+    --primary-for-theme-blue: 202 90% 48%;
+    --primary-for-theme-yellow: 47.9 95.8% 53.1%;
+    --primary-for-theme-violet: 262.1 83.3% 57.8%;
   }
- 
+
+  .theme-slate {
+    --primary: 215.4 16.3% 46.9%;
+    --primary-foreground: 210 40% 98%;
+    --ring: 215.4 16.3% 46.9%;
+  }
+  .theme-stone {
+    --primary: 25 5.3% 44.7%;
+    --primary-foreground: 210 40% 98%;
+    --ring: 25 5.3% 44.7%;
+  }
+  .theme-gray {
+    --primary: 220 8.9% 46.1%;
+    --primary-foreground: 210 40% 98%;
+    --ring: 220 8.9% 46.1%;
+  }
+  .theme-neutral {
+    --primary: 0 0% 45.1%;
+    --primary-foreground: 210 40% 98%;
+    --ring: 0 0% 45.1%;
+  }
+  .theme-red {
+    --primary: 0 72.2% 50.6%;
+    --primary-foreground: 210 40% 98%;
+    --ring: 0 72.2% 50.6%;
+  }
+  .theme-rose {
+    --primary: 346.8 77.2% 49.8%;
+    --primary-foreground: 210 40% 98%;
+    --ring: 346.8 77.2% 49.8%;
+  }
+  .theme-orange {
+    --primary: 24.6 95% 53.1%;
+    --primary-foreground: 210 40% 98%;
+    --ring: 24.6 95% 53.1%;
+  }
+  .theme-green {
+    --primary: 142.1 76.2% 36.3%;
+    --primary-foreground: 210 40% 98%;
+    --ring: 142.1 76.2% 36.3%;
+  }
+  .theme-blue {
+    --primary: 202 90% 48%;
+    --primary-foreground: 210 40% 98%;
+    --ring: 202 90% 48%;
+  }
+  .theme-yellow {
+    --primary: 47.9 95.8% 53.1%;
+    --primary-foreground: 222.2 47.4% 11.2%;
+    --ring: 47.9 95.8% 53.1%;
+  }
+  .theme-violet {
+    --primary: 262.1 83.3% 57.8%;
+    --primary-foreground: 210 40% 98%;
+    --ring: 262.1 83.3% 57.8%;
+  }
+
   .dark {
     --background: 222.2 84% 4.9%;
     --foreground: 210 40% 98%;
@@ -34,20 +111,27 @@
     --card-foreground: 210 40% 98%;
     --popover: 222.2 84% 4.9%;
     --popover-foreground: 210 40% 98%;
-    --primary: 202 90% 48%; /* #64B5F6 soft blue */
+    --primary: 202 85% 68%;
     --primary-foreground: 222.2 47.4% 11.2%;
     --secondary: 217.2 32.6% 17.5%;
     --secondary-foreground: 210 40% 98%;
     --muted: 217.2 32.6% 17.5%;
     --muted-foreground: 215 20.2% 65.1%;
-    --accent: 174 45% 61%; /* #4DB6AC teal */
+    --accent: 174 70% 68%;
     --accent-foreground: 210 40% 98%;
     --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 210 40% 98%;
     --border: 217.2 32.6% 17.5%;
     --input: 217.2 32.6% 17.5%;
-    --ring: 202 90% 48%;
-    --background-app: 220 13% 18%; /* Darker version of #F5F5F5 */
+    --ring: 202 85% 68%;
+    --background-app: 220 13% 18%;
+
+    --sidebar-background: 220 13% 15%;
+    --sidebar-foreground: 210 40% 98%;
+    --sidebar-border: 220 13% 25%;
+    --sidebar-accent: 202 85% 68%;
+    --sidebar-accent-foreground: 222.2 47.4% 11.2%;
+    --sidebar-ring: 202 85% 68%;
   }
 }
 
@@ -58,8 +142,4 @@
   body {
     @apply bg-background-app text-foreground;
   }
-}
-
-@layer utilities {
-
 }
