@@ -75,13 +75,18 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
       body.classList.remove('dark');
     }
     
-    // 4. Debug log via Toast
-    const currentClasses = Array.from(body.classList).join(' ');
+    // 4. Debug log via Toast, showing the exact CSS selector.
+    let activeSelector = 'body';
+    if (isDarkMode) {
+        activeSelector += '.dark';
+    }
+    activeSelector += `.theme-${theme}`;
+
     toast({
-      title: "Debug: Classes aplicadas no <body>",
+      title: "Debug: Seletor CSS Ativo",
       description: (
         <pre className="mt-2 w-[340px] rounded-md bg-slate-950 p-4">
-          <code className="text-white">{currentClasses}</code>
+          <code className="text-white">{activeSelector}</code>
         </pre>
       ),
     });
