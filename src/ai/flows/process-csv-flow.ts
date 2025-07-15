@@ -10,8 +10,8 @@
  */
 
 import { ai } from '@/ai/genkit';
+import * as genkit from 'genkit';
 import { z } from 'zod';
-import { backoff } from 'genkit';
 
 const ProcessContactsFileInputSchema = z.object({
   fileContent: z.string().describe('O conteúdo completo de um arquivo de contatos, que pode ser no formato CSV (Google Contacts) ou VCF (vCard).'),
@@ -68,7 +68,7 @@ const processContactsFileFlow = ai.defineFlow(
     name: 'processContactsFileFlow',
     inputSchema: ProcessContactsFileInputSchema,
     outputSchema: ProcessContactsFileOutputSchema,
-    retry: backoff({
+    retry: genkit.backoff({
       maxRetries: 3, // Tenta até 3 vezes
       delay: 2000, // Começa com 2 segundos de atraso
       multiplier: 2, // Dobra o atraso a cada tentativa
