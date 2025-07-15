@@ -52,8 +52,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [theme, setThemeState] = useState<Theme>(initialState.theme);
   const [isDarkMode, setIsDarkModeState] = useState<boolean>(initialState.isDarkMode);
   const [notificationSound, setNotificationSoundState] = useState<string>(initialState.notificationSound);
-  const { toast } = useToast();
-
+  
   useEffect(() => {
     const body = window.document.body;
 
@@ -64,7 +63,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     if (classesToRemove.length > 0) {
       body.classList.remove(...classesToRemove);
     }
-
+    
     // 2. Apply the new theme class.
     body.classList.add(`theme-${theme}`);
     
@@ -74,30 +73,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     } else {
       body.classList.remove('dark');
     }
-    
-    // 4. Debug log via Toast, showing the source variables and the resulting selector.
-    let activeSelector = 'body';
-    if (isDarkMode) {
-      activeSelector += '.dark';
-    }
-    activeSelector += `.theme-${theme}`;
-
-    toast({
-      title: "Debug: Theme State & Resulting Selector",
-      description: (
-        <pre className="mt-2 w-[340px] rounded-md bg-slate-950 p-4">
-          <code className="text-white">
-            {`// Original State Variables\n`}
-            {`theme: "${theme}"\n`}
-            {`isDarkMode: ${isDarkMode}\n\n`}
-            {`// Resulting CSS Selector\n`}
-            {`${activeSelector}`}
-          </code>
-        </pre>
-      ),
-    });
-
-  }, [theme, isDarkMode, toast]);
+  }, [theme, isDarkMode]);
 
   const setTheme = (newTheme: Theme) => {
     localStorage.setItem(THEME_STORAGE_KEY, newTheme);
