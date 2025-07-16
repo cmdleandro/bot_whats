@@ -63,7 +63,7 @@ export async function getContacts(): Promise<Contact[]> {
   const storedContactsMap = new Map(storedContacts.map(c => [c.id, c]));
   let hasNewContactsToSave = false;
 
-  const activeContacts: Contact[] = [];
+  const activeContacts: (Contact & { rawTimestamp?: number })[] = [];
 
   // 2. Iterate through active chats from Redis
   for await (const key of client.scanIterator({ MATCH: 'chat:*', COUNT: 100 })) {
@@ -119,6 +119,7 @@ export async function getContacts(): Promise<Contact[]> {
       timestamp: contact.timestamp || '',
       unreadCount: 0,
       needsAttention: contact.needsAttention || false,
+      rawTimestamp: contact.rawTimestamp || 0,
     });
   }
 
@@ -130,9 +131,7 @@ export async function getContacts(): Promise<Contact[]> {
   return activeContacts.sort((a, b) => {
     if (a.needsAttention && !b.needsAttention) return -1;
     if (!a.needsAttention && b.needsAttention) return 1;
-    // @ts-ignore - a.rawTimestamp is not in Contact type but is used for sorting
     const timeA = a.rawTimestamp || 0;
-    // @ts-ignore
     const timeB = b.rawTimestamp || 0;
     return timeB - timeA;
   });
@@ -154,11 +153,11 @@ export async function getMessages(contactId: string): Promise<Message[]> {
         const storedMsg = parseJsonMessage(msgString);
         if (!storedMsg) return null;
 
-        // Pass the raw timestamp (in milliseconds) to the client
-        const timestamp = storedMsg.timestamp ? parseInt(storedMsg.timestamp, 10) * 1000 : Date.now();
+        // Pass the raw timestamp (in seconds from Redis) and multiply by 1000 for JS Date (milliseconds)
+        const timestampInMs = storedMsg.timestamp ? parseInt(storedMsg.timestamp, 10) * 1000 : Date.now();
         const sender: Message['sender'] = ['user', 'bot', 'operator'].includes(storedMsg.tipo) ? storedMsg.tipo : 'user';
         
-        const uniqueId = storedMsg.id || storedMsg.messageId || `${timestamp}-${index}`;
+        const uniqueId = storedMsg.id || storedMsg.messageId || `${timestampInMs}-${index}`;
 
         return {
           id: uniqueId,
@@ -166,7 +165,7 @@ export async function getMessages(contactId: string): Promise<Message[]> {
           text: storedMsg.texto,
           sender: sender,
           operatorName: storedMsg.operatorName,
-          timestamp: timestamp, // Send the number, not the formatted string
+          timestamp: timestampInMs, // Send the number (in ms), not the formatted string
           botAvatarUrl: sender === 'bot' ? '/logo.svg' : undefined,
           status: storedMsg.status,
         };
