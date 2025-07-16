@@ -57,25 +57,20 @@ function parseJsonMessage(jsonString: string): StoredMessage | null {
 
 export async function getContacts(): Promise<Contact[]> {
   const client = await getClient();
-  const contacts: Contact[] = [];
   
-  // 1. Get existing stored contacts to map names
+  // 1. Get stored contacts to map names
   const storedContacts = await getStoredContacts();
   const storedContactsMap = new Map(storedContacts.map(c => [c.id, c]));
   let hasNewContactsToSave = false;
+
+  const activeContacts: Contact[] = [];
 
   // 2. Iterate through active chats from Redis
   for await (const key of client.scanIterator({ MATCH: 'chat:*', COUNT: 100 })) {
     const contactId = key.replace(/^chat:/, '');
     const lastMessageString = await client.lIndex(key, 0);
 
-    let contact: Partial<Contact> = {
-      id: contactId,
-      name: contactId.split('@')[0],
-      avatar: `https://placehold.co/40x40.png`,
-    };
-    
-    // 3. Auto-save contact if it's a new interaction
+    // Auto-save contact if it's a new interaction
     if (!storedContactsMap.has(contactId)) {
         const newContact: StoredContact = {
             id: contactId,
@@ -85,11 +80,14 @@ export async function getContacts(): Promise<Contact[]> {
         storedContactsMap.set(contactId, newContact); // Add to map for current run
         hasNewContactsToSave = true;
     }
-
+    
     const storedContactInfo = storedContactsMap.get(contactId);
-    if(storedContactInfo) {
-      contact.name = storedContactInfo.name;
-    }
+
+    let contact: Partial<Contact> & { rawTimestamp?: number } = {
+      id: contactId,
+      name: storedContactInfo?.name || contactId.split('@')[0],
+      avatar: `https://placehold.co/40x40.png`,
+    };
 
     if (lastMessageString) {
       const lastMsg = parseJsonMessage(lastMessageString);
@@ -100,6 +98,7 @@ export async function getContacts(): Promise<Contact[]> {
           name: lastMsg.contactName || contact.name, // Prefer name from message
           lastMessage: lastMsg.texto || 'Mensagem sem texto.',
           timestamp: timestamp ? formatDistanceToNow(fromUnixTime(timestamp), { addSuffix: true, locale: ptBR }) : 'Data desconhecida',
+          rawTimestamp: timestamp,
           needsAttention: lastMsg.needsAttention || false,
           avatar: lastMsg.contactPhotoUrl || `https://placehold.co/40x40.png`,
         };
@@ -112,7 +111,7 @@ export async function getContacts(): Promise<Contact[]> {
       }
     }
 
-    contacts.push({
+    activeContacts.push({
       id: contact.id!,
       name: contact.name!,
       avatar: contact.avatar!,
@@ -128,12 +127,14 @@ export async function getContacts(): Promise<Contact[]> {
       await saveStoredContacts(storedContacts);
   }
 
-  return contacts.sort((a, b) => {
+  return activeContacts.sort((a, b) => {
     if (a.needsAttention && !b.needsAttention) return -1;
     if (!a.needsAttention && b.needsAttention) return 1;
-    const timeA = a.timestamp || '';
-    const timeB = b.timestamp || '';
-    return timeB.localeCompare(timeA);
+    // @ts-ignore - a.rawTimestamp is not in Contact type but is used for sorting
+    const timeA = a.rawTimestamp || 0;
+    // @ts-ignore
+    const timeB = b.rawTimestamp || 0;
+    return timeB - timeA;
   });
 }
 
@@ -153,6 +154,7 @@ export async function getMessages(contactId: string): Promise<Message[]> {
         const storedMsg = parseJsonMessage(msgString);
         if (!storedMsg) return null;
 
+        // Pass the raw timestamp (in milliseconds) to the client
         const timestamp = storedMsg.timestamp ? parseInt(storedMsg.timestamp, 10) * 1000 : Date.now();
         const sender: Message['sender'] = ['user', 'bot', 'operator'].includes(storedMsg.tipo) ? storedMsg.tipo : 'user';
         
@@ -164,7 +166,7 @@ export async function getMessages(contactId: string): Promise<Message[]> {
           text: storedMsg.texto,
           sender: sender,
           operatorName: storedMsg.operatorName,
-          timestamp: new Date(timestamp).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+          timestamp: timestamp, // Send the number, not the formatted string
           botAvatarUrl: sender === 'bot' ? '/logo.svg' : undefined,
           status: storedMsg.status,
         };
@@ -213,9 +215,7 @@ export async function addMessage(contactId: string, message: { text: string; sen
         messageId: message.tempId
     };
 
-    // Usando LPUSH para adicionar à lista
     await client.lPush(historyKey, JSON.stringify(messageObject));
-    // Publicando no canal
     await client.publish(channelName, JSON.stringify(messageForQueue));
     
     console.log(`Mensagem ${message.tempId} para ${contactId} (String JSON) adicionada à lista e publicada no canal ${channelName}.`);

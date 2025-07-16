@@ -137,7 +137,7 @@ export default function ChatViewPage() {
       text: newMessage,
       sender: 'operator',
       operatorName: operatorName,
-      timestamp: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+      timestamp: Date.now(),
       status: 'sent',
     };
 
@@ -262,7 +262,7 @@ export default function ChatViewPage() {
                   )}
                   <p className="whitespace-pre-wrap">{msg.text}</p>
                   <div className="flex items-center justify-end mt-1 text-xs opacity-60 self-end">
-                    <span>{msg.timestamp}</span>
+                    <span>{new Date(msg.timestamp).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
                     {msg.sender === 'operator' && msg.status && <MessageStatusIndicator status={msg.status} />}
                   </div>
                 </div>

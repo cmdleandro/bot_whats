@@ -34,7 +34,7 @@ export type Message = {
   text: string;
   sender: 'user' | 'bot' | 'operator';
   operatorName?: string;
-  timestamp: string; // Formatado para exibição (ex: "14:30")
+  timestamp: number; // O timestamp UNIX original (em milissegundos) para ser formatado no cliente
   botAvatarUrl?: string;
   status?: MessageStatus;
 };
