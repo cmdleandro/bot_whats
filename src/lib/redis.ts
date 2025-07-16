@@ -10,17 +10,6 @@ import { getStoredContacts } from '@/actions/contact-actions';
 
 let redisClient: ReturnType<typeof createClient> | null = null;
 
-const BOT_ATTENTION_KEYWORDS = [
-    "transferindo para um de nossos atendentes",
-    "estou te transferindo para um especialista",
-    "vou te passar para um técnico",
-    "aguarde o nosso próximo agente",
-    "encaminhando sua conversa para o setor responsável",
-    "passando para um técnico",
-    "vou acionar um técnico humano pra te ajudar melhor"
-];
-
-
 export async function getClient() {
     if (redisClient && redisClient.isOpen) {
         return redisClient;
@@ -68,8 +57,8 @@ function parseRedisHash(hash: RedisHash | null): RedisMessage | null {
     operatorName: hash.operatorName,
     contactPhotoUrl: hash.contactPhotoUrl,
     instance: hash.instance,
-    needsAttention: hash.needsAttention === 'true', // Convert string to boolean
-    status: hash.status as MessageStatus,
+    needsAttention: hash.needsAttention === 'true',
+    status: hash.status as Message['status'],
   };
 }
 
