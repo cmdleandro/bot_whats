@@ -4,7 +4,7 @@
 import { createClient } from 'redis';
 import type { Contact, Message, StoredMessage, User } from './data';
 import { initialUsers } from './data';
-import { formatRelative, fromUnixTime } from 'date-fns';
+import { formatDistanceToNow, fromUnixTime } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
 let redisClient: ReturnType<typeof createClient> | null = null;
@@ -60,9 +60,13 @@ export async function getContacts(): Promise<Contact[]> {
 
   for await (const key of client.scanIterator({ MATCH: 'chat:*', COUNT: 100 })) {
     const contactId = key.replace(/^chat:/, '');
-    const lastMessageString = await client.lIndex(key, 0); // Pega o último item da lista
+    const lastMessageString = await client.lIndex(key, 0);
 
-    let contact: Partial<Contact> = { id: contactId, name: contactId.split('@')[0] };
+    let contact: Partial<Contact> = { 
+        id: contactId, 
+        name: contactId.split('@')[0], 
+        avatar: `https://placehold.co/40x40.png` 
+    };
 
     if (lastMessageString) {
       const lastMsg = parseJsonMessage(lastMessageString);
@@ -73,8 +77,9 @@ export async function getContacts(): Promise<Contact[]> {
           ...contact,
           name: lastMsg.contactName || contact.name,
           lastMessage: lastMsg.texto || 'Mensagem sem texto.',
-          timestamp: timestamp ? formatRelative(fromUnixTime(timestamp), new Date(), { locale: ptBR }) : 'Data desconhecida',
+          timestamp: timestamp ? formatDistanceToNow(fromUnixTime(timestamp), { addSuffix: true, locale: ptBR }) : 'Data desconhecida',
           needsAttention: lastMsg.needsAttention || false,
+          avatar: lastMsg.contactPhotoUrl || `https://placehold.co/40x40.png`,
         };
       }
     }
@@ -82,7 +87,7 @@ export async function getContacts(): Promise<Contact[]> {
     contacts.push({
       id: contact.id!,
       name: contact.name!,
-      avatar: `https://placehold.co/40x40.png`,
+      avatar: contact.avatar!,
       lastMessage: contact.lastMessage || 'Nenhuma mensagem ainda.',
       timestamp: contact.timestamp || '',
       unreadCount: 0,
@@ -93,7 +98,6 @@ export async function getContacts(): Promise<Contact[]> {
   return contacts.sort((a, b) => {
     if (a.needsAttention && !b.needsAttention) return -1;
     if (!a.needsAttention && b.needsAttention) return 1;
-    // Fallback sort, can be improved with real timestamps if needed
     return b.id.localeCompare(a.id);
   });
 }
@@ -116,7 +120,6 @@ export async function getMessages(contactId: string): Promise<Message[]> {
         const timestamp = storedMsg.timestamp ? parseInt(storedMsg.timestamp, 10) * 1000 : Date.now();
         const sender: Message['sender'] = ['user', 'bot', 'operator'].includes(storedMsg.tipo) ? storedMsg.tipo : 'user';
         
-        // Use a combination of index and timestamp for a more reliable unique key
         const uniqueId = storedMsg.id || storedMsg.messageId || `${timestamp}-${index}`;
 
         return {
@@ -131,7 +134,7 @@ export async function getMessages(contactId: string): Promise<Message[]> {
         };
       })
       .filter((msg): msg is Message => msg !== null)
-      .reverse(); // As mensagens são salvas com LPUSH, então a lista do Redis está em ordem inversa
+      .reverse();
 
     return messages;
 
@@ -200,7 +203,6 @@ export async function dismissAttention(contactId: string): Promise<void> {
 
     if (message && message.needsAttention) {
       const updatedMessage = { ...message, needsAttention: false };
-      // Substitui a mensagem no topo da lista pela versão atualizada
       await client.lSet(key, 0, JSON.stringify(updatedMessage));
       console.log(`Alarme para o contato ${contactId} foi desativado.`);
     }
@@ -237,3 +239,5 @@ export async function saveUsers(users: User[]): Promise<void> {
         throw error;
     }
 }
+
+    
