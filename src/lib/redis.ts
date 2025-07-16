@@ -68,7 +68,7 @@ function parseRedisHash(hash: RedisHash | null): RedisMessage | null {
     operatorName: hash.operatorName,
     contactPhotoUrl: hash.contactPhotoUrl,
     instance: hash.instance,
-    needsAttention: hash.needsAttention,
+    needsAttention: hash.needsAttention === 'true', // Convert string to boolean
     status: hash.status as MessageStatus,
   };
 }
@@ -79,7 +79,13 @@ export async function getContacts(): Promise<Contact[]> {
     const client = await getClient();
     const [storedContacts, contactKeys] = await Promise.all([
         getStoredContacts(),
-        client.keys('chat:*')
+        (async () => {
+            const keys = [];
+            for await (const key of client.scanIterator({ MATCH: 'chat:*', COUNT: 100 })) {
+                keys.push(key);
+            }
+            return keys;
+        })()
     ]);
     const storedContactsMap = new Map(storedContacts.map(c => [c.id, c.name]));
 
@@ -96,15 +102,14 @@ export async function getContacts(): Promise<Contact[]> {
         if (id) {
             messagesMulti.hGetAll(`message:${id}`);
         } else {
-            messagesMulti.hGetAll('non-existent-key-placeholder'); // Placeholder for pipeline
+            messagesMulti.hGetAll('non-existent-key-placeholder');
         }
     });
-    const lastMessages = await messagesMulti.exec() as (RedisHash | null)[];
+    const lastMessagesHashes = await messagesMulti.exec() as (RedisHash | null)[];
 
     const contacts = contactKeys.map((key, index) => {
       const contactId = key.replace(/^chat:/, '').trim();
-      const lastMessageHash = lastMessages[index];
-      const lastMsg = parseRedisHash(lastMessageHash);
+      const lastMsg = parseRedisHash(lastMessagesHashes[index]);
       
       let lastMessageText = 'Nenhuma mensagem ainda.';
       let timestamp = Date.now();
@@ -113,7 +118,7 @@ export async function getContacts(): Promise<Contact[]> {
       if (lastMsg && lastMsg.texto) {
         lastMessageText = lastMsg.texto;
         timestamp = lastMsg.timestamp ? parseInt(lastMsg.timestamp, 10) * 1000 : Date.now();
-        needsAttention = lastMsg.needsAttention === 'true';
+        needsAttention = lastMsg.needsAttention === true;
       }
 
       const contactName = storedContactsMap.get(contactId) || contactId.split('@')[0];
@@ -133,8 +138,7 @@ export async function getContacts(): Promise<Contact[]> {
     return contacts.sort((a, b) => {
       if (a.needsAttention && !b.needsAttention) return -1;
       if (!a.needsAttention && b.needsAttention) return 1;
-      // This is a weak sort, but better than nothing without parsing dates again
-      return b.timestamp.localeCompare(a.timestamp); 
+      return b.id.localeCompare(a.id);
     });
 
   } catch (error) {

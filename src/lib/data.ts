@@ -20,7 +20,7 @@ export type RedisMessage = {
   operatorName?: string;
   contactPhotoUrl?: string; 
   instance?: string;
-  needsAttention?: string; // Redis hashes store values as strings, 'true' or 'false'
+  needsAttention?: boolean;
   status?: MessageStatus;
 };
 
