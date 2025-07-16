@@ -72,19 +72,23 @@ export async function getContacts(): Promise<Contact[]> {
     const lastMsg = parseJsonMessage(lastMessageString);
     if (!lastMsg) continue;
     
-    if (!storedContactsMap.has(contactId) && lastMsg.contactName) {
-        const newContact: StoredContact = { id: contactId, name: lastMsg.contactName };
-        storedContacts.push(newContact);
-        storedContactsMap.set(contactId, newContact.name);
-        hasNewContactsToSave = true;
+    const contactNameFromMessage = lastMsg.contactName || contactId.split('@')[0];
+    const existingStoredName = storedContactsMap.get(contactId);
+
+    // Prioritize stored name, but update it if it's just the default number
+    let finalContactName = existingStoredName || contactNameFromMessage;
+    if (!existingStoredName && contactNameFromMessage) {
+       const newContact: StoredContact = { id: contactId, name: contactNameFromMessage };
+       storedContacts.push(newContact);
+       storedContactsMap.set(contactId, contactNameFromMessage);
+       hasNewContactsToSave = true;
     }
-    
-    const contactName = storedContactsMap.get(contactId) || lastMsg.contactName || contactId.split('@')[0];
+
     const timestamp = lastMsg.timestamp ? parseInt(lastMsg.timestamp, 10) : 0;
     
     const contact: Partial<Contact> & { rawTimestamp: number } = {
       id: contactId,
-      name: contactName,
+      name: finalContactName,
       avatar: lastMsg.contactPhotoUrl || `https://placehold.co/40x40.png`,
       rawTimestamp: timestamp,
       lastMessage: lastMsg.texto || 'Mensagem sem texto.',
@@ -93,14 +97,12 @@ export async function getContacts(): Promise<Contact[]> {
       needsAttention: lastMsg.needsAttention || false,
     };
     
-    if (storedContactsMap.get(contactId) !== contactName) {
+    if (existingStoredName && existingStoredName !== finalContactName) {
         const existingStored = storedContacts.find(c => c.id === contactId);
         if (existingStored) {
-            existingStored.name = contactName;
-        } else if (contactName) {
-             storedContacts.push({id: contactId, name: contactName});
+            existingStored.name = finalContactName;
+            hasNewContactsToSave = true;
         }
-        hasNewContactsToSave = true;
     }
 
     activeContacts.push(contact as Contact & { rawTimestamp: number });
@@ -167,7 +169,9 @@ export async function addMessage(contactId: string, message: { text: string; sen
     const channelName = 'fila_envio_whatsapp';
     
     let instanceName = 'default';
-    const lastMessageString = await client.lIndex(historyKey, 0);
+    const lastMessageResult = await client.lRange(historyKey, 0, 0);
+    const lastMessageString = lastMessageResult[0];
+
     if (lastMessageString) {
         const parsedMsg = parseJsonMessage(lastMessageString);
         if (parsedMsg && parsedMsg.instance) {
