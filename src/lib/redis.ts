@@ -168,6 +168,7 @@ export async function addMessage(contactId: string, message: { text: string; sen
     const historyKey = `chat:${contactId.trim()}`;
     const channelName = 'fila_envio_whatsapp';
     
+    // 1. Determine the correct instance name
     let instanceName = 'default';
     const lastMessageResult = await client.lRange(historyKey, 0, 0);
     const lastMessageString = lastMessageResult[0];
@@ -179,6 +180,7 @@ export async function addMessage(contactId: string, message: { text: string; sen
         }
     }
     
+    // 2. Create both message objects using the determined instance name
     const messageObjectToStore: StoredMessage = {
       id: message.tempId,
       texto: message.text,
@@ -199,10 +201,11 @@ export async function addMessage(contactId: string, message: { text: string; sen
         }
     };
     
+    // 3. Persist and publish
     await client.lPush(historyKey, JSON.stringify(messageObjectToStore));
     await client.publish(channelName, JSON.stringify(messageForQueue));
     
-    console.log(`Mensagem ${message.tempId} para ${contactId} publicada no canal ${channelName}.`);
+    console.log(`Mensagem ${message.tempId} para ${contactId} (instância: ${instanceName}) publicada no canal ${channelName}.`);
 
   } catch (error) {
     console.error(`Falha ao adicionar mensagem para ${contactId} no Redis:`, error);
