@@ -57,73 +57,56 @@ function parseJsonMessage(jsonString: string): StoredMessage | null {
 
 export async function getContacts(): Promise<Contact[]> {
   const client = await getClient();
-  
-  // 1. Get stored contacts to map names
   const storedContacts = await getStoredContacts();
   const storedContactsMap = new Map(storedContacts.map(c => [c.id, c]));
   let hasNewContactsToSave = false;
 
-  const activeContacts: (Contact & { rawTimestamp?: number })[] = [];
+  const activeContacts: (Contact & { rawTimestamp: number })[] = [];
 
-  // 2. Iterate through active chats from Redis
   for await (const key of client.scanIterator({ MATCH: 'chat:*', COUNT: 100 })) {
     const contactId = key.replace(/^chat:/, '');
     const lastMessageString = await client.lIndex(key, 0);
 
-    // Auto-save contact if it's a new interaction
     if (!storedContactsMap.has(contactId)) {
-        const newContact: StoredContact = {
-            id: contactId,
-            name: contactId.split('@')[0] // Default name
-        };
+        const newContact: StoredContact = { id: contactId, name: contactId.split('@')[0] };
         storedContacts.push(newContact);
-        storedContactsMap.set(contactId, newContact); // Add to map for current run
+        storedContactsMap.set(contactId, newContact);
         hasNewContactsToSave = true;
     }
     
     const storedContactInfo = storedContactsMap.get(contactId);
 
-    let contact: Partial<Contact> & { rawTimestamp?: number } = {
+    let contact: Partial<Contact> & { rawTimestamp: number } = {
       id: contactId,
       name: storedContactInfo?.name || contactId.split('@')[0],
       avatar: `https://placehold.co/40x40.png`,
+      rawTimestamp: 0,
+      lastMessage: 'Nenhuma mensagem ainda.',
+      timestamp: '',
+      unreadCount: 0,
+      needsAttention: false,
     };
 
     if (lastMessageString) {
       const lastMsg = parseJsonMessage(lastMessageString);
       if (lastMsg) {
         const timestamp = lastMsg.timestamp ? parseInt(lastMsg.timestamp, 10) : 0;
-        contact = {
-          ...contact,
-          name: lastMsg.contactName || contact.name, // Prefer name from message
-          lastMessage: lastMsg.texto || 'Mensagem sem texto.',
-          timestamp: timestamp ? formatDistanceToNow(fromUnixTime(timestamp), { addSuffix: true, locale: ptBR }) : 'Data desconhecida',
-          rawTimestamp: timestamp,
-          needsAttention: lastMsg.needsAttention || false,
-          avatar: lastMsg.contactPhotoUrl || `https://placehold.co/40x40.png`,
-        };
+        contact.name = lastMsg.contactName || contact.name;
+        contact.lastMessage = lastMsg.texto || 'Mensagem sem texto.';
+        contact.timestamp = timestamp ? formatDistanceToNow(fromUnixTime(timestamp), { addSuffix: true, locale: ptBR }) : 'Data desconhecida';
+        contact.rawTimestamp = timestamp;
+        contact.needsAttention = lastMsg.needsAttention || false;
+        contact.avatar = lastMsg.contactPhotoUrl || `https://placehold.co/40x40.png`;
         
-        // Update stored contact name if message has a more recent one
         if (storedContactInfo && lastMsg.contactName && storedContactInfo.name !== lastMsg.contactName) {
             storedContactInfo.name = lastMsg.contactName;
             hasNewContactsToSave = true;
         }
       }
     }
-
-    activeContacts.push({
-      id: contact.id!,
-      name: contact.name!,
-      avatar: contact.avatar!,
-      lastMessage: contact.lastMessage || 'Nenhuma mensagem ainda.',
-      timestamp: contact.timestamp || '',
-      unreadCount: 0,
-      needsAttention: contact.needsAttention || false,
-      rawTimestamp: contact.rawTimestamp || 0,
-    });
+    activeContacts.push(contact as Contact & { rawTimestamp: number });
   }
 
-  // 4. Save the updated list of contacts if new ones were added/updated
   if (hasNewContactsToSave) {
       await saveStoredContacts(storedContacts);
   }
@@ -131,9 +114,7 @@ export async function getContacts(): Promise<Contact[]> {
   return activeContacts.sort((a, b) => {
     if (a.needsAttention && !b.needsAttention) return -1;
     if (!a.needsAttention && b.needsAttention) return 1;
-    const timeA = a.rawTimestamp || 0;
-    const timeB = b.rawTimestamp || 0;
-    return timeB - timeA;
+    return b.rawTimestamp - a.rawTimestamp;
   });
 }
 
@@ -153,7 +134,6 @@ export async function getMessages(contactId: string): Promise<Message[]> {
         const storedMsg = parseJsonMessage(msgString);
         if (!storedMsg) return null;
 
-        // Pass the raw timestamp (in seconds from Redis) and multiply by 1000 for JS Date (milliseconds)
         const timestampInMs = storedMsg.timestamp ? parseInt(storedMsg.timestamp, 10) * 1000 : Date.now();
         const sender: Message['sender'] = ['user', 'bot', 'operator'].includes(storedMsg.tipo) ? storedMsg.tipo : 'user';
         
@@ -165,7 +145,7 @@ export async function getMessages(contactId: string): Promise<Message[]> {
           text: storedMsg.texto,
           sender: sender,
           operatorName: storedMsg.operatorName,
-          timestamp: timestampInMs, // Send the number (in ms), not the formatted string
+          timestamp: timestampInMs,
           botAvatarUrl: sender === 'bot' ? '/logo.svg' : undefined,
           status: storedMsg.status,
         };
@@ -211,13 +191,21 @@ export async function addMessage(contactId: string, message: { text: string; sen
         instance: instanceName,
         remoteJid: contactId.trim(),
         text: `*${message.operatorName}*\n${message.text}`,
-        messageId: message.tempId
+        options: {
+          messageId: message.tempId
+        }
+    };
+    
+    // Nests the message string inside a "message" property, as expected by N8N
+    const payloadForN8N = {
+        message: JSON.stringify(messageForQueue)
     };
 
     await client.lPush(historyKey, JSON.stringify(messageObject));
-    await client.publish(channelName, JSON.stringify(messageForQueue));
+    // Publishes the payload in the format N8N expects
+    await client.publish(channelName, JSON.stringify(payloadForN8N));
     
-    console.log(`Mensagem ${message.tempId} para ${contactId} (String JSON) adicionada à lista e publicada no canal ${channelName}.`);
+    console.log(`Mensagem ${message.tempId} para ${contactId} publicada no formato N8N no canal ${channelName}.`);
 
   } catch (error) {
     console.error(`Falha ao adicionar mensagem para ${contactId} no Redis:`, error);
@@ -273,3 +261,5 @@ export async function saveUsers(users: User[]): Promise<void> {
         throw error;
     }
 }
+
+    
