@@ -97,7 +97,8 @@ export async function getContacts(): Promise<Contact[]> {
     const contacts: Contact[] = await Promise.all(
       contactKeys.map(async (key) => {
         const contactId = key.replace(/^chat:/, '').trim();
-        const lastMessageId = await client.lIndex(key, 0);
+        // LINDEX returns a single element, which is the latest message ID
+        const lastMessageId = await client.lIndex(key, 0); 
         
         let lastMessageText = 'Nenhuma mensagem ainda.';
         let timestamp = Date.now();
@@ -106,7 +107,7 @@ export async function getContacts(): Promise<Contact[]> {
         if(lastMessageId) {
             const lastMessageHash = await client.hGetAll(`message:${lastMessageId}`);
             const lastMsg = parseRedisHash(lastMessageHash);
-            if (lastMsg) {
+            if (lastMsg && lastMsg.texto) { // Ensure there is text
                 lastMessageText = lastMsg.texto;
                 timestamp = lastMsg.timestamp ? parseInt(lastMsg.timestamp, 10) * 1000 : Date.now();
                 needsAttention = lastMsg.needsAttention === 'true';
@@ -172,10 +173,11 @@ export async function getMessages(contactId: string): Promise<Message[]> {
     
     const multi = client.multi();
     messageIds.forEach(id => multi.hGetAll(`message:${id}`));
-    const messagesHashes = (await multi.exec()) as RedisHash[];
+    const messagesHashes = (await multi.exec()) as (RedisHash | null)[];
 
     const messages = messagesHashes
       .map((hash) => {
+        if (!hash) return null; // Handle case where a message hash might be missing
         const redisMsg = parseRedisHash(hash);
         if (!redisMsg) return null;
 
@@ -225,7 +227,7 @@ export async function addMessage(contactId: string, message: { text: string; sen
         }
     }
     
-    const redisMessageForHistory: RedisMessage = {
+    const redisMessageForHistory: RedisHash = {
       id: message.tempId,
       texto: message.text,
       tipo: message.sender,
@@ -245,8 +247,7 @@ export async function addMessage(contactId: string, message: { text: string; sen
     };
 
     const transaction = client.multi();
-    // Use HSET to save the message as a Hash
-    transaction.hSet(messageKey, redisMessageForHistory as any); // cast to any to satisfy redis lib
+    transaction.hSet(messageKey, redisMessageForHistory);
     transaction.lPush(historyKey, message.tempId);
     transaction.publish(channelName, JSON.stringify(messageForQueue));
     
