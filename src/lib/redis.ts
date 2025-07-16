@@ -2,11 +2,10 @@
 'use server';
 
 import { createClient } from 'redis';
-import type { Contact, RedisMessage, Message, User, StoredContact, RedisHash } from './data';
+import type { Contact, RedisMessage, Message, User, RedisHash } from './data';
 import { initialUsers } from './data';
 import { formatRelative, fromUnixTime } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { getStoredContacts } from '@/actions/contact-actions';
 
 let redisClient: ReturnType<typeof createClient> | null = null;
 
@@ -63,83 +62,49 @@ function parseRedisHash(hash: RedisHash | null): RedisMessage | null {
 }
 
 export async function getContacts(): Promise<Contact[]> {
-  try {
-    const client = await getClient();
-    const chatKeys = [];
-    for await (const key of client.scanIterator({ MATCH: 'chat:*', COUNT: 100 })) {
-        chatKeys.push(key);
-    }
-    
-    if (chatKeys.length === 0) {
-      return [];
-    }
-    
-    // Get the latest message ID for each chat
-    const multi = client.multi();
-    chatKeys.forEach(key => multi.lIndex(key, 0)); 
-    const lastMessageIds = await multi.exec() as (string | null)[];
+  const client = await getClient();
+  const contacts: Contact[] = [];
 
-    // Fetch the content of each latest message
-    const messagesMulti = client.multi();
-    lastMessageIds.forEach(id => {
-        if (id) {
-            messagesMulti.hGetAll(`message:${id}`);
-        } else {
-            messagesMulti.hGetAll('non-existent-key-placeholder'); 
-        }
-    });
-    const lastMessagesHashes = await messagesMulti.exec() as (RedisHash | null)[];
-    
-    const contacts: Contact[] = [];
-    for (let i = 0; i < chatKeys.length; i++) {
-        const key = chatKeys[i];
-        const contactId = key.replace(/^chat:/, '');
-        const lastMsgHash = lastMessagesHashes[i];
-        const lastMsg = parseRedisHash(lastMsgHash);
+  for await (const key of client.scanIterator({ MATCH: 'chat:*', COUNT: 100 })) {
+    const contactId = key.replace(/^chat:/, '');
+    const lastMessageId = await client.lIndex(key, 0);
 
-        let lastMessageText = 'Nenhuma mensagem ainda.';
-        let timestamp = Date.now();
-        let needsAttention = false;
-        let contactName = contactId.split('@')[0];
+    let contact: Partial<Contact> = { id: contactId, name: contactId.split('@')[0] };
 
-        if (lastMsg) {
-            lastMessageText = lastMsg.texto || 'Mensagem sem texto.';
-            timestamp = lastMsg.timestamp ? parseInt(lastMsg.timestamp, 10) * 1000 : Date.now();
-            needsAttention = lastMsg.needsAttention === true;
-            if (lastMsg.contactName) {
-                contactName = lastMsg.contactName;
-            }
-        }
-        
-        contacts.push({
-            id: contactId,
-            name: contactName,
-            avatar: `https://placehold.co/40x40.png`,
-            lastMessage: lastMessageText,
-            timestamp: formatRelative(fromUnixTime(timestamp / 1000), new Date(), { locale: ptBR }),
-            unreadCount: 0, 
-            needsAttention,
-        });
-    }
-
-    // Sort the final list
-    return contacts.sort((a, b) => {
-      if (a.needsAttention && !b.needsAttention) return -1;
-      if (!a.needsAttention && b.needsAttention) return 1;
+    if (lastMessageId) {
+      const messageHash = await client.hGetAll(`message:${lastMessageId}`);
+      const lastMsg = parseRedisHash(messageHash);
       
-      const aTimestamp = new Date(a.timestamp).getTime();
-      const bTimestamp = new Date(b.timestamp).getTime();
-      if (!isNaN(aTimestamp) && !isNaN(bTimestamp)) {
-          return bTimestamp - aTimestamp;
+      if (lastMsg) {
+        contact = {
+          ...contact,
+          name: lastMsg.contactName || contact.name,
+          lastMessage: lastMsg.texto || 'Mensagem sem texto.',
+          timestamp: lastMsg.timestamp ? formatRelative(fromUnixTime(parseInt(lastMsg.timestamp, 10)), new Date(), { locale: ptBR }) : 'Data desconhecida',
+          needsAttention: lastMsg.needsAttention || false,
+        };
       }
-      return b.id.localeCompare(a.id);
-    });
+    }
 
-  } catch (error) {
-    console.error("Falha ao buscar contatos do Redis:", error);
-    return [];
+    contacts.push({
+      id: contact.id!,
+      name: contact.name!,
+      avatar: `https://placehold.co/40x40.png`,
+      lastMessage: contact.lastMessage || 'Nenhuma mensagem ainda.',
+      timestamp: contact.timestamp || '',
+      unreadCount: 0,
+      needsAttention: contact.needsAttention || false,
+    });
   }
+
+  return contacts.sort((a, b) => {
+    if (a.needsAttention && !b.needsAttention) return -1;
+    if (!a.needsAttention && b.needsAttention) return 1;
+    // Fallback sort, can be improved with real timestamps
+    return b.id.localeCompare(a.id);
+  });
 }
+
 
 export async function getMessages(contactId: string): Promise<Message[]> {
   try {
@@ -150,34 +115,36 @@ export async function getMessages(contactId: string): Promise<Message[]> {
     if (!messageIds || messageIds.length === 0) {
       return [];
     }
-    
-    const multi = client.multi();
-    messageIds.forEach(id => multi.hGetAll(`message:${id}`));
-    const messagesHashes = (await multi.exec()) as (RedisHash | null)[];
 
-    const messages = messagesHashes
-      .map((hash) => {
-        if (!hash) return null; 
-        const redisMsg = parseRedisHash(hash);
-        if (!redisMsg) return null;
+    const messagePromises = messageIds.map(async (id) => {
+      const hash = await client.hGetAll(`message:${id}`);
+      if (!hash || Object.keys(hash).length === 0) return null;
 
-        const timestamp = redisMsg.timestamp ? parseInt(redisMsg.timestamp, 10) * 1000 : Date.now();
-        const sender: Message['sender'] = ['user', 'bot', 'operator'].includes(redisMsg.tipo) ? redisMsg.tipo : 'user';
+      const redisMsg = parseRedisHash(hash);
+      if (!redisMsg) return null;
 
-        return {
-          id: redisMsg.id,
-          contactId: contactId,
-          text: redisMsg.texto,
-          sender: sender,
-          operatorName: redisMsg.operatorName,
-          timestamp: new Date(timestamp).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
-          botAvatarUrl: sender === 'bot' ? redisMsg.contactPhotoUrl : undefined,
-          status: redisMsg.status,
-        };
-      })
-      .filter((msg): msg is Message => msg !== null);
+      const timestamp = redisMsg.timestamp ? parseInt(redisMsg.timestamp, 10) * 1000 : Date.now();
+      const sender: Message['sender'] = ['user', 'bot', 'operator'].includes(redisMsg.tipo) ? redisMsg.tipo : 'user';
 
-    return messages;
+      return {
+        id: redisMsg.id,
+        contactId: contactId,
+        text: redisMsg.texto,
+        sender: sender,
+        operatorName: redisMsg.operatorName,
+        timestamp: new Date(timestamp).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+        botAvatarUrl: sender === 'bot' ? redisMsg.contactPhotoUrl : undefined,
+        status: redisMsg.status,
+      };
+    });
+
+    const settledMessages = await Promise.all(settledMessages);
+    return settledMessages
+      .filter((msg): msg is Message => msg !== null && msg !== undefined)
+      .sort((a, b) => {
+        // Simple time string comparison might not be perfect, but should work for HH:mm
+        return a.timestamp.localeCompare(b.timestamp);
+      });
 
   } catch (error) {
     console.error(`Falha ao buscar mensagens para ${contactId} do Redis:`, error);
