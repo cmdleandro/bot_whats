@@ -97,6 +97,8 @@ export async function getContacts(): Promise<Contact[]> {
         const existingStored = storedContacts.find(c => c.id === contactId);
         if (existingStored) {
             existingStored.name = contactName;
+        } else if (contactName) {
+             storedContacts.push({id: contactId, name: contactName});
         }
         hasNewContactsToSave = true;
     }
@@ -165,9 +167,9 @@ export async function addMessage(contactId: string, message: { text: string; sen
     const channelName = 'fila_envio_whatsapp';
     
     let instanceName = 'default';
-    const firstMessageString = await client.lIndex(historyKey, 0);
-    if (firstMessageString) {
-        const parsedMsg = parseJsonMessage(firstMessageString);
+    const lastMessageString = await client.lIndex(historyKey, 0);
+    if (lastMessageString) {
+        const parsedMsg = parseJsonMessage(lastMessageString);
         if (parsedMsg && parsedMsg.instance) {
             instanceName = parsedMsg.instance;
         }
