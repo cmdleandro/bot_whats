@@ -20,7 +20,9 @@ export async function getStoredContacts(): Promise<StoredContact[]> {
 export async function saveStoredContacts(contacts: StoredContact[]): Promise<void> {
   try {
     const client = await getClient();
-    await client.set(STORED_CONTACTS_KEY, JSON.stringify(contacts));
+    // Garante que não há duplicatas antes de salvar
+    const uniqueContacts = Array.from(new Map(contacts.map(item => [item.id, item])).values());
+    await client.set(STORED_CONTACTS_KEY, JSON.stringify(uniqueContacts));
   } catch (error) {
     console.error('Falha ao salvar contatos no Redis:', error);
     throw error;
@@ -28,8 +30,8 @@ export async function saveStoredContacts(contacts: StoredContact[]): Promise<voi
 }
 
 function cleanPhoneNumber(phone: string): string {
-    // Remove non-digit characters and standardize format
-    return phone.replace(/\D/g, '');
+    // Remove non-digit characters to get the base number
+    return phone.split('@')[0].replace(/\D/g, '');
 }
 
 // Manual VCF parser to be more resilient
@@ -48,7 +50,6 @@ function manualVcfParser(vcfContent: string): StoredContact[] {
       if (line.startsWith('FN:')) {
         name = line.substring(3).trim();
       } else if (line.startsWith('TEL')) {
-        // Find the phone number, which is after the colon
         const parts = line.split(':');
         if (parts.length > 1) {
             phone = parts[1].trim();
@@ -57,9 +58,10 @@ function manualVcfParser(vcfContent: string): StoredContact[] {
     }
     
     if (name && phone) {
-      const cleanedPhone = cleanPhoneNumber(phone);
-      if (cleanedPhone) {
-          const id = `${cleanedPhone}@c.us`;
+      const basePhone = cleanPhoneNumber(phone);
+      if (basePhone) {
+          // Padroniza o ID para o formato correto
+          const id = `${basePhone}@s.whatsapp.net`;
           contacts.push({ name, id });
       }
     }
@@ -67,23 +69,53 @@ function manualVcfParser(vcfContent: string): StoredContact[] {
   return contacts;
 }
 
-
-export async function processVcfFile(vcfContent: string): Promise<StoredContact[]> {
+export async function processVcfAndUpdateContacts(vcfContent: string): Promise<{updated: number, added: number}> {
   try {
-    // Use the new manual parser
-    const contacts = manualVcfParser(vcfContent);
-
-    if (contacts.length === 0) {
+    const newContacts = manualVcfParser(vcfContent);
+    if (newContacts.length === 0) {
       throw new Error("No valid contacts found in the VCF file.");
     }
+    
+    const existingContacts = await getStoredContacts();
+    const existingContactsMap = new Map(existingContacts.map(c => [c.id.split('@')[0], c]));
 
-    // Remove duplicates based on ID
-    const uniqueContacts = Array.from(new Map(contacts.map(item => [item.id, item])).values());
+    let updatedCount = 0;
+    let addedCount = 0;
 
-    return uniqueContacts;
+    for (const newContact of newContacts) {
+        const baseId = newContact.id.split('@')[0];
+        
+        // Corrige IDs de @c.us para @s.whatsapp.net
+        const oldCusId = `${baseId}@c.us`;
+
+        if (existingContactsMap.has(baseId)) {
+            const existing = existingContactsMap.get(baseId)!;
+            // Atualiza o nome se for diferente
+            if(existing.name !== newContact.name || existing.id !== newContact.id) {
+                existing.name = newContact.name;
+                existing.id = newContact.id; // Garante que o ID está no formato correto
+                updatedCount++;
+            }
+        } else if (existingContactsMap.has(oldCusId.split('@')[0])) {
+             const existing = existingContactsMap.get(oldCusId.split('@')[0])!;
+             if(existing.name !== newContact.name || existing.id !== newContact.id) {
+                existing.name = newContact.name;
+                existing.id = newContact.id;
+                updatedCount++;
+            }
+        } else {
+            existingContactsMap.set(baseId, newContact);
+            addedCount++;
+        }
+    }
+
+    const updatedContactList = Array.from(existingContactsMap.values());
+    await saveStoredContacts(updatedContactList);
+
+    return { updated: updatedCount, added: addedCount };
 
   } catch (error) {
-    console.error('Error parsing VCF file:', error);
+    console.error('Error processing VCF file:', error);
     throw new Error('Failed to parse VCF file. Please check the file format and try again.');
   }
 }

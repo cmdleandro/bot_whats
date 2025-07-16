@@ -2,10 +2,11 @@
 'use server';
 
 import { createClient } from 'redis';
-import type { Contact, Message, StoredMessage, User } from './data';
+import type { Contact, Message, StoredMessage, User, StoredContact } from './data';
 import { initialUsers } from './data';
 import { formatDistanceToNow, fromUnixTime } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { getStoredContacts, saveStoredContacts } from '@/actions/contact-actions';
 
 let redisClient: ReturnType<typeof createClient> | null = null;
 
@@ -57,30 +58,57 @@ function parseJsonMessage(jsonString: string): StoredMessage | null {
 export async function getContacts(): Promise<Contact[]> {
   const client = await getClient();
   const contacts: Contact[] = [];
+  
+  // 1. Get existing stored contacts to map names
+  const storedContacts = await getStoredContacts();
+  const storedContactsMap = new Map(storedContacts.map(c => [c.id, c]));
+  let hasNewContactsToSave = false;
 
+  // 2. Iterate through active chats from Redis
   for await (const key of client.scanIterator({ MATCH: 'chat:*', COUNT: 100 })) {
     const contactId = key.replace(/^chat:/, '');
     const lastMessageString = await client.lIndex(key, 0);
 
-    let contact: Partial<Contact> = { 
-        id: contactId, 
-        name: contactId.split('@')[0], 
-        avatar: `https://placehold.co/40x40.png` 
+    let contact: Partial<Contact> = {
+      id: contactId,
+      name: contactId.split('@')[0],
+      avatar: `https://placehold.co/40x40.png`,
     };
+    
+    // 3. Auto-save contact if it's a new interaction
+    if (!storedContactsMap.has(contactId)) {
+        const newContact: StoredContact = {
+            id: contactId,
+            name: contactId.split('@')[0] // Default name
+        };
+        storedContacts.push(newContact);
+        storedContactsMap.set(contactId, newContact); // Add to map for current run
+        hasNewContactsToSave = true;
+    }
+
+    const storedContactInfo = storedContactsMap.get(contactId);
+    if(storedContactInfo) {
+      contact.name = storedContactInfo.name;
+    }
 
     if (lastMessageString) {
       const lastMsg = parseJsonMessage(lastMessageString);
-      
       if (lastMsg) {
         const timestamp = lastMsg.timestamp ? parseInt(lastMsg.timestamp, 10) : 0;
         contact = {
           ...contact,
-          name: lastMsg.contactName || contact.name,
+          name: lastMsg.contactName || contact.name, // Prefer name from message
           lastMessage: lastMsg.texto || 'Mensagem sem texto.',
           timestamp: timestamp ? formatDistanceToNow(fromUnixTime(timestamp), { addSuffix: true, locale: ptBR }) : 'Data desconhecida',
           needsAttention: lastMsg.needsAttention || false,
           avatar: lastMsg.contactPhotoUrl || `https://placehold.co/40x40.png`,
         };
+        
+        // Update stored contact name if message has a more recent one
+        if (storedContactInfo && lastMsg.contactName && storedContactInfo.name !== lastMsg.contactName) {
+            storedContactInfo.name = lastMsg.contactName;
+            hasNewContactsToSave = true;
+        }
       }
     }
 
@@ -95,12 +123,20 @@ export async function getContacts(): Promise<Contact[]> {
     });
   }
 
+  // 4. Save the updated list of contacts if new ones were added/updated
+  if (hasNewContactsToSave) {
+      await saveStoredContacts(storedContacts);
+  }
+
   return contacts.sort((a, b) => {
     if (a.needsAttention && !b.needsAttention) return -1;
     if (!a.needsAttention && b.needsAttention) return 1;
-    return b.id.localeCompare(a.id);
+    const timeA = a.timestamp || '';
+    const timeB = b.timestamp || '';
+    return timeB.localeCompare(timeA);
   });
 }
+
 
 export async function getMessages(contactId: string): Promise<Message[]> {
   try {
@@ -129,7 +165,7 @@ export async function getMessages(contactId: string): Promise<Message[]> {
           sender: sender,
           operatorName: storedMsg.operatorName,
           timestamp: new Date(timestamp).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
-          botAvatarUrl: sender === 'bot' ? storedMsg.contactPhotoUrl : undefined,
+          botAvatarUrl: sender === 'bot' ? '/logo.svg' : undefined,
           status: storedMsg.status,
         };
       })
@@ -177,13 +213,12 @@ export async function addMessage(contactId: string, message: { text: string; sen
         messageId: message.tempId
     };
 
-    const transaction = client.multi();
-    transaction.lPush(historyKey, JSON.stringify(messageObject));
-    transaction.publish(channelName, JSON.stringify(messageForQueue));
+    // Usando LPUSH para adicionar à lista
+    await client.lPush(historyKey, JSON.stringify(messageObject));
+    // Publicando no canal
+    await client.publish(channelName, JSON.stringify(messageForQueue));
     
-    await transaction.exec();
-    
-    console.log(`Mensagem ${message.tempId} para ${contactId} (String JSON) publicada no canal ${channelName}.`);
+    console.log(`Mensagem ${message.tempId} para ${contactId} (String JSON) adicionada à lista e publicada no canal ${channelName}.`);
 
   } catch (error) {
     console.error(`Falha ao adicionar mensagem para ${contactId} no Redis:`, error);
@@ -239,5 +274,3 @@ export async function saveUsers(users: User[]): Promise<void> {
         throw error;
     }
 }
-
-    

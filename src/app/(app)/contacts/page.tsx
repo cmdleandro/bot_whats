@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
@@ -41,7 +42,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { useToast } from '@/hooks/use-toast';
-import { getStoredContacts, processVcfFile, saveStoredContacts } from '@/actions/contact-actions';
+import { getStoredContacts, processVcfAndUpdateContacts, saveStoredContacts } from '@/actions/contact-actions';
 import { StoredContact } from '@/lib/data';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
@@ -49,7 +50,6 @@ export default function ContactsPage() {
   const [contacts, setContacts] = useState<StoredContact[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isUploading, setIsUploading] = useState(false);
-  const [isImporting, setIsImporting] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
@@ -91,19 +91,27 @@ export default function ContactsPage() {
       }
 
       try {
-        const newContacts = await processVcfFile(content);
-        const uniqueNewContacts = newContacts.filter(
-          (newContact) => !contacts.some((existing) => existing.id === newContact.id)
-        );
-
-        if (uniqueNewContacts.length === 0) {
-            toast({ title: 'Nenhum contato novo', description: 'Todos os contatos do arquivo já existem na sua lista.' });
+        const { updated, added } = await processVcfAndUpdateContacts(content);
+        
+        let description = '';
+        if (added > 0 && updated > 0) {
+            description = `${added} contatos adicionados e ${updated} atualizados.`;
+        } else if (added > 0) {
+            description = `${added} novos contatos foram adicionados.`;
+        } else if (updated > 0) {
+            description = `${updated} contatos foram atualizados.`;
         } else {
-            const updatedContacts = [...contacts, ...uniqueNewContacts];
-            await saveStoredContacts(updatedContacts);
-            setContacts(updatedContacts);
-            toast({ title: 'Importação bem-sucedida!', description: `${uniqueNewContacts.length} novos contatos foram adicionados.` });
+            description = 'Nenhum contato novo ou alteração encontrada.';
         }
+
+        toast({
+            title: 'Importação Concluída!',
+            description: description,
+        });
+
+        // Refetch contacts to update the view
+        await fetchContacts();
+
       } catch (error) {
         console.error(error);
         toast({
@@ -123,7 +131,6 @@ export default function ContactsPage() {
     }
 
     reader.readAsText(file);
-    // Reset file input to allow re-uploading the same file
     event.target.value = ''; 
   };
   
@@ -147,7 +154,7 @@ export default function ContactsPage() {
           <div>
             <CardTitle>Gerenciador de Contatos</CardTitle>
             <CardDescription>
-              Importe e gerencie sua lista de contatos para facilitar o início de novas conversas.
+              Importe sua lista de contatos. Contatos existentes serão atualizados.
             </CardDescription>
           </div>
            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
@@ -161,7 +168,7 @@ export default function ContactsPage() {
                 <DialogHeader>
                   <DialogTitle>Importar Contatos (.vcf)</DialogTitle>
                   <DialogDescription>
-                    Exporte seus contatos do Google Contacts ou de outro aplicativo como um arquivo VCF e envie-o aqui.
+                    Exporte seus contatos como um arquivo VCF e envie-o aqui.
                   </DialogDescription>
                 </DialogHeader>
                 <div className="py-4">
