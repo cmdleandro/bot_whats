@@ -54,6 +54,7 @@ function parseRedisHash(hash: RedisHash | null): RedisMessage | null {
     tipo: (hash.tipo as RedisMessage['tipo']) || 'user',
     timestamp: hash.timestamp || Math.floor(Date.now() / 1000).toString(),
     operatorName: hash.operatorName,
+    contactName: hash.contactName,
     contactPhotoUrl: hash.contactPhotoUrl,
     instance: hash.instance,
     needsAttention: hash.needsAttention === 'true',
@@ -61,83 +62,76 @@ function parseRedisHash(hash: RedisHash | null): RedisMessage | null {
   };
 }
 
-
 export async function getContacts(): Promise<Contact[]> {
   try {
     const client = await getClient();
+    const chatKeys = [];
+    for await (const key of client.scanIterator({ MATCH: 'chat:*', COUNT: 100 })) {
+        chatKeys.push(key);
+    }
     
-    // 1. Fetch all active chat keys and all stored contacts in parallel
-    const [storedContacts, chatKeys] = await Promise.all([
-        getStoredContacts(),
-        (async () => {
-            const keys = [];
-            for await (const key of client.scanIterator({ MATCH: 'chat:*', COUNT: 100 })) {
-                keys.push(key);
-            }
-            return keys;
-        })()
-    ]);
-
-    const storedContactsMap = new Map(storedContacts.map(c => [c.id, c.name]));
-
     if (chatKeys.length === 0) {
       return [];
     }
     
-    // 2. Get the latest message ID for each chat
+    // Get the latest message ID for each chat
     const multi = client.multi();
-    chatKeys.forEach(key => multi.lIndex(key, 0));
+    chatKeys.forEach(key => multi.lIndex(key, 0)); 
     const lastMessageIds = await multi.exec() as (string | null)[];
 
-    // 3. Fetch the content of each latest message
+    // Fetch the content of each latest message
     const messagesMulti = client.multi();
     lastMessageIds.forEach(id => {
         if (id) {
             messagesMulti.hGetAll(`message:${id}`);
         } else {
-            // Add a placeholder to keep the array indices in sync
             messagesMulti.hGetAll('non-existent-key-placeholder'); 
         }
     });
     const lastMessagesHashes = await messagesMulti.exec() as (RedisHash | null)[];
+    
+    const contacts: Contact[] = [];
+    for (let i = 0; i < chatKeys.length; i++) {
+        const key = chatKeys[i];
+        const contactId = key.replace(/^chat:/, '');
+        const lastMsgHash = lastMessagesHashes[i];
+        const lastMsg = parseRedisHash(lastMsgHash);
 
-    // 4. Build the contact list from the fetched data
-    const contacts = chatKeys.map((key, index) => {
-      const contactId = key.replace(/^chat:/, '').trim();
-      const lastMsg = parseRedisHash(lastMessagesHashes[index]);
-      
-      let lastMessageText = 'Nenhuma mensagem ainda.';
-      let timestamp = Date.now();
-      let needsAttention = false;
+        let lastMessageText = 'Nenhuma mensagem ainda.';
+        let timestamp = Date.now();
+        let needsAttention = false;
+        let contactName = contactId.split('@')[0];
 
-      if (lastMsg && lastMsg.texto) {
-        lastMessageText = lastMsg.texto;
-        timestamp = lastMsg.timestamp ? parseInt(lastMsg.timestamp, 10) * 1000 : Date.now();
-        needsAttention = lastMsg.needsAttention === true;
-      }
-      
-      // Use the stored name or default to the ID
-      const contactName = storedContactsMap.get(contactId) || contactId.split('@')[0];
-      const avatar = `https://placehold.co/40x40.png`;
+        if (lastMsg) {
+            lastMessageText = lastMsg.texto || 'Mensagem sem texto.';
+            timestamp = lastMsg.timestamp ? parseInt(lastMsg.timestamp, 10) * 1000 : Date.now();
+            needsAttention = lastMsg.needsAttention === true;
+            if (lastMsg.contactName) {
+                contactName = lastMsg.contactName;
+            }
+        }
+        
+        contacts.push({
+            id: contactId,
+            name: contactName,
+            avatar: `https://placehold.co/40x40.png`,
+            lastMessage: lastMessageText,
+            timestamp: formatRelative(fromUnixTime(timestamp / 1000), new Date(), { locale: ptBR }),
+            unreadCount: 0, 
+            needsAttention,
+        });
+    }
 
-      return {
-        id: contactId,
-        name: contactName,
-        avatar: avatar,
-        lastMessage: lastMessageText,
-        timestamp: formatRelative(fromUnixTime(timestamp / 1000), new Date(), { locale: ptBR }),
-        unreadCount: 0, 
-        needsAttention,
-      };
-    });
-
-    // 5. Sort the final list
+    // Sort the final list
     return contacts.sort((a, b) => {
       if (a.needsAttention && !b.needsAttention) return -1;
       if (!a.needsAttention && b.needsAttention) return 1;
       
-      // A simple date sort might be better if the timestamp string is not reliable for sorting
-      // For now, we sort by id as a fallback
+      const aTimestamp = new Date(a.timestamp).getTime();
+      const bTimestamp = new Date(b.timestamp).getTime();
+      if (!isNaN(aTimestamp) && !isNaN(bTimestamp)) {
+          return bTimestamp - aTimestamp;
+      }
       return b.id.localeCompare(a.id);
     });
 
