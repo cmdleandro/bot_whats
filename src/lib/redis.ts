@@ -56,12 +56,11 @@ export async function getClient() {
     }
 }
 
-// Updated parser for HGETALL result
 function parseRedisHash(hash: RedisHash | null): RedisMessage | null {
-  if (!hash || !hash.id) return null;
+  if (!hash || typeof hash !== 'object' || Object.keys(hash).length === 0) return null;
 
   return {
-    id: hash.id,
+    id: hash.id || '',
     texto: hash.texto || '',
     tipo: (hash.tipo as RedisMessage['tipo']) || 'user',
     timestamp: hash.timestamp || Math.floor(Date.now() / 1000).toString(),
@@ -69,16 +68,11 @@ function parseRedisHash(hash: RedisHash | null): RedisMessage | null {
     operatorName: hash.operatorName,
     contactPhotoUrl: hash.contactPhotoUrl,
     instance: hash.instance,
-    needsAttention: hash.needsAttention, // Stored as a string 'true' or 'false'
+    needsAttention: hash.needsAttention,
     status: hash.status as MessageStatus,
   };
 }
 
-
-function checkNeedsAttention(message: string): boolean {
-    const lowerCaseMessage = message.toLowerCase();
-    return BOT_ATTENTION_KEYWORDS.some(keyword => lowerCaseMessage.includes(keyword));
-}
 
 export async function getContacts(): Promise<Contact[]> {
   try {
@@ -89,70 +83,58 @@ export async function getContacts(): Promise<Contact[]> {
     ]);
     const storedContactsMap = new Map(storedContacts.map(c => [c.id, c.name]));
 
-
     if (contactKeys.length === 0) {
       return [];
     }
-    
-    const contacts: Contact[] = await Promise.all(
-      contactKeys.map(async (key) => {
-        const contactId = key.replace(/^chat:/, '').trim();
-        // LINDEX returns a single element, which is the latest message ID
-        const lastMessageId = await client.lIndex(key, 0); 
-        
-        let lastMessageText = 'Nenhuma mensagem ainda.';
-        let timestamp = Date.now();
-        let needsAttention = false;
-        
-        if(lastMessageId) {
-            const lastMessageHash = await client.hGetAll(`message:${lastMessageId}`);
-            const lastMsg = parseRedisHash(lastMessageHash);
-            if (lastMsg && lastMsg.texto) { // Ensure there is text
-                lastMessageText = lastMsg.texto;
-                timestamp = lastMsg.timestamp ? parseInt(lastMsg.timestamp, 10) * 1000 : Date.now();
-                needsAttention = lastMsg.needsAttention === 'true';
-            }
-        }
-        
-        let contactName = storedContactsMap.get(contactId) || contactId.split('@')[0];
-        let avatar = `https://placehold.co/40x40.png`;
 
-        if (!storedContactsMap.has(contactId)) {
-            const messageIds = await client.lRange(key, 0, 5);
-            if(messageIds.length > 0) {
-                 const multi = client.multi();
-                 messageIds.forEach(id => multi.hGetAll(`message:${id}`));
-                 const messagesHashes = (await multi.exec()) as RedisHash[];
-
-                 for(const msgHash of messagesHashes) {
-                     const msg = parseRedisHash(msgHash);
-                     if (msg && msg.tipo === 'user') {
-                        if (msg.contactName) contactName = msg.contactName;
-                        if (msg.contactPhotoUrl) avatar = msg.contactPhotoUrl;
-                        if (contactName !== contactId.split('@')[0] && avatar !== `https://placehold.co/40x40.png`) break;
-                     }
-                 }
-            }
-        }
-        
-        return {
-          id: contactId,
-          name: contactName,
-          avatar: avatar || `https://placehold.co/40x40.png`,
-          lastMessage: lastMessageText,
-          timestamp: formatRelative(fromUnixTime(timestamp / 1000), new Date(), { locale: ptBR }),
-          unreadCount: 0,
-          needsAttention,
-        };
-      })
-    );
+    const multi = client.multi();
+    contactKeys.forEach(key => multi.lIndex(key, 0));
+    const lastMessageIds = await multi.exec() as (string | null)[];
     
-    const validContacts = contacts.filter(c => c.id && !c.id.includes('$json'));
-    return validContacts.sort((a, b) => {
-        if (a.needsAttention && !b.needsAttention) return -1;
-        if (!a.needsAttention && b.needsAttention) return 1;
-        // Simple sort by timestamp as fetching relative time is complex here
-        return b.timestamp.localeCompare(a.timestamp);
+    const messagesMulti = client.multi();
+    lastMessageIds.forEach(id => {
+        if (id) {
+            messagesMulti.hGetAll(`message:${id}`);
+        } else {
+            messagesMulti.hGetAll('non-existent-key-placeholder'); // Placeholder for pipeline
+        }
+    });
+    const lastMessages = await messagesMulti.exec() as (RedisHash | null)[];
+
+    const contacts = contactKeys.map((key, index) => {
+      const contactId = key.replace(/^chat:/, '').trim();
+      const lastMessageHash = lastMessages[index];
+      const lastMsg = parseRedisHash(lastMessageHash);
+      
+      let lastMessageText = 'Nenhuma mensagem ainda.';
+      let timestamp = Date.now();
+      let needsAttention = false;
+
+      if (lastMsg && lastMsg.texto) {
+        lastMessageText = lastMsg.texto;
+        timestamp = lastMsg.timestamp ? parseInt(lastMsg.timestamp, 10) * 1000 : Date.now();
+        needsAttention = lastMsg.needsAttention === 'true';
+      }
+
+      const contactName = storedContactsMap.get(contactId) || contactId.split('@')[0];
+      const avatar = `https://placehold.co/40x40.png`;
+
+      return {
+        id: contactId,
+        name: contactName,
+        avatar: avatar,
+        lastMessage: lastMessageText,
+        timestamp: formatRelative(fromUnixTime(timestamp / 1000), new Date(), { locale: ptBR }),
+        unreadCount: 0,
+        needsAttention,
+      };
+    });
+
+    return contacts.sort((a, b) => {
+      if (a.needsAttention && !b.needsAttention) return -1;
+      if (!a.needsAttention && b.needsAttention) return 1;
+      // This is a weak sort, but better than nothing without parsing dates again
+      return b.timestamp.localeCompare(a.timestamp); 
     });
 
   } catch (error) {
@@ -177,7 +159,7 @@ export async function getMessages(contactId: string): Promise<Message[]> {
 
     const messages = messagesHashes
       .map((hash) => {
-        if (!hash) return null; // Handle case where a message hash might be missing
+        if (!hash) return null; 
         const redisMsg = parseRedisHash(hash);
         if (!redisMsg) return null;
 
