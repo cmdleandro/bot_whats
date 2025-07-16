@@ -168,8 +168,9 @@ export async function addMessage(contactId: string, message: { text: string; sen
     const historyKey = `chat:${contactId.trim()}`;
     const channelName = 'fila_envio_whatsapp';
     
-    // 1. Determine the correct instance name with a clear priority
     let instanceName = '';
+    
+    // 1. Check for existing conversation to get instance
     const lastMessageResult = await client.lRange(historyKey, 0, 0);
     const lastMessageString = lastMessageResult[0];
 
@@ -180,18 +181,22 @@ export async function addMessage(contactId: string, message: { text: string; sen
       }
     }
     
-    // If instanceName is still empty (new conversation), get it from global settings
+    // 2. If it's a new conversation, get instance from Global Settings
     if (!instanceName) {
       const settings = await getGlobalSettings();
-      instanceName = settings.defaultInstance; 
-      // If there's no global setting, we can't proceed.
-      if (!instanceName) {
-        console.error(`Nenhuma instância encontrada para a nova conversa com ${contactId} e nenhuma instância global foi definida. A mensagem não pode ser enviada.`);
-        throw new Error('No instance configured for new chat.');
+      if (settings && settings.defaultInstance) {
+        instanceName = settings.defaultInstance; 
       }
     }
+
+    // 3. If no instance could be determined, fail loudly.
+    if (!instanceName) {
+        const errorMsg = `Nenhuma instância pôde ser determinada para o contato ${contactId}. Verifique se uma instância padrão está definida nas Configurações Globais.`;
+        console.error(errorMsg);
+        throw new Error(errorMsg);
+    }
     
-    // 2. Create BOTH message objects using the determined instance name
+    // 4. Create BOTH message objects using the determined instance name
     const messageObjectToStore: StoredMessage = {
       id: message.tempId,
       texto: message.text,
@@ -212,7 +217,7 @@ export async function addMessage(contactId: string, message: { text: string; sen
       }
     };
     
-    // 3. Persist and publish
+    // 5. Persist and publish
     await client.lPush(historyKey, JSON.stringify(messageObjectToStore));
     await client.publish(channelName, JSON.stringify(messageForQueue));
     
