@@ -130,7 +130,7 @@ export default function ChatViewPage() {
 
     setIsSending(true);
 
-    const tempId = `m${Date.now()}`;
+    const tempId = `temp_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
     const message: Message = {
       id: tempId,
       contactId,
@@ -148,7 +148,8 @@ export default function ChatViewPage() {
       await addMessage(contactId, {
         text: message.text,
         sender: 'operator',
-        operatorName: operatorName
+        operatorName: operatorName,
+        tempId: tempId // Pass tempId to the backend
       });
       // Optionally, you can refetch messages here to get the final status from redis
       // await fetchMessages(contactId, true);
@@ -301,3 +302,4 @@ export default function ChatViewPage() {
     </div>
   );
 }
+

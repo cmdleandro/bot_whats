@@ -73,6 +73,7 @@ function parseRedisMessage(jsonString: string): RedisMessage {
     const needsAttention = parsed.tipo === 'bot' && checkNeedsAttention(parsed.texto || '');
 
     return {
+      id: parsed.id || `temp-${Date.now()}`,
       texto: parsed.texto || '',
       tipo: parsed.tipo || 'user',
       timestamp: parsed.timestamp || Math.floor(Date.now() / 1000).toString(),
@@ -85,6 +86,7 @@ function parseRedisMessage(jsonString: string): RedisMessage {
     };
   } catch (e) {
     return { 
+        id: `temp-err-${Date.now()}`,
         texto: cleanedString, 
         tipo: 'user', 
         timestamp: Math.floor(Date.now() / 1000).toString(),
@@ -115,36 +117,39 @@ export async function getContacts(): Promise<Contact[]> {
     const contacts: Contact[] = await Promise.all(
       contactKeys.map(async (key) => {
         const contactId = key.replace(/^chat:/, '').trim();
-        const allMessagesJson = await client.lRange(key, 0, -1);
+        const lastMessageId = await client.lIndex(key, 0);
         
         let lastMessageText = 'Nenhuma mensagem ainda.';
         let timestamp = Date.now();
+        let needsAttention = false;
+        
+        if(lastMessageId) {
+            const lastMessageJson = await client.get(`message:${lastMessageId}`);
+            if (lastMessageJson) {
+                const lastMsg = parseRedisMessage(lastMessageJson);
+                lastMessageText = lastMsg.texto;
+                timestamp = lastMsg.timestamp ? parseInt(lastMsg.timestamp, 10) * 1000 : Date.now();
+                needsAttention = lastMsg.needsAttention === true;
+            }
+        }
         
         let contactName = storedContactsMap.get(contactId) || contactId.split('@')[0];
         let avatar = `https://placehold.co/40x40.png`;
-        let needsAttention = false;
 
-        if (allMessagesJson.length > 0) {
-            const lastMsg = parseRedisMessage(allMessagesJson[0]);
-            lastMessageText = lastMsg.texto;
-            timestamp = lastMsg.timestamp ? parseInt(lastMsg.timestamp, 10) * 1000 : Date.now();
-            needsAttention = lastMsg.needsAttention === true;
-        }
-        
         if (!storedContactsMap.has(contactId)) {
-            for (const msgJson of allMessagesJson) {
-                const msg = parseRedisMessage(msgJson);
-                if (msg.tipo === 'user') {
-                    if (msg.contactName) {
-                        contactName = msg.contactName;
-                    }
-                    if (msg.contactPhotoUrl) {
-                        avatar = msg.contactPhotoUrl;
-                    }
-                    if (contactName !== contactId.split('@')[0] && avatar !== `https://placehold.co/40x40.png`) {
-                        break;
-                    }
-                }
+            const messageIds = await client.lRange(key, 0, 5); // check last 5 messages for info
+            if(messageIds.length > 0) {
+                 const messagesJson = await client.mGet(messageIds.map(id => `message:${id}`));
+                 for(const msgJson of messagesJson) {
+                     if(msgJson) {
+                         const msg = parseRedisMessage(msgJson);
+                         if (msg.tipo === 'user') {
+                            if (msg.contactName) contactName = msg.contactName;
+                            if (msg.contactPhotoUrl) avatar = msg.contactPhotoUrl;
+                            if (contactName !== contactId.split('@')[0] && avatar !== `https://placehold.co/40x40.png`) break;
+                         }
+                     }
+                 }
             }
         }
         
@@ -165,7 +170,7 @@ export async function getContacts(): Promise<Contact[]> {
         if (a.needsAttention && !b.needsAttention) return -1;
         if (!a.needsAttention && b.needsAttention) return 1;
         const dateA = new Date(a.timestamp.startsWith('hoje') || a.timestamp.startsWith('ontem') ? new Date() : a.timestamp);
-        const dateB = new Date(b.timestamp.startsWith('hoje') || b.timestamp.startsWith('ontem') ? new Date() : b.timestamp);
+        const dateB = new Date(b.timestamp.startsWith('hoje') || b.timestamp.startsWith('ontem') ? new Date() : a.timestamp);
         return dateB.getTime() - dateA.getTime();
     });
 
@@ -178,31 +183,41 @@ export async function getContacts(): Promise<Contact[]> {
 export async function getMessages(contactId: string): Promise<Message[]> {
   try {
     const client = await getClient();
-    const key = `chat:${contactId.trim()}`;
-    const messagesJson = await client.lRange(key, 0, -1);
+    const historyKey = `chat:${contactId.trim()}`;
+    const messageIds = await client.lRange(historyKey, 0, -1);
 
-    if (!messagesJson || messagesJson.length === 0) {
+    if (!messageIds || messageIds.length === 0) {
       return [];
     }
     
-    messagesJson.reverse();
+    const messagesJson = await client.mGet(messageIds.map(id => `message:${id}`));
 
-    return messagesJson.map((jsonString, index) => {
-      const redisMsg = parseRedisMessage(jsonString);
-      const timestamp = redisMsg.timestamp ? parseInt(redisMsg.timestamp, 10) * 1000 : Date.now();
-      
-      const sender: Message['sender'] = ['user', 'bot', 'operator'].includes(redisMsg.tipo) ? redisMsg.tipo : 'user';
+    const messages = messagesJson
+      .filter((jsonString): jsonString is string => jsonString !== null)
+      .map((jsonString) => {
+        const redisMsg = parseRedisMessage(jsonString);
+        const timestamp = redisMsg.timestamp ? parseInt(redisMsg.timestamp, 10) * 1000 : Date.now();
+        
+        const sender: Message['sender'] = ['user', 'bot', 'operator'].includes(redisMsg.tipo) ? redisMsg.tipo : 'user';
 
-      return {
-        id: `m-${contactId}-${index}`,
-        contactId: contactId,
-        text: redisMsg.texto,
-        sender: sender,
-        operatorName: redisMsg.operatorName,
-        timestamp: new Date(timestamp).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
-        botAvatarUrl: sender === 'bot' ? redisMsg.contactPhotoUrl : undefined,
-        status: redisMsg.status,
-      };
+        return {
+          id: redisMsg.id,
+          contactId: contactId,
+          text: redisMsg.texto,
+          sender: sender,
+          operatorName: redisMsg.operatorName,
+          timestamp: new Date(timestamp).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+          botAvatarUrl: sender === 'bot' ? redisMsg.contactPhotoUrl : undefined,
+          status: redisMsg.status,
+        };
+      });
+
+    return messages.sort((a, b) => {
+        const timeA = a.timestamp;
+        const timeB = b.timestamp;
+        if(timeA < timeB) return -1;
+        if(timeA > timeB) return 1;
+        return 0;
     });
 
   } catch (error) {
@@ -211,27 +226,34 @@ export async function getMessages(contactId: string): Promise<Message[]> {
   }
 }
 
-export async function addMessage(contactId: string, message: { text: string; sender: 'operator', operatorName: string }): Promise<void> {
+export async function addMessage(contactId: string, message: { text: string; sender: 'operator', operatorName: string, tempId: string }): Promise<void> {
   try {
     const client = await getClient();
     const historyKey = `chat:${contactId.trim()}`;
     const channelName = 'fila_envio_whatsapp';
     
     let instanceName = 'default';
-    const recentMessages = await client.lRange(historyKey, 0, 10);
-    for (const msgJson of recentMessages) {
-        try {
-            const parsedMsg = parseRedisMessage(msgJson);
-            if (parsedMsg.instance) {
-                instanceName = parsedMsg.instance;
-                break;
+    const recentMessageIds = await client.lRange(historyKey, 0, 10);
+     if (recentMessageIds.length > 0) {
+        const recentMessagesJson = await client.mGet(recentMessageIds.map(id => `message:${id}`));
+        for (const msgJson of recentMessagesJson) {
+            if (msgJson) {
+                try {
+                    const parsedMsg = parseRedisMessage(msgJson);
+                    if (parsedMsg.instance) {
+                        instanceName = parsedMsg.instance;
+                        break;
+                    }
+                } catch (e) {
+                    console.warn("Could not parse message from history:", msgJson);
+                }
             }
-        } catch (e) {
-            console.warn("Could not parse message from history:", msgJson);
         }
     }
     
+    // The temporary ID sent from the frontend will be used to create the message object
     const redisMessageForHistory: RedisMessage = {
+      id: message.tempId, // Use the temporary ID from the frontend
       texto: message.text,
       tipo: message.sender,
       timestamp: Math.floor(Date.now() / 1000).toString(),
@@ -240,20 +262,24 @@ export async function addMessage(contactId: string, message: { text: string; sen
       needsAttention: false, 
       status: 'sent',
     };
-
-    const formattedText = `*${message.operatorName}*\n${message.text}`;
     
+    const messageKey = `message:${message.tempId}`;
     const messageForQueue = {
         instance: instanceName,
         remoteJid: contactId.trim(),
-        text: formattedText,
+        text: `*${message.operatorName}*\n${message.text}`,
+        messageId: message.tempId // Pass tempId so n8n can use it
     };
 
-    await client.lPush(historyKey, JSON.stringify(redisMessageForHistory));
+    // Use a transaction to ensure both operations succeed
+    const transaction = client.multi();
+    transaction.set(messageKey, JSON.stringify(redisMessageForHistory));
+    transaction.lPush(historyKey, message.tempId);
+    transaction.publish(channelName, JSON.stringify(messageForQueue));
     
-    await client.publish(channelName, JSON.stringify(messageForQueue));
+    await transaction.exec();
     
-    console.log(`Mensagem para ${contactId} com instância ${instanceName} publicada no canal ${channelName}.`);
+    console.log(`Mensagem ${message.tempId} para ${contactId} com instância ${instanceName} publicada no canal ${channelName}.`);
 
   } catch (error) {
     console.error(`Falha ao adicionar mensagem para ${contactId} no Redis:`, error);
@@ -265,21 +291,20 @@ export async function dismissAttention(contactId: string): Promise<void> {
   try {
     const client = await getClient();
     const key = `chat:${contactId.trim()}`;
-    const lastMessageJson = await client.lIndex(key, 0); 
+    const lastMessageId = await client.lIndex(key, 0); 
+
+    if (!lastMessageId) return;
+    
+    const messageKey = `message:${lastMessageId}`;
+    const lastMessageJson = await client.get(messageKey);
 
     if (!lastMessageJson) return;
 
-    let lastMessage: RedisMessage;
-    try {
-        lastMessage = JSON.parse(lastMessageJson);
-    } catch (e) {
-        console.error("Could not parse last message to dismiss attention:", lastMessageJson);
-        return;
-    }
+    let lastMessage: RedisMessage = parseRedisMessage(lastMessageJson);
     
     if (lastMessage.needsAttention) {
       const updatedMessage = { ...lastMessage, needsAttention: false };
-      await client.lSet(key, 0, JSON.stringify(updatedMessage));
+      await client.set(messageKey, JSON.stringify(updatedMessage));
       console.log(`Alarme para o contato ${contactId} foi desativado.`);
     }
   } catch (error) {
@@ -315,3 +340,4 @@ export async function saveUsers(users: User[]): Promise<void> {
         throw error;
     }
 }
+

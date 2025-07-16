@@ -11,6 +11,7 @@ export type User = {
 export type MessageStatus = 'sent' | 'delivered' | 'read';
 
 export type RedisMessage = {
+  id: string; // Message ID from the API or a temporary one
   texto: string;
   tipo: 'user' | 'bot' | 'operator'; 
   timestamp: string; 
