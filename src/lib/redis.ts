@@ -67,43 +67,38 @@ export async function getContacts(): Promise<Contact[]> {
     const contactId = key.replace(/^chat:/, '');
     const lastMessageString = await client.lIndex(key, 0);
 
+    if (!lastMessageString) continue;
+
+    const lastMsg = parseJsonMessage(lastMessageString);
+    if (!lastMsg) continue;
+    
     if (!storedContactsMap.has(contactId)) {
-        const newContact: StoredContact = { id: contactId, name: contactId.split('@')[0] };
+        const newContact: StoredContact = { id: contactId, name: lastMsg.contactName || contactId.split('@')[0] };
         storedContacts.push(newContact);
         storedContactsMap.set(contactId, newContact);
         hasNewContactsToSave = true;
     }
     
     const storedContactInfo = storedContactsMap.get(contactId);
-
-    let contact: Partial<Contact> & { rawTimestamp: number } = {
+    
+    const timestamp = lastMsg.timestamp ? parseInt(lastMsg.timestamp, 10) : 0;
+    
+    const contact: Partial<Contact> & { rawTimestamp: number } = {
       id: contactId,
-      name: storedContactInfo?.name || contactId.split('@')[0],
-      avatar: `https://placehold.co/40x40.png`,
-      rawTimestamp: 0,
-      lastMessage: 'Nenhuma mensagem ainda.',
-      timestamp: '',
+      name: storedContactInfo?.name || lastMsg.contactName || contactId.split('@')[0],
+      avatar: lastMsg.contactPhotoUrl || `https://placehold.co/40x40.png`,
+      rawTimestamp: timestamp,
+      lastMessage: lastMsg.texto || 'Mensagem sem texto.',
+      timestamp: timestamp ? formatDistanceToNow(fromUnixTime(timestamp), { addSuffix: true, locale: ptBR }) : 'Data desconhecida',
       unreadCount: 0,
-      needsAttention: false,
+      needsAttention: lastMsg.needsAttention || false,
     };
-
-    if (lastMessageString) {
-      const lastMsg = parseJsonMessage(lastMessageString);
-      if (lastMsg) {
-        const timestamp = lastMsg.timestamp ? parseInt(lastMsg.timestamp, 10) : 0;
-        contact.name = lastMsg.contactName || contact.name;
-        contact.lastMessage = lastMsg.texto || 'Mensagem sem texto.';
-        contact.timestamp = timestamp ? formatDistanceToNow(fromUnixTime(timestamp), { addSuffix: true, locale: ptBR }) : 'Data desconhecida';
-        contact.rawTimestamp = timestamp;
-        contact.needsAttention = lastMsg.needsAttention || false;
-        contact.avatar = lastMsg.contactPhotoUrl || `https://placehold.co/40x40.png`;
-        
-        if (storedContactInfo && lastMsg.contactName && storedContactInfo.name !== lastMsg.contactName) {
-            storedContactInfo.name = lastMsg.contactName;
-            hasNewContactsToSave = true;
-        }
-      }
+    
+    if (storedContactInfo && lastMsg.contactName && storedContactInfo.name !== lastMsg.contactName) {
+        storedContactInfo.name = lastMsg.contactName;
+        hasNewContactsToSave = true;
     }
+
     activeContacts.push(contact as Contact & { rawTimestamp: number });
   }
 
@@ -134,7 +129,7 @@ export async function getMessages(contactId: string): Promise<Message[]> {
         const storedMsg = parseJsonMessage(msgString);
         if (!storedMsg) return null;
 
-        const timestampInMs = storedMsg.timestamp ? parseInt(storedMsg.timestamp, 10) * 1000 : Date.now();
+        const timestampInMs = storedMsg.timestamp ? (parseInt(storedMsg.timestamp, 10) * 1000) : Date.now();
         const sender: Message['sender'] = ['user', 'bot', 'operator'].includes(storedMsg.tipo) ? storedMsg.tipo : 'user';
         
         const uniqueId = storedMsg.id || storedMsg.messageId || `${timestampInMs}-${index}`;
@@ -196,16 +191,11 @@ export async function addMessage(contactId: string, message: { text: string; sen
         }
     };
     
-    // Nests the message string inside a "message" property, as expected by N8N
-    const payloadForN8N = {
-        message: JSON.stringify(messageForQueue)
-    };
-
     await client.lPush(historyKey, JSON.stringify(messageObject));
-    // Publishes the payload in the format N8N expects
-    await client.publish(channelName, JSON.stringify(payloadForN8N));
+    // Publishes the payload directly as a JSON string
+    await client.publish(channelName, JSON.stringify(messageForQueue));
     
-    console.log(`Mensagem ${message.tempId} para ${contactId} publicada no formato N8N no canal ${channelName}.`);
+    console.log(`Mensagem ${message.tempId} para ${contactId} publicada no formato JSON no canal ${channelName}.`);
 
   } catch (error) {
     console.error(`Falha ao adicionar mensagem para ${contactId} no Redis:`, error);
@@ -261,5 +251,3 @@ export async function saveUsers(users: User[]): Promise<void> {
         throw error;
     }
 }
-
-    
