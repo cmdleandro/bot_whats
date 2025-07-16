@@ -168,18 +168,27 @@ export async function addMessage(contactId: string, message: { text: string; sen
     const historyKey = `chat:${contactId.trim()}`;
     const channelName = 'fila_envio_whatsapp';
     
-    // 1. Determine the correct instance name
-    let instanceName: string;
+    // 1. Determine the correct instance name with a clear priority
+    let instanceName = '';
     const lastMessageResult = await client.lRange(historyKey, 0, 0);
     const lastMessageString = lastMessageResult[0];
 
     if (lastMessageString) {
       const parsedMsg = parseJsonMessage(lastMessageString);
-      instanceName = parsedMsg?.instance || 'default';
-    } else {
-      // For a new conversation, use the global default instance
+      if (parsedMsg && parsedMsg.instance) {
+        instanceName = parsedMsg.instance;
+      }
+    }
+    
+    // If instanceName is still empty (new conversation), get it from global settings
+    if (!instanceName) {
       const settings = await getGlobalSettings();
-      instanceName = settings.defaultInstance || 'default';
+      instanceName = settings.defaultInstance; 
+      // If there's no global setting, we can't proceed.
+      if (!instanceName) {
+        console.error(`Nenhuma instância encontrada para a nova conversa com ${contactId} e nenhuma instância global foi definida. A mensagem não pode ser enviada.`);
+        throw new Error('No instance configured for new chat.');
+      }
     }
     
     // 2. Create BOTH message objects using the determined instance name
