@@ -58,7 +58,7 @@ function parseJsonMessage(jsonString: string): StoredMessage | null {
 export async function getContacts(): Promise<Contact[]> {
   const client = await getClient();
   const storedContacts = await getStoredContacts();
-  const storedContactsMap = new Map(storedContacts.map(c => [c.id, c]));
+  const storedContactsMap = new Map(storedContacts.map(c => [c.id, c.name]));
   let hasNewContactsToSave = false;
 
   const activeContacts: (Contact & { rawTimestamp: number })[] = [];
@@ -75,17 +75,16 @@ export async function getContacts(): Promise<Contact[]> {
     if (!storedContactsMap.has(contactId) && lastMsg.contactName) {
         const newContact: StoredContact = { id: contactId, name: lastMsg.contactName };
         storedContacts.push(newContact);
-        storedContactsMap.set(contactId, newContact);
+        storedContactsMap.set(contactId, newContact.name);
         hasNewContactsToSave = true;
     }
     
-    const storedContactInfo = storedContactsMap.get(contactId);
-    
+    const contactName = storedContactsMap.get(contactId) || lastMsg.contactName || contactId.split('@')[0];
     const timestamp = lastMsg.timestamp ? parseInt(lastMsg.timestamp, 10) : 0;
     
     const contact: Partial<Contact> & { rawTimestamp: number } = {
       id: contactId,
-      name: storedContactInfo?.name || lastMsg.contactName || contactId.split('@')[0],
+      name: contactName,
       avatar: lastMsg.contactPhotoUrl || `https://placehold.co/40x40.png`,
       rawTimestamp: timestamp,
       lastMessage: lastMsg.texto || 'Mensagem sem texto.',
@@ -94,8 +93,11 @@ export async function getContacts(): Promise<Contact[]> {
       needsAttention: lastMsg.needsAttention || false,
     };
     
-    if (storedContactInfo && lastMsg.contactName && storedContactInfo.name !== lastMsg.contactName) {
-        storedContactInfo.name = lastMsg.contactName;
+    if (storedContactsMap.get(contactId) !== contactName) {
+        const existingStored = storedContacts.find(c => c.id === contactId);
+        if (existingStored) {
+            existingStored.name = contactName;
+        }
         hasNewContactsToSave = true;
     }
 
@@ -171,7 +173,7 @@ export async function addMessage(contactId: string, message: { text: string; sen
         }
     }
     
-    const messageObject: StoredMessage = {
+    const messageObjectToStore: StoredMessage = {
       id: message.tempId,
       texto: message.text,
       tipo: message.sender,
@@ -185,17 +187,16 @@ export async function addMessage(contactId: string, message: { text: string; sen
     const messageForQueue = {
         instance: instanceName,
         remoteJid: contactId.trim(),
-        text: `*${message.operatorName}*\n${message.text}`,
+        text: `*${message.operatorName}*\\n${message.text}`,
         options: {
           messageId: message.tempId
         }
     };
     
-    await client.lPush(historyKey, JSON.stringify(messageObject));
-    // Publishes the payload directly as a JSON string
+    await client.lPush(historyKey, JSON.stringify(messageObjectToStore));
     await client.publish(channelName, JSON.stringify(messageForQueue));
     
-    console.log(`Mensagem ${message.tempId} para ${contactId} publicada no formato JSON no canal ${channelName}.`);
+    console.log(`Mensagem ${message.tempId} para ${contactId} publicada no canal ${channelName}.`);
 
   } catch (error) {
     console.error(`Falha ao adicionar mensagem para ${contactId} no Redis:`, error);
