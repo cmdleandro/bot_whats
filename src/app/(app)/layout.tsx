@@ -5,7 +5,7 @@ import * as React from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
-import { LogOut, MessageSquare, Users, Loader2, BookUser } from 'lucide-react';
+import { LogOut, MessageSquare, Users, Loader2, BookUser, Settings } from 'lucide-react';
 import {
   SidebarProvider,
   Sidebar,
@@ -124,6 +124,19 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
                 </Link>
               </SidebarMenuButton>
             </SidebarMenuItem>
+            {currentUser.role === 'Admin' && (
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  asChild
+                  isActive={pathname.startsWith('/settings')}
+                >
+                  <Link href="/settings">
+                    <Settings />
+                    <span>Configurações</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            )}
           </SidebarMenu>
         </SidebarContent>
         <SidebarFooter>

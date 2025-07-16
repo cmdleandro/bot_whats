@@ -2,7 +2,7 @@
 'use server';
 
 import { createClient } from 'redis';
-import type { Contact, Message, StoredMessage, User, StoredContact } from './data';
+import type { Contact, Message, StoredMessage, User, StoredContact, GlobalSettings } from './data';
 import { initialUsers } from './data';
 import { formatDistanceToNow, fromUnixTime } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -143,7 +143,7 @@ export async function getMessages(contactId: string): Promise<Message[]> {
         return {
           id: uniqueId,
           contactId: contactId,
-          text: storedMsg.text,
+          text: storedMsg.texto,
           sender: sender,
           operatorName: storedMsg.operatorName,
           timestamp: timestampInMs,
@@ -168,16 +168,18 @@ export async function addMessage(contactId: string, message: { text: string; sen
     const historyKey = `chat:${contactId.trim()}`;
     const channelName = 'fila_envio_whatsapp';
     
-    // 1. Determine the correct instance name FIRST
-    let instanceName = 'default'; // Fallback value
+    // 1. Determine the correct instance name
+    let instanceName: string;
     const lastMessageResult = await client.lRange(historyKey, 0, 0);
     const lastMessageString = lastMessageResult[0];
 
     if (lastMessageString) {
-        const parsedMsg = parseJsonMessage(lastMessageString);
-        if (parsedMsg && parsedMsg.instance) {
-            instanceName = parsedMsg.instance;
-        }
+      const parsedMsg = parseJsonMessage(lastMessageString);
+      instanceName = parsedMsg?.instance || 'default';
+    } else {
+      // For a new conversation, use the global default instance
+      const settings = await getGlobalSettings();
+      instanceName = settings.defaultInstance || 'default';
     }
     
     // 2. Create BOTH message objects using the determined instance name
@@ -193,12 +195,12 @@ export async function addMessage(contactId: string, message: { text: string; sen
     };
 
     const messageForQueue = {
-        instance: instanceName,
-        remoteJid: contactId.trim(),
-        text: `*${message.operatorName}*\\n${message.text}`,
-        options: {
-          messageId: message.tempId
-        }
+      instance: instanceName,
+      remoteJid: contactId.trim(),
+      text: `*${message.operatorName}*\\n${message.text}`,
+      options: {
+        messageId: message.tempId
+      }
     };
     
     // 3. Persist and publish
@@ -258,6 +260,32 @@ export async function saveUsers(users: User[]): Promise<void> {
         await client.set(USERS_KEY, JSON.stringify(users));
     } catch (error) {
         console.error('Falha ao salvar usuários no Redis:', error);
+        throw error;
+    }
+}
+
+const GLOBAL_SETTINGS_KEY = 'chatview:settings';
+
+export async function getGlobalSettings(): Promise<GlobalSettings> {
+    try {
+        const client = await getClient();
+        const settingsJson = await client.get(GLOBAL_SETTINGS_KEY);
+        if (settingsJson) {
+            return JSON.parse(settingsJson);
+        }
+        return { defaultInstance: '' }; // Default empty state
+    } catch (error) {
+        console.error('Falha ao buscar configurações globais do Redis:', error);
+        return { defaultInstance: '' };
+    }
+}
+
+export async function saveGlobalSettings(settings: GlobalSettings): Promise<void> {
+    try {
+        const client = await getClient();
+        await client.set(GLOBAL_SETTINGS_KEY, JSON.stringify(settings));
+    } catch (error) {
+        console.error('Falha ao salvar configurações globais no Redis:', error);
         throw error;
     }
 }

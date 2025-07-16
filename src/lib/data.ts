@@ -54,7 +54,13 @@ export type StoredContact = {
   id: string; // The phone number, e.g., 5511999998888@c.us
 };
 
+export type GlobalSettings = {
+  defaultInstance: string;
+};
+
+
 export const initialUsers: User[] = [
     { id: '1', name: 'Leandro', email: 'leandro@email.com', password: '123', role: 'Admin', createdAt: '2023-01-15' },
     { id: '2', name: 'Alice', email: 'alice@email.com', password: '123', role: 'Operador', createdAt: '2023-02-20' },
 ];
+
