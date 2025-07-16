@@ -2,7 +2,7 @@
 'use server';
 
 import { createClient } from 'redis';
-import type { Contact, RedisMessage, Message, User, StoredContact } from './data';
+import type { Contact, RedisMessage, Message, User, StoredContact, RedisHash } from './data';
 import { initialUsers } from './data';
 import { formatRelative, fromUnixTime } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -56,44 +56,24 @@ export async function getClient() {
     }
 }
 
+// Updated parser for HGETALL result
+function parseRedisHash(hash: RedisHash | null): RedisMessage | null {
+  if (!hash || !hash.id) return null;
 
-function parseRedisMessage(jsonString: string): RedisMessage {
-  const cleanedString = jsonString.trim();
-  try {
-    const parsed = JSON.parse(cleanedString);
-    
-    if (typeof parsed.texto === 'string' && parsed.texto.startsWith('"') && parsed.texto.endsWith('"')) {
-        try {
-            parsed.texto = JSON.parse(parsed.texto);
-        } catch (e) {
-            // se o segundo parse falhar, mantem o texto como esta
-        }
-    }
-    
-    const needsAttention = parsed.tipo === 'bot' && checkNeedsAttention(parsed.texto || '');
-
-    return {
-      id: parsed.id || `temp-${Date.now()}`,
-      texto: parsed.texto || '',
-      tipo: parsed.tipo || 'user',
-      timestamp: parsed.timestamp || Math.floor(Date.now() / 1000).toString(),
-      contactName: parsed.contactName,
-      operatorName: parsed.operatorName,
-      contactPhotoUrl: parsed.contactPhotoUrl,
-      instance: parsed.instance,
-      needsAttention: parsed.needsAttention === true || needsAttention,
-      status: parsed.status,
-    };
-  } catch (e) {
-    return { 
-        id: `temp-err-${Date.now()}`,
-        texto: cleanedString, 
-        tipo: 'user', 
-        timestamp: Math.floor(Date.now() / 1000).toString(),
-        needsAttention: false,
-    };
-  }
+  return {
+    id: hash.id,
+    texto: hash.texto || '',
+    tipo: (hash.tipo as RedisMessage['tipo']) || 'user',
+    timestamp: hash.timestamp || Math.floor(Date.now() / 1000).toString(),
+    contactName: hash.contactName,
+    operatorName: hash.operatorName,
+    contactPhotoUrl: hash.contactPhotoUrl,
+    instance: hash.instance,
+    needsAttention: hash.needsAttention, // Stored as a string 'true' or 'false'
+    status: hash.status as MessageStatus,
+  };
 }
+
 
 function checkNeedsAttention(message: string): boolean {
     const lowerCaseMessage = message.toLowerCase();
@@ -124,12 +104,12 @@ export async function getContacts(): Promise<Contact[]> {
         let needsAttention = false;
         
         if(lastMessageId) {
-            const lastMessageJson = await client.get(`message:${lastMessageId}`);
-            if (lastMessageJson) {
-                const lastMsg = parseRedisMessage(lastMessageJson);
+            const lastMessageHash = await client.hGetAll(`message:${lastMessageId}`);
+            const lastMsg = parseRedisHash(lastMessageHash);
+            if (lastMsg) {
                 lastMessageText = lastMsg.texto;
                 timestamp = lastMsg.timestamp ? parseInt(lastMsg.timestamp, 10) * 1000 : Date.now();
-                needsAttention = lastMsg.needsAttention === true;
+                needsAttention = lastMsg.needsAttention === 'true';
             }
         }
         
@@ -137,17 +117,18 @@ export async function getContacts(): Promise<Contact[]> {
         let avatar = `https://placehold.co/40x40.png`;
 
         if (!storedContactsMap.has(contactId)) {
-            const messageIds = await client.lRange(key, 0, 5); // check last 5 messages for info
+            const messageIds = await client.lRange(key, 0, 5);
             if(messageIds.length > 0) {
-                 const messagesJson = await client.mGet(messageIds.map(id => `message:${id}`));
-                 for(const msgJson of messagesJson) {
-                     if(msgJson) {
-                         const msg = parseRedisMessage(msgJson);
-                         if (msg.tipo === 'user') {
-                            if (msg.contactName) contactName = msg.contactName;
-                            if (msg.contactPhotoUrl) avatar = msg.contactPhotoUrl;
-                            if (contactName !== contactId.split('@')[0] && avatar !== `https://placehold.co/40x40.png`) break;
-                         }
+                 const multi = client.multi();
+                 messageIds.forEach(id => multi.hGetAll(`message:${id}`));
+                 const messagesHashes = (await multi.exec()) as RedisHash[];
+
+                 for(const msgHash of messagesHashes) {
+                     const msg = parseRedisHash(msgHash);
+                     if (msg && msg.tipo === 'user') {
+                        if (msg.contactName) contactName = msg.contactName;
+                        if (msg.contactPhotoUrl) avatar = msg.contactPhotoUrl;
+                        if (contactName !== contactId.split('@')[0] && avatar !== `https://placehold.co/40x40.png`) break;
                      }
                  }
             }
@@ -169,9 +150,8 @@ export async function getContacts(): Promise<Contact[]> {
     return validContacts.sort((a, b) => {
         if (a.needsAttention && !b.needsAttention) return -1;
         if (!a.needsAttention && b.needsAttention) return 1;
-        const dateA = new Date(a.timestamp.startsWith('hoje') || a.timestamp.startsWith('ontem') ? new Date() : a.timestamp);
-        const dateB = new Date(b.timestamp.startsWith('hoje') || b.timestamp.startsWith('ontem') ? new Date() : a.timestamp);
-        return dateB.getTime() - dateA.getTime();
+        // Simple sort by timestamp as fetching relative time is complex here
+        return b.timestamp.localeCompare(a.timestamp);
     });
 
   } catch (error) {
@@ -190,14 +170,16 @@ export async function getMessages(contactId: string): Promise<Message[]> {
       return [];
     }
     
-    const messagesJson = await client.mGet(messageIds.map(id => `message:${id}`));
+    const multi = client.multi();
+    messageIds.forEach(id => multi.hGetAll(`message:${id}`));
+    const messagesHashes = (await multi.exec()) as RedisHash[];
 
-    const messages = messagesJson
-      .filter((jsonString): jsonString is string => jsonString !== null)
-      .map((jsonString) => {
-        const redisMsg = parseRedisMessage(jsonString);
+    const messages = messagesHashes
+      .map((hash) => {
+        const redisMsg = parseRedisHash(hash);
+        if (!redisMsg) return null;
+
         const timestamp = redisMsg.timestamp ? parseInt(redisMsg.timestamp, 10) * 1000 : Date.now();
-        
         const sender: Message['sender'] = ['user', 'bot', 'operator'].includes(redisMsg.tipo) ? redisMsg.tipo : 'user';
 
         return {
@@ -210,7 +192,8 @@ export async function getMessages(contactId: string): Promise<Message[]> {
           botAvatarUrl: sender === 'bot' ? redisMsg.contactPhotoUrl : undefined,
           status: redisMsg.status,
         };
-      });
+      })
+      .filter((msg): msg is Message => msg !== null);
 
     return messages.sort((a, b) => {
         const timeA = a.timestamp;
@@ -235,31 +218,21 @@ export async function addMessage(contactId: string, message: { text: string; sen
     let instanceName = 'default';
     const recentMessageIds = await client.lRange(historyKey, 0, 10);
      if (recentMessageIds.length > 0) {
-        const recentMessagesJson = await client.mGet(recentMessageIds.map(id => `message:${id}`));
-        for (const msgJson of recentMessagesJson) {
-            if (msgJson) {
-                try {
-                    const parsedMsg = parseRedisMessage(msgJson);
-                    if (parsedMsg.instance) {
-                        instanceName = parsedMsg.instance;
-                        break;
-                    }
-                } catch (e) {
-                    console.warn("Could not parse message from history:", msgJson);
-                }
-            }
+        const firstMessageHash = await client.hGetAll(`message:${recentMessageIds[0]}`);
+        const parsedMsg = parseRedisHash(firstMessageHash);
+        if (parsedMsg && parsedMsg.instance) {
+            instanceName = parsedMsg.instance;
         }
     }
     
-    // The temporary ID sent from the frontend will be used to create the message object
     const redisMessageForHistory: RedisMessage = {
-      id: message.tempId, // Use the temporary ID from the frontend
+      id: message.tempId,
       texto: message.text,
       tipo: message.sender,
       timestamp: Math.floor(Date.now() / 1000).toString(),
       operatorName: message.operatorName,
       instance: instanceName,
-      needsAttention: false, 
+      needsAttention: 'false',
       status: 'sent',
     };
     
@@ -268,18 +241,18 @@ export async function addMessage(contactId: string, message: { text: string; sen
         instance: instanceName,
         remoteJid: contactId.trim(),
         text: `*${message.operatorName}*\n${message.text}`,
-        messageId: message.tempId // Pass tempId so n8n can use it
+        messageId: message.tempId
     };
 
-    // Use a transaction to ensure both operations succeed
     const transaction = client.multi();
-    transaction.set(messageKey, JSON.stringify(redisMessageForHistory));
+    // Use HSET to save the message as a Hash
+    transaction.hSet(messageKey, redisMessageForHistory as any); // cast to any to satisfy redis lib
     transaction.lPush(historyKey, message.tempId);
     transaction.publish(channelName, JSON.stringify(messageForQueue));
     
     await transaction.exec();
     
-    console.log(`Mensagem ${message.tempId} para ${contactId} com instância ${instanceName} publicada no canal ${channelName}.`);
+    console.log(`Mensagem ${message.tempId} para ${contactId} (Hash) publicada no canal ${channelName}.`);
 
   } catch (error) {
     console.error(`Falha ao adicionar mensagem para ${contactId} no Redis:`, error);
@@ -296,15 +269,10 @@ export async function dismissAttention(contactId: string): Promise<void> {
     if (!lastMessageId) return;
     
     const messageKey = `message:${lastMessageId}`;
-    const lastMessageJson = await client.get(messageKey);
-
-    if (!lastMessageJson) return;
-
-    let lastMessage: RedisMessage = parseRedisMessage(lastMessageJson);
+    const needsAttention = await client.hGet(messageKey, 'needsAttention');
     
-    if (lastMessage.needsAttention) {
-      const updatedMessage = { ...lastMessage, needsAttention: false };
-      await client.set(messageKey, JSON.stringify(updatedMessage));
+    if (needsAttention === 'true') {
+      await client.hSet(messageKey, 'needsAttention', 'false');
       console.log(`Alarme para o contato ${contactId} foi desativado.`);
     }
   } catch (error) {
@@ -340,4 +308,3 @@ export async function saveUsers(users: User[]): Promise<void> {
         throw error;
     }
 }
-

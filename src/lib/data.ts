@@ -10,8 +10,9 @@ export type User = {
 
 export type MessageStatus = 'sent' | 'delivered' | 'read';
 
+// Este tipo representa a estrutura de um objeto de mensagem como ele é armazenado ou recuperado.
 export type RedisMessage = {
-  id: string; // Message ID from the API or a temporary one
+  id: string; 
   texto: string;
   tipo: 'user' | 'bot' | 'operator'; 
   timestamp: string; 
@@ -19,9 +20,15 @@ export type RedisMessage = {
   operatorName?: string;
   contactPhotoUrl?: string; 
   instance?: string;
-  needsAttention?: boolean;
+  needsAttention?: string; // Redis hashes store values as strings, 'true' or 'false'
   status?: MessageStatus;
 };
+
+// Este tipo representa o objeto retornado por HGETALL, onde todas as chaves e valores são strings.
+export type RedisHash = {
+  [key: string]: string;
+};
+
 
 export type Message = {
   id: string;
