@@ -153,12 +153,12 @@ export default function ChatViewPage() {
       });
       // Optionally, you can refetch messages here to get the final status from redis
       // await fetchMessages(contactId, true);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Falha ao enviar mensagem:', error);
       toast({
         variant: 'destructive',
-        title: 'Erro de Rede',
-        description: 'Não foi possível enviar a mensagem. Por favor, tente novamente.',
+        title: 'Erro ao Enviar',
+        description: error.message || 'Não foi possível enviar a mensagem. Por favor, tente novamente.',
       });
       setMessages(prevMessages => prevMessages.filter(m => m.id !== tempId));
     } finally {

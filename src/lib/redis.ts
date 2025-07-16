@@ -162,27 +162,24 @@ export async function getMessages(contactId: string): Promise<Message[]> {
 }
 
 export async function addMessage(contactId: string, message: { text: string; sender: 'operator', operatorName: string, tempId: string }): Promise<void> {
-  try {
     const client = await getClient();
     const historyKey = `chat:${contactId.trim()}`;
     const channelName = 'fila_envio_whatsapp';
     
     let instanceName = '';
-    
-    const lastMessageResult = await client.lRange(historyKey, 0, 0);
-    const lastMessageString = lastMessageResult[0];
 
-    if (lastMessageString) {
-      const parsedMsg = parseJsonMessage(lastMessageString);
+    const lastMessageResult = await client.lRange(historyKey, 0, 0);
+    if (lastMessageResult.length > 0) {
+      const parsedMsg = parseJsonMessage(lastMessageResult[0]);
       if (parsedMsg && parsedMsg.instance) {
         instanceName = parsedMsg.instance;
       }
     }
-    
+
     if (!instanceName) {
       const settings = await getGlobalSettings();
       if (settings && settings.defaultInstance) {
-        instanceName = settings.defaultInstance; 
+        instanceName = settings.defaultInstance;
       }
     }
 
@@ -206,7 +203,7 @@ export async function addMessage(contactId: string, message: { text: string; sen
     const messageForQueue = {
       instance: instanceName,
       remoteJid: contactId.trim(),
-      text: `*${message.operatorName}*\\n${message.text}`,
+      text: `*${message.operatorName}*\n${message.text}`,
       options: {
         messageId: message.tempId
       }
@@ -216,11 +213,6 @@ export async function addMessage(contactId: string, message: { text: string; sen
     await client.publish(channelName, JSON.stringify(messageForQueue));
     
     console.log(`Mensagem ${message.tempId} para ${contactId} (instância: ${instanceName}) publicada no canal ${channelName}.`);
-
-  } catch (error) {
-    console.error(`Falha ao adicionar mensagem para ${contactId} no Redis:`, error);
-    throw error;
-  }
 }
 
 export async function dismissAttention(contactId: string): Promise<void> {
