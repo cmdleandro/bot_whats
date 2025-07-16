@@ -72,8 +72,8 @@ export async function getContacts(): Promise<Contact[]> {
     const lastMsg = parseJsonMessage(lastMessageString);
     if (!lastMsg) continue;
     
-    if (!storedContactsMap.has(contactId)) {
-        const newContact: StoredContact = { id: contactId, name: lastMsg.contactName || contactId.split('@')[0] };
+    if (!storedContactsMap.has(contactId) && lastMsg.contactName) {
+        const newContact: StoredContact = { id: contactId, name: lastMsg.contactName };
         storedContacts.push(newContact);
         storedContactsMap.set(contactId, newContact);
         hasNewContactsToSave = true;
@@ -251,5 +251,3 @@ export async function saveUsers(users: User[]): Promise<void> {
         throw error;
     }
 }
-
-    
