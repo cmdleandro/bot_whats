@@ -10,11 +10,22 @@ export type User = {
 
 export type MessageStatus = 'sent' | 'delivered' | 'read';
 
-// Representa a estrutura de uma mensagem como um Hash no Redis.
-// Todos os valores são strings, como o Redis os armazena.
-export type RedisHash = {
-  [key: string]: string;
+// Este tipo representa o objeto JSON que está dentro da string na lista do Redis
+export type StoredMessage = {
+  id?: string; // id pode não estar presente nos dados do webhook
+  texto: string;
+  tipo: 'user' | 'bot' | 'operator';
+  timestamp: string; // Unix timestamp as a string
+  contactName?: string;
+  operatorName?: string;
+  contactPhotoUrl?: string;
+  instance?: string;
+  needsAttention?: boolean;
+  status?: MessageStatus;
+  fromMe?: string; // Campo booleano como string, vindo do webhook
+  messageId?: string; // ID da mensagem vindo do webhook
 };
+
 
 // Representa a mensagem após ser processada para uso na UI.
 export type Message = {
@@ -42,22 +53,6 @@ export type StoredContact = {
   name: string;
   id: string; // The phone number, e.g., 5511999998888@c.us
 };
-
-// Este tipo representa uma mensagem antes de ser formatada para a UI.
-// Os tipos de dados são mais próximos dos originais.
-export type RedisMessage = {
-  id: string;
-  texto: string;
-  tipo: 'user' | 'bot' | 'operator';
-  timestamp: string; // Unix timestamp as a string
-  contactName?: string;
-  operatorName?: string;
-  contactPhotoUrl?: string;
-  instance?: string;
-  needsAttention?: boolean;
-  status?: MessageStatus;
-};
-
 
 export const initialUsers: User[] = [
     { id: '1', name: 'Leandro', email: 'leandro@email.com', password: '123', role: 'Admin', createdAt: '2023-01-15' },
