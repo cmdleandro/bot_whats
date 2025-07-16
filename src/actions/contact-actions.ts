@@ -1,3 +1,4 @@
+
 'use server';
 
 import { getClient } from '@/lib/redis';
@@ -86,4 +87,3 @@ export async function processVcfFile(vcfContent: string): Promise<StoredContact[
     throw new Error('Failed to parse VCF file. Please check the file format and try again.');
   }
 }
-

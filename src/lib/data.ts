@@ -10,50 +10,52 @@ export type User = {
 
 export type MessageStatus = 'sent' | 'delivered' | 'read';
 
-// Este tipo representa a estrutura de um objeto de mensagem como ele é armazenado ou recuperado.
-export type RedisMessage = {
-  id: string; 
-  texto: string;
-  tipo: 'user' | 'bot' | 'operator'; 
-  timestamp: string; 
-  contactName?: string;
-  operatorName?: string;
-  contactPhotoUrl?: string; 
-  instance?: string;
-  needsAttention?: boolean;
-  status?: MessageStatus;
-};
-
-// Este tipo representa o objeto retornado por HGETALL, onde todas as chaves e valores são strings.
+// Representa a estrutura de uma mensagem como um Hash no Redis.
+// Todos os valores são strings, como o Redis os armazena.
 export type RedisHash = {
   [key: string]: string;
 };
 
-
+// Representa a mensagem após ser processada para uso na UI.
 export type Message = {
   id: string;
   contactId: string;
-  text: string; 
-  sender: 'user' | 'bot' | 'operator'; 
+  text: string;
+  sender: 'user' | 'bot' | 'operator';
   operatorName?: string;
-  timestamp: string;
+  timestamp: string; // Formatado para exibição (ex: "14:30")
   botAvatarUrl?: string;
   status?: MessageStatus;
 };
 
 export type Contact = {
-  id: string; 
-  name: string; 
-  avatar: string; 
+  id: string;
+  name: string;
+  avatar: string;
   lastMessage: string;
-  timestamp: string;
-  unreadCount: number; 
+  timestamp: string; // Formatado para exibição (ex: "há 2 horas")
+  unreadCount: number;
   needsAttention?: boolean;
 };
 
 export type StoredContact = {
   name: string;
   id: string; // The phone number, e.g., 5511999998888@c.us
+};
+
+// Este tipo representa uma mensagem antes de ser formatada para a UI.
+// Os tipos de dados são mais próximos dos originais.
+export type RedisMessage = {
+  id: string;
+  texto: string;
+  tipo: 'user' | 'bot' | 'operator';
+  timestamp: string; // Unix timestamp as a string
+  contactName?: string;
+  operatorName?: string;
+  contactPhotoUrl?: string;
+  instance?: string;
+  needsAttention?: boolean;
+  status?: MessageStatus;
 };
 
 

@@ -149,7 +149,7 @@ export default function ChatViewPage() {
         text: message.text,
         sender: 'operator',
         operatorName: operatorName,
-        tempId: tempId // Pass tempId to the backend
+        tempId: tempId
       });
       // Optionally, you can refetch messages here to get the final status from redis
       // await fetchMessages(contactId, true);
@@ -302,4 +302,3 @@ export default function ChatViewPage() {
     </div>
   );
 }
-
