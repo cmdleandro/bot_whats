@@ -278,7 +278,7 @@ export async function addMessage(contactId: string, message: { text: string; sen
     const messageForQueue = {
       instance: instanceName,
       remoteJid: contactId.trim(),
-      text: `*${message.operatorName}*\\n${message.text}`,
+      text: `*${message.operatorName}*\n${message.text}`,
       options: {
         messageId: message.tempId
       }
@@ -364,3 +364,5 @@ export async function saveGlobalSettings(settings: GlobalSettings): Promise<void
         throw error;
     }
 }
+
+    
