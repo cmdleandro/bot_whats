@@ -51,10 +51,17 @@ function extractValue(jsonString: string, key: string): string | null {
     let match = jsonString.match(regex);
     if (match) return match[1];
 
-    // Tenta encontrar o valor booleano. Ex: "key": false
-    regex = new RegExp(`"${key}"\\s*:\\s*(true|false)`);
+    // Tenta encontrar o valor booleano ou numérico sem aspas. Ex: "key": false
+    regex = new RegExp(`"${key}"\\s*:\\s*([^",}]+)`);
     match = jsonString.match(regex);
-    if (match) return match[1];
+    if (match) {
+        const value = match[1].trim();
+        // Remove aspas se houver, para casos como "operator"
+        if (value.startsWith('"') && value.endsWith('"')) {
+            return value.substring(1, value.length - 1);
+        }
+        return value;
+    }
 
     return null;
 }
@@ -73,18 +80,24 @@ function parseJsonMessage(jsonString: string): Partial<StoredMessage> | null {
             caption: extractValue(jsonString, 'caption'),
             texto: extractValue(jsonString, 'caption') || extractValue(jsonString, 'texto') || '',
             timestamp: extractValue(jsonString, 'timestamp') || Math.floor(Date.now() / 1000).toString(),
-            tipo: extractValue(jsonString, 'fromMe') === 'true' ? 'operator' : 'user',
+            tipo: (extractValue(jsonString, 'fromMe') === 'true' || extractValue(jsonString, 'tipo') === 'operator') ? 'operator' : 'user',
             contactName: extractValue(jsonString, 'contactName'),
             contactPhotoUrl: extractValue(jsonString, 'contactPhotoUrl'),
-            messageType: extractValue(jsonString, 'messageType') || (extractValue(jsonString, 'mediaUrl') ? 'imageMessage' : 'text'), // Assume imagem se houver mediaUrl
+            messageType: extractValue(jsonString, 'messageType') || (extractValue(jsonString, 'mediaUrl') ? 'imageMessage' : 'text'),
             fromMe: extractValue(jsonString, 'fromMe') || 'false',
             instance: extractValue(jsonString, 'instance'),
             messageId: extractValue(jsonString, 'messageId'),
             needsAttention: extractValue(jsonString, 'needsAttention') === 'true',
-            status: 'sent', // Assume um status padrão
+            status: 'sent',
         };
-        // Retorna apenas se conseguimos extrair algo útil (como texto ou mídia)
+        
+        const tipoExtracted = extractValue(jsonString, 'tipo');
+        if (tipoExtracted && ['user', 'bot', 'operator'].includes(tipoExtracted)) {
+            recovered.tipo = tipoExtracted as 'user' | 'bot' | 'operator';
+        }
+
         if (recovered.texto || recovered.mediaUrl) {
+            console.log('Mensagem recuperada manualmente:', recovered);
             return recovered;
         }
     } catch (recoveryError) {
@@ -104,13 +117,8 @@ function mapMessageTypeToMediaType(messageType?: string): MediaType | undefined 
 }
 
 function getLastMessageText(msg: Partial<StoredMessage>): string {
-  // Se a mensagem tiver uma legenda, ela tem prioridade.
-  if (msg.caption) {
-    return msg.caption;
-  }
-  
-  // Se não tiver legenda, verifica se é uma mídia.
   const mediaType = mapMessageTypeToMediaType(msg.messageType);
+  
   if (mediaType) {
     const typeMap: Record<MediaType, string> = {
       image: '📷 Imagem',
@@ -118,10 +126,10 @@ function getLastMessageText(msg: Partial<StoredMessage>): string {
       audio: '🎵 Áudio',
       document: '📄 Documento',
     };
-    return typeMap[mediaType] || 'Arquivo de mídia';
+    const mediaText = typeMap[mediaType] || 'Arquivo de mídia';
+    return msg.caption ? `${mediaText}: ${msg.caption}` : mediaText;
   }
   
-  // Se não for mídia, retorna o texto.
   return msg.texto || 'Mensagem sem texto.';
 }
 
