@@ -52,7 +52,8 @@ const MediaMessage = ({ msg }: { msg: Message }) => {
         <img
             src={msg.text}
             alt="Imagem enviada"
-            className="rounded-lg object-cover max-w-sm"
+            className="rounded-lg object-cover"
+            style={{ width: '133px' }}
         />
       </div>
     );
@@ -225,7 +226,7 @@ export default function ChatViewPage() {
       case 'operator':
         return 'rounded-br-none bg-primary text-primary-foreground';
       case 'bot':
-        return 'rounded-bl-none bg-accent text-accent-foreground';
+        return 'rounded-br-none bg-accent text-accent-foreground';
       default:
         return 'rounded-bl-none bg-background';
     }
@@ -277,7 +278,7 @@ export default function ChatViewPage() {
                 key={msg.id}
                 className={cn(
                   'flex items-end gap-3',
-                  msg.sender === 'operator' ? 'ml-auto flex-row-reverse' : 'mr-auto'
+                  msg.sender === 'user' ? 'mr-auto' : 'ml-auto flex-row-reverse'
                 )}
               >
                 <Avatar className="h-8 w-8">
