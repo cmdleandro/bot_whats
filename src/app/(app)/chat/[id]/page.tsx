@@ -28,63 +28,42 @@ function MessageStatusIndicator({ status }: { status: MessageStatus }) {
 
 
 const MediaMessage = ({ msg }: { msg: Message }) => {
-  if (!msg.mediaUrl) return null;
-
-  // Check if caption or text contains a direct, public URL to an image
-  const potentialUrl = msg.text || '';
-  const isPublicImageUrl = /\.(jpg|jpeg|png|gif|webp)$/i.test(potentialUrl);
-
-  const displayUrl = isPublicImageUrl ? potentialUrl : msg.mediaUrl;
-  const effectiveMediaType = isPublicImageUrl ? 'image' : msg.mediaType;
+  // Check if the text itself is a public image URL
+  const isPublicImageUrl = msg.text && /\.(jpg|jpeg|png|gif|webp)$/i.test(msg.text);
 
   const renderMedia = () => {
-    switch (effectiveMediaType) {
-      case 'image':
-        return (
-          <a href={displayUrl} target="_blank" rel="noopener noreferrer" className="block cursor-pointer">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={displayUrl}
-              alt={msg.text || 'Imagem enviada'}
-              className="rounded-lg object-cover max-w-xs"
-              style={{ maxWidth: '300px' }}
-            />
-          </a>
-        );
-      case 'video':
-        return (
-          <video
-            src={displayUrl}
-            controls
-            className="rounded-lg max-w-xs"
+    // If text is a public image URL, display it as an image.
+    if (isPublicImageUrl) {
+      return (
+        <a href={msg.text} target="_blank" rel="noopener noreferrer" className="block cursor-pointer">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={msg.text}
+            alt="Imagem enviada"
+            className="rounded-lg object-cover max-w-xs"
+            style={{ maxWidth: '300px' }}
           />
-        );
-      case 'audio':
-        return (
-          <audio
-            src={displayUrl}
-            controls
-            className="w-full"
-          />
-        );
-      case 'document':
-      default: // Handles .enc files and other unknown types
-        return (
-            <a href={msg.mediaUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-primary hover:underline">
-                <Paperclip className="h-4 w-4" />
-                <span>{msg.text || 'Ver Documento'}</span>
-            </a>
-        );
+        </a>
+      );
     }
+    
+    // For all other media types (including .enc files), treat them as downloadable documents.
+    if (msg.mediaUrl) {
+       return (
+         <a href={msg.mediaUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-primary hover:underline">
+           <Paperclip className="h-4 w-4" />
+           <span>{msg.text || 'Ver Documento'}</span>
+         </a>
+       );
+    }
+
+    // Fallback for cases where media is expected but URL is missing
+    return <p className="whitespace-pre-wrap">{msg.text}</p>;
   };
 
   return (
     <div className="flex flex-col gap-2">
       {renderMedia()}
-      {/* Show caption only if it's not the URL itself */}
-      {!isPublicImageUrl && msg.text && (
-        <p className="text-sm pt-1">{msg.text}</p>
-      )}
     </div>
   );
 };
@@ -369,5 +348,3 @@ export default function ChatViewPage() {
     </div>
   );
 }
-
-    
