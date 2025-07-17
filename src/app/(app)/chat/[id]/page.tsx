@@ -319,20 +319,13 @@ export default function ChatViewPage() {
                       <p className="text-xs font-bold mb-1">BOT</p>
                   )}
                   {msg.sender === 'operator' && (
-                    <div className="flex flex-col">
-                        <span className="font-bold text-xs mb-1">{msg.operatorName}</span>
-                        <p className="whitespace-pre-wrap">{msg.text}</p>
-                    </div>
+                    <span className="font-bold text-xs mb-1">{msg.operatorName}</span>
                   )}
-
-                  {msg.sender !== 'operator' && (
-                    <>
-                      {msg.mediaUrl ? (
-                        <MediaMessage msg={msg} />
-                      ) : (
-                        <p className="whitespace-pre-wrap">{msg.text}</p>
-                      )}
-                    </>
+                  
+                  {msg.mediaUrl ? (
+                    <MediaMessage msg={msg} />
+                  ) : (
+                    <p className="whitespace-pre-wrap">{msg.text}</p>
                   )}
 
                   <div className="flex items-center justify-end mt-1 text-xs opacity-60 self-end">
@@ -376,5 +369,3 @@ export default function ChatViewPage() {
     </div>
   );
 }
-
-    
