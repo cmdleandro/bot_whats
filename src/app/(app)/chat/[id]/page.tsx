@@ -296,7 +296,7 @@ export default function ChatViewPage() {
                 </Avatar>
                 <div
                   className={cn(
-                    'rounded-lg px-4 py-2 text-sm shadow-sm flex flex-col',
+                    'rounded-lg px-4 py-2 text-sm shadow-sm flex flex-col max-w-xl',
                      getMessageStyle(msg.sender)
                   )}
                 >
