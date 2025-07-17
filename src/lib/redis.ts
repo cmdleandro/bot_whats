@@ -65,6 +65,12 @@ function mapMessageTypeToMediaType(messageType?: string): MediaType | undefined 
 }
 
 function getLastMessageText(msg: StoredMessage): string {
+  // Se a mensagem tiver uma legenda, ela tem prioridade.
+  if (msg.caption) {
+    return msg.caption;
+  }
+  
+  // Se não tiver legenda, verifica se é uma mídia.
   const mediaType = mapMessageTypeToMediaType(msg.messageType);
   if (mediaType) {
     const typeMap: Record<MediaType, string> = {
@@ -73,8 +79,10 @@ function getLastMessageText(msg: StoredMessage): string {
       audio: '🎵 Áudio',
       document: '📄 Documento',
     };
-    return msg.caption || typeMap[mediaType] || 'Arquivo de mídia';
+    return typeMap[mediaType] || 'Arquivo de mídia';
   }
+  
+  // Se não for mídia, retorna o texto.
   return msg.texto || 'Mensagem sem texto.';
 }
 
@@ -165,6 +173,7 @@ export async function getMessages(contactId: string): Promise<Message[]> {
         return {
           id: uniqueId,
           contactId: contactId,
+          // Prioriza a legenda (caption). Se não houver, usa o texto.
           text: storedMsg.caption || storedMsg.texto,
           sender: sender,
           operatorName: storedMsg.operatorName,
@@ -193,7 +202,7 @@ export async function addMessage(contactId: string, message: { text: string; sen
     
     let instanceName = '';
 
-    // Tenta obter a instância da conversa existente
+    // 1. Tenta obter a instância da conversa existente
     const lastMessageResult = await client.lRange(historyKey, 0, 0);
     if (lastMessageResult.length > 0) {
       const parsedMsg = parseJsonMessage(lastMessageResult[0]);
@@ -202,7 +211,7 @@ export async function addMessage(contactId: string, message: { text: string; sen
       }
     }
 
-    // Se for uma conversa nova, busca a instância global
+    // 2. Se for uma conversa nova, busca a instância global
     if (!instanceName) {
       const settings = await getGlobalSettings();
       if (settings && settings.defaultInstance) {
@@ -210,6 +219,7 @@ export async function addMessage(contactId: string, message: { text: string; sen
       }
     }
 
+    // 3. Se nenhuma instância for encontrada, lança um erro claro.
     if (!instanceName) {
         const errorMsg = `Nenhuma instância pôde ser determinada para o contato ${contactId}. Verifique se uma instância padrão está definida nas Configurações Globais.`;
         console.error(errorMsg);

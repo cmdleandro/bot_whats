@@ -6,7 +6,7 @@ import { useParams } from 'next/navigation';
 import Image from 'next/image';
 import { Send, Bot, User, ChevronLeft, Loader2, Check, CheckCheck, Paperclip } from 'lucide-react';
 import { getMessages, addMessage, getContacts, dismissAttention } from '@/lib/redis';
-import { Message, Contact, MessageStatus } from '@/lib/data';
+import { Message, Contact, MessageStatus, MediaType } from '@/lib/data';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -29,9 +29,13 @@ function MessageStatusIndicator({ status }: { status: MessageStatus }) {
 
 
 const MediaMessage = ({ msg }: { msg: Message }) => {
-  if (!msg.mediaUrl || !msg.mediaType) return null;
+  // A URL da mídia é obrigatória para este componente.
+  if (!msg.mediaUrl) return null;
 
   const renderMedia = () => {
+    // Se não houver um mediaType, não renderizamos nada para evitar erros.
+    if (!msg.mediaType) return null;
+
     switch (msg.mediaType) {
       case 'image':
         return (
@@ -67,14 +71,18 @@ const MediaMessage = ({ msg }: { msg: Message }) => {
             </a>
         );
       default:
+        // Caso o mediaType seja desconhecido, não renderiza nada.
         return null;
     }
   };
-  
+
   return (
     <div className="flex flex-col gap-2">
-        {renderMedia()}
-        {msg.mediaType !== 'document' && msg.text && <p className="text-sm pt-1">{msg.text}</p>}
+      {renderMedia()}
+      {/* Exibe a legenda (msg.text) se ela existir. Para documentos, o texto já está no link. */}
+      {msg.mediaType !== 'document' && msg.text && (
+        <p className="text-sm pt-1">{msg.text}</p>
+      )}
     </div>
   );
 };
@@ -307,16 +315,26 @@ export default function ChatViewPage() {
                      getMessageStyle(msg.sender)
                   )}
                 >
-                  {(msg.sender === 'bot' || msg.sender === 'operator') && (
-                      <p className="text-xs font-bold mb-1">
-                          {msg.sender === 'bot' ? 'BOT' : msg.operatorName}
-                      </p>
+                  {(msg.sender === 'bot') && (
+                      <p className="text-xs font-bold mb-1">BOT</p>
                   )}
-                  {msg.mediaUrl ? (
-                      <MediaMessage msg={msg} />
-                  ) : (
-                      <p className="whitespace-pre-wrap">{msg.text}</p>
+                  {msg.sender === 'operator' && (
+                    <div className="flex flex-col">
+                        <span className="font-bold text-xs mb-1">{msg.operatorName}</span>
+                        <p className="whitespace-pre-wrap">{msg.text}</p>
+                    </div>
                   )}
+
+                  {msg.sender !== 'operator' && (
+                    <>
+                      {msg.mediaUrl ? (
+                        <MediaMessage msg={msg} />
+                      ) : (
+                        <p className="whitespace-pre-wrap">{msg.text}</p>
+                      )}
+                    </>
+                  )}
+
                   <div className="flex items-center justify-end mt-1 text-xs opacity-60 self-end">
                     <span>{new Date(msg.timestamp).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
                     {msg.sender === 'operator' && msg.status && <MessageStatusIndicator status={msg.status} />}
