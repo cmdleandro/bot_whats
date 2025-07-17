@@ -60,7 +60,6 @@ function extractValue(jsonString: string, key: string): string | null {
 function parseJsonMessage(jsonString: string): Partial<StoredMessage> | null {
   try {
     if (!jsonString) return null;
-    // Attempt to parse the full JSON, including nested objects like quotedMessage
     return JSON.parse(jsonString);
   } catch (error) {
     console.warn('Falha ao fazer parse da mensagem JSON. Tentando recuperação manual:', jsonString);
@@ -90,6 +89,8 @@ function parseJsonMessage(jsonString: string): Partial<StoredMessage> | null {
         }
         
         recovered.quotedMessage = undefined;
+        recovered.messageId = recovered.messageId || recovered.id;
+
 
         if (recovered.texto || recovered.mediaUrl) {
             console.log('Mensagem recuperada manualmente:', recovered);
