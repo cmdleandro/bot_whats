@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -9,6 +10,8 @@ import { cn } from "@/lib/utils"
 const DropdownMenu = DropdownMenuPrimitive.Root
 
 const DropdownMenuTrigger = DropdownMenuPrimitive.Trigger
+
+const DropdownMenuContextMenuTrigger = DropdownMenuPrimitive.ContextMenuTrigger
 
 const DropdownMenuGroup = DropdownMenuPrimitive.Group
 
@@ -197,4 +200,5 @@ export {
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
   DropdownMenuRadioGroup,
+  DropdownMenuContextMenuTrigger
 }

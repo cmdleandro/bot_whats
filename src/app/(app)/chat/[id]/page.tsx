@@ -14,7 +14,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuTrigger,
+  DropdownMenuContextMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
@@ -322,10 +322,10 @@ export default function ChatViewPage() {
           ) : (
             messages.map(msg => (
               <DropdownMenu key={msg.id}>
-                <DropdownMenuTrigger asChild>
+                <DropdownMenuContextMenuTrigger>
                     <div
                         className={cn(
-                        'flex items-end gap-3 w-fit cursor-pointer',
+                        'flex items-end gap-3 w-fit',
                         getMessageAlignment(msg.sender)
                         )}
                     >
@@ -369,7 +369,7 @@ export default function ChatViewPage() {
                         </div>
                         </div>
                     </div>
-                </DropdownMenuTrigger>
+                </DropdownMenuContextMenuTrigger>
                 <DropdownMenuContent>
                     <DropdownMenuItem onClick={() => handleStartReply(msg)}>
                         <CornerUpLeft className="mr-2 h-4 w-4" />
