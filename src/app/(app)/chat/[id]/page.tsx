@@ -35,7 +35,8 @@ const MediaMessage = ({ msg }: { msg: Message }) => {
     if (!msg.mediaType) {
         // Fallback for when mediaType is missing but mediaUrl is present
         if (/\.(jpg|jpeg|png|gif|webp)$/i.test(msg.mediaUrl)) {
-            return <Image src={msg.mediaUrl} alt={msg.text || 'Imagem enviada'} width={300} height={300} className="rounded-lg object-cover" unoptimized />;
+             // eslint-disable-next-line @next/next/no-img-element
+            return <img src={msg.mediaUrl} alt={msg.text || 'Imagem enviada'} width={300} height={300} className="rounded-lg object-cover" />;
         }
         return <a href={msg.mediaUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">Ver Mídia</a>;
     }
@@ -43,14 +44,13 @@ const MediaMessage = ({ msg }: { msg: Message }) => {
     switch (msg.mediaType) {
       case 'image':
         return (
-          <Image
-            src={msg.mediaUrl}
-            alt={msg.text || 'Imagem enviada'}
-            width={300}
-            height={300}
-            className="rounded-lg object-cover"
-            unoptimized
-          />
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={msg.mediaUrl}
+              alt={msg.text || 'Imagem enviada'}
+              className="rounded-lg object-cover max-w-xs"
+              style={{ maxWidth: '300px' }}
+            />
         );
       case 'video':
         return (
