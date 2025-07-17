@@ -3,7 +3,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams } from 'next/navigation';
-import { Send, Bot, User, ChevronLeft, Loader2, Check, CheckCheck, Paperclip, CornerUpLeft, X } from 'lucide-react';
+import { Send, Bot, User, ChevronLeft, Loader2, Check, CheckCheck, Paperclip, CornerUpLeft, X, ChevronDown } from 'lucide-react';
 import { getMessages, addMessage, getContacts, dismissAttention } from '@/lib/redis';
 import { Message, Contact, MessageStatus, MediaType } from '@/lib/data';
 import { Button } from '@/components/ui/button';
@@ -319,62 +319,71 @@ export default function ChatViewPage() {
             </div>
           ) : (
             messages.map(msg => (
-              <DropdownMenu key={msg.id}>
-                <DropdownMenuTrigger asChild>
-                    <div
-                        className={cn(
-                        'flex items-end gap-3 w-fit',
-                        getMessageAlignment(msg.sender)
-                        )}
-                    >
-                        <Avatar className="h-8 w-8">
-                        {msg.sender === 'operator' ? (
-                            <AvatarFallback>{operatorName.charAt(0)}</AvatarFallback>
-                        ) : msg.sender === 'bot' ? (
-                            <AvatarImage src={msg.botAvatarUrl || "/logo.svg"} alt="Bot Logo" />
-                        ) : (
-                            <>
-                            <AvatarImage src={contact?.avatar} alt={contact?.name} />
-                            <AvatarFallback>{contact?.name.charAt(0)}</AvatarFallback>
-                            </>
-                        )}
-                        </Avatar>
-                        <div
-                        className={cn(
-                            'max-w-xl rounded-lg px-4 py-2 text-sm shadow-sm flex flex-col',
-                            getMessageStyle(msg.sender)
-                        )}
-                        >
-                        {msg.sender === 'bot' && (
-                            <p className="text-xs font-bold mb-1">BOT</p>
-                        )}
-                        {msg.sender === 'operator' && msg.operatorName && (
-                            <span className="font-bold text-xs mb-1">{msg.operatorName}</span>
-                        )}
-                        
-                        {msg.quotedMessage && (
-                            <div className="bg-background/20 p-2 rounded-md mb-2 border-l-2 border-primary-foreground/50">
-                                <p className="font-bold text-xs">{msg.quotedMessage.senderName}</p>
-                                <p className="text-xs opacity-90 truncate">{msg.quotedMessage.text}</p>
-                            </div>
-                        )}
+                <div key={msg.id}
+                  className={cn(
+                  'group relative flex items-end gap-3 w-fit',
+                  getMessageAlignment(msg.sender)
+                  )}
+                >
+                  <Avatar className="h-8 w-8">
+                  {msg.sender === 'operator' ? (
+                      <AvatarFallback>{operatorName.charAt(0)}</AvatarFallback>
+                  ) : msg.sender === 'bot' ? (
+                      <AvatarImage src={msg.botAvatarUrl || "/logo.svg"} alt="Bot Logo" />
+                  ) : (
+                      <>
+                      <AvatarImage src={contact?.avatar} alt={contact?.name} />
+                      <AvatarFallback>{contact?.name.charAt(0)}</AvatarFallback>
+                      </>
+                  )}
+                  </Avatar>
+                  <div
+                  className={cn(
+                      'max-w-xl rounded-lg px-4 py-2 text-sm shadow-sm flex flex-col',
+                      getMessageStyle(msg.sender)
+                  )}
+                  >
+                  {msg.sender === 'bot' && (
+                      <p className="text-xs font-bold mb-1">BOT</p>
+                  )}
+                  {msg.sender === 'operator' && msg.operatorName && (
+                      <span className="font-bold text-xs mb-1">{msg.operatorName}</span>
+                  )}
+                  
+                  {msg.quotedMessage && (
+                      <div className="bg-background/20 p-2 rounded-md mb-2 border-l-2 border-primary-foreground/50">
+                          <p className="font-bold text-xs">{msg.quotedMessage.senderName}</p>
+                          <p className="text-xs opacity-90 truncate">{msg.quotedMessage.text}</p>
+                      </div>
+                  )}
 
-                        <MediaMessage msg={msg} />
+                  <MediaMessage msg={msg} />
 
-                        <div className="flex items-center justify-end mt-1 text-xs opacity-60 self-end">
-                            <span>{new Date(msg.timestamp).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
-                            {msg.sender === 'operator' && msg.status && <MessageStatusIndicator status={msg.status} />}
-                        </div>
-                        </div>
-                    </div>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent>
-                    <DropdownMenuItem onClick={() => handleStartReply(msg)}>
-                        <CornerUpLeft className="mr-2 h-4 w-4" />
-                        <span>Responder</span>
-                    </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
+                  <div className="flex items-center justify-end mt-1 text-xs opacity-60 self-end">
+                      <span>{new Date(msg.timestamp).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
+                      {msg.sender === 'operator' && msg.status && <MessageStatusIndicator status={msg.status} />}
+                  </div>
+                  </div>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className={cn("absolute top-0 h-8 w-8 rounded-full opacity-0 group-hover:opacity-100 transition-opacity",
+                          msg.sender === 'user' ? "right-[-2.5rem]" : "left-[-2.5rem]"
+                        )}
+                      >
+                        <ChevronDown className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent>
+                        <DropdownMenuItem onClick={() => handleStartReply(msg)}>
+                            <CornerUpLeft className="mr-2 h-4 w-4" />
+                            <span>Responder</span>
+                        </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
             ))
           )}
         </div>
