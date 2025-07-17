@@ -3,7 +3,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams } from 'next/navigation';
-import Image from 'next/image';
 import { Send, Bot, User, ChevronLeft, Loader2, Check, CheckCheck, Paperclip } from 'lucide-react';
 import { getMessages, addMessage, getContacts, dismissAttention } from '@/lib/redis';
 import { Message, Contact, MessageStatus, MediaType } from '@/lib/data';
@@ -32,25 +31,18 @@ const MediaMessage = ({ msg }: { msg: Message }) => {
   if (!msg.mediaUrl) return null;
 
   const renderMedia = () => {
-    if (!msg.mediaType) {
-        // Fallback for when mediaType is missing but mediaUrl is present
-        if (/\.(jpg|jpeg|png|gif|webp)$/i.test(msg.mediaUrl)) {
-             // eslint-disable-next-line @next/next/no-img-element
-            return <img src={msg.mediaUrl} alt={msg.text || 'Imagem enviada'} width={300} height={300} className="rounded-lg object-cover" />;
-        }
-        return <a href={msg.mediaUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">Ver Mídia</a>;
-    }
-    
     switch (msg.mediaType) {
       case 'image':
         return (
-            // eslint-disable-next-line @next/next/no-img-element
+          <a href={msg.mediaUrl} target="_blank" rel="noopener noreferrer" className="block cursor-pointer">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={msg.mediaUrl}
               alt={msg.text || 'Imagem enviada'}
               className="rounded-lg object-cover max-w-xs"
               style={{ maxWidth: '300px' }}
             />
+          </a>
         );
       case 'video':
         return (
@@ -76,14 +68,14 @@ const MediaMessage = ({ msg }: { msg: Message }) => {
             </a>
         );
       default:
-        return <a href={msg.mediaUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">Ver Mídia Desconhecida</a>;
+         // Fallback for unknown media or when mediaType is missing
+        return <a href={msg.mediaUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">Ver Mídia</a>;
     }
   };
 
   return (
     <div className="flex flex-col gap-2">
       {renderMedia()}
-      {/* Exibe a legenda (msg.text) se ela existir. Para documentos, o texto já está no link. */}
       {msg.mediaType !== 'document' && msg.text && (
         <p className="text-sm pt-1">{msg.text}</p>
       )}
