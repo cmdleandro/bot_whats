@@ -37,7 +37,7 @@ const MediaMessage = ({ msg }: { msg: Message }) => {
         <img
           src={thumbnailUrl}
           alt={msg.text || 'Imagem enviada'}
-          className="rounded-lg object-cover w-full max-w-sm"
+          className="rounded-lg object-cover w-full max-w-lg"
         />
         {msg.text && <p className="text-sm">{msg.text}</p>}
       </div>
@@ -52,7 +52,7 @@ const MediaMessage = ({ msg }: { msg: Message }) => {
         <img
             src={msg.text}
             alt="Imagem enviada"
-            className="rounded-lg object-cover w-full max-w-sm"
+            className="rounded-lg object-cover w-full max-w-lg"
         />
       </div>
     );
