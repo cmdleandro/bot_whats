@@ -46,9 +46,17 @@ export async function getClient() {
 }
 
 function extractValue(jsonString: string, key: string): string | null {
-    const regex = new RegExp(`"${key}"\\s*:\\s*"([^"]*)"`);
-    const match = jsonString.match(regex);
-    return match ? match[1] : null;
+    // Tenta encontrar o valor entre aspas. Ex: "key": "value"
+    let regex = new RegExp(`"${key}"\\s*:\\s*"([^"]*)"`);
+    let match = jsonString.match(regex);
+    if (match) return match[1];
+
+    // Tenta encontrar o valor booleano. Ex: "key": false
+    regex = new RegExp(`"${key}"\\s*:\\s*(true|false)`);
+    match = jsonString.match(regex);
+    if (match) return match[1];
+
+    return null;
 }
 
 
@@ -60,16 +68,23 @@ function parseJsonMessage(jsonString: string): Partial<StoredMessage> | null {
     console.warn('Falha ao fazer parse da mensagem JSON. Tentando recuperação manual:', jsonString, error);
     // Fallback manual para JSON malformado
     try {
-        const mediaUrl = extractValue(jsonString, 'mediaUrl');
-        if (mediaUrl) {
-            const recovered: Partial<StoredMessage> = {
-                mediaUrl: mediaUrl,
-                caption: extractValue(jsonString, 'caption'),
-                texto: extractValue(jsonString, 'caption') || '',
-                timestamp: extractValue(jsonString, 'timestamp') || Math.floor(Date.now() / 1000).toString(),
-                tipo: 'user', // Assume 'user' para mensagens recuperadas
-                messageType: 'imageMessage', // Assume 'image' para recuperação
-            };
+        const recovered: Partial<StoredMessage> = {
+            mediaUrl: extractValue(jsonString, 'mediaUrl'),
+            caption: extractValue(jsonString, 'caption'),
+            texto: extractValue(jsonString, 'caption') || extractValue(jsonString, 'texto') || '',
+            timestamp: extractValue(jsonString, 'timestamp') || Math.floor(Date.now() / 1000).toString(),
+            tipo: extractValue(jsonString, 'fromMe') === 'true' ? 'operator' : 'user',
+            contactName: extractValue(jsonString, 'contactName'),
+            contactPhotoUrl: extractValue(jsonString, 'contactPhotoUrl'),
+            messageType: extractValue(jsonString, 'messageType') || (extractValue(jsonString, 'mediaUrl') ? 'imageMessage' : 'text'), // Assume imagem se houver mediaUrl
+            fromMe: extractValue(jsonString, 'fromMe') || 'false',
+            instance: extractValue(jsonString, 'instance'),
+            messageId: extractValue(jsonString, 'messageId'),
+            needsAttention: extractValue(jsonString, 'needsAttention') === 'true',
+            status: 'sent', // Assume um status padrão
+        };
+        // Retorna apenas se conseguimos extrair algo útil (como texto ou mídia)
+        if (recovered.texto || recovered.mediaUrl) {
             return recovered;
         }
     } catch (recoveryError) {
@@ -349,5 +364,3 @@ export async function saveGlobalSettings(settings: GlobalSettings): Promise<void
         throw error;
     }
 }
-
-    
