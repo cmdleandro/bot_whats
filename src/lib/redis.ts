@@ -60,12 +60,19 @@ function extractValue(jsonString: string, key: string): string | null {
 function parseJsonMessage(jsonString: string): Partial<StoredMessage> | null {
   try {
     if (!jsonString) return null;
-    return JSON.parse(jsonString);
+    // Prioriza o parse nativo que é mais rápido e confiável
+    const parsed = JSON.parse(jsonString);
+    // Garante que o messageId do webhook seja mantido
+    if (parsed.id && !parsed.messageId) {
+        parsed.messageId = parsed.id;
+    }
+    return parsed;
+
   } catch (error) {
     console.warn('Falha ao fazer parse da mensagem JSON. Tentando recuperação manual:', jsonString);
     try {
         const recovered: Partial<StoredMessage> = {
-            id: extractValue(jsonString, 'id'),
+            messageId: extractValue(jsonString, 'messageId') || extractValue(jsonString, 'id'), // Prioriza messageId
             mediaUrl: extractValue(jsonString, 'mediaUrl'),
             caption: extractValue(jsonString, 'caption'),
             messageType: extractValue(jsonString, 'messageType'),
@@ -75,7 +82,6 @@ function parseJsonMessage(jsonString: string): Partial<StoredMessage> | null {
             contactPhotoUrl: extractValue(jsonString, 'contactPhotoUrl'),
             fromMe: extractValue(jsonString, 'fromMe') || 'false',
             instance: extractValue(jsonString, 'instance'),
-            messageId: extractValue(jsonString, 'messageId'),
             needsAttention: extractValue(jsonString, 'needsAttention') === 'true',
             status: 'sent',
             jpegThumbnail: extractValue(jsonString, 'jpegThumbnail'),
@@ -89,7 +95,7 @@ function parseJsonMessage(jsonString: string): Partial<StoredMessage> | null {
         }
         
         recovered.quotedMessage = undefined;
-        recovered.messageId = recovered.messageId || recovered.id;
+        recovered.id = recovered.id || recovered.messageId;
 
 
         if (recovered.texto || recovered.mediaUrl) {
@@ -248,6 +254,8 @@ export async function getMessages(contactId: string): Promise<Message[]> {
             sender = 'user';
         }
         
+        // **A CORREÇÃO PRINCIPAL**
+        // Prioriza o 'messageId' do webhook. Usa o 'id' legado ou um gerado como fallback.
         const uniqueId = storedMsg.messageId || storedMsg.id || `${timestampInMs}-${index}`;
 
         return {
@@ -306,6 +314,7 @@ export async function addMessage(contactId: string, message: { text: string; sen
     
     const messageObjectToStore: StoredMessage = {
       id: message.tempId,
+      messageId: message.tempId, // Mantém consistência
       texto: message.text,
       tipo: message.sender,
       timestamp: Math.floor(Date.now() / 1000).toString(),
@@ -329,7 +338,7 @@ export async function addMessage(contactId: string, message: { text: string; sen
         messageForQueue.options.quoted = {
             key: {
                 remoteJid: contactId.trim(),
-                id: message.quotedMessage.id,
+                id: message.quotedMessage.id, // O ID REAL da mensagem a ser respondida
                 fromMe: message.quotedMessage.sender !== 'user',
             },
             message: {
