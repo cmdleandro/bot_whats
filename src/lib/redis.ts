@@ -139,20 +139,27 @@ function getLastMessageText(msg: Partial<StoredMessage>): string {
 }
 
 const ATTENTION_PHRASES = [
-  'técnico humano',
-  'acionar um técnico',
+  'tecnico humano',
+  'acionar um tecnico',
   'falar com um atendente',
   'transferindo para um atendente',
   'ajuda humana'
 ];
 
+function normalizeText(text: string): string {
+    return text
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "");
+}
+
 function shouldTriggerAttention(message: Partial<StoredMessage>): boolean {
-    if (message.needsAttention) {
+    if (message.needsAttention === true) {
         return true;
     }
     if (message.tipo === 'bot' && message.texto) {
-        const lowerCaseText = message.texto.toLowerCase();
-        return ATTENTION_PHRASES.some(phrase => lowerCaseText.includes(phrase));
+        const normalizedText = normalizeText(message.texto);
+        return ATTENTION_PHRASES.some(phrase => normalizedText.includes(phrase));
     }
     return false;
 }
@@ -254,8 +261,6 @@ export async function getMessages(contactId: string): Promise<Message[]> {
             sender = 'user';
         }
         
-        // **A CORREÇÃO PRINCIPAL**
-        // Prioriza o 'messageId' do webhook. Usa o 'id' legado ou um gerado como fallback.
         const uniqueId = storedMsg.messageId || storedMsg.id || `${timestampInMs}-${index}`;
 
         return {
@@ -314,7 +319,7 @@ export async function addMessage(contactId: string, message: { text: string; sen
     
     const messageObjectToStore: StoredMessage = {
       id: message.tempId,
-      messageId: message.tempId, // Mantém consistência
+      messageId: message.tempId,
       texto: message.text,
       tipo: message.sender,
       timestamp: Math.floor(Date.now() / 1000).toString(),
@@ -338,7 +343,7 @@ export async function addMessage(contactId: string, message: { text: string; sen
         messageForQueue.options.quoted = {
             key: {
                 remoteJid: contactId.trim(),
-                id: message.quotedMessage.id, // O ID REAL da mensagem a ser respondida
+                id: message.quotedMessage.id,
                 fromMe: message.quotedMessage.sender !== 'user',
             },
             message: {
@@ -435,5 +440,3 @@ export async function saveGlobalSettings(settings: GlobalSettings): Promise<void
         throw error;
     }
 }
-
-    
