@@ -46,23 +46,13 @@ export async function getClient() {
 }
 
 function extractValue(jsonString: string, key: string): string | null {
-    // Tenta encontrar o valor entre aspas. Ex: "key": "value"
-    let regex = new RegExp(`"${key}"\\s*:\\s*"([^"]*)"`);
-    let match = jsonString.match(regex);
-    if (match) return match[1];
-
-    // Tenta encontrar o valor booleano ou numérico sem aspas. Ex: "key": false
-    regex = new RegExp(`"${key}"\\s*:\\s*([^",}]+)`);
-    match = jsonString.match(regex);
+    // Regex aprimorada para capturar valores entre aspas, ou valores não citados (palavras, números, booleanos)
+    const regex = new RegExp(`"${key}"\\s*:\\s*(?:"([^"]*)"|([^",}]+))`);
+    const match = jsonString.match(regex);
     if (match) {
-        const value = match[1].trim();
-        // Remove aspas se houver, para casos como "operator"
-        if (value.startsWith('"') && value.endsWith('"')) {
-            return value.substring(1, value.length - 1);
-        }
-        return value;
+        // O valor pode estar no grupo de captura 1 (entre aspas) ou 2 (sem aspas)
+        return match[1] || match[2].trim();
     }
-
     return null;
 }
 
@@ -72,18 +62,17 @@ function parseJsonMessage(jsonString: string): Partial<StoredMessage> | null {
     if (!jsonString) return null;
     return JSON.parse(jsonString);
   } catch (error) {
-    console.warn('Falha ao fazer parse da mensagem JSON. Tentando recuperação manual:', jsonString, error);
+    console.warn('Falha ao fazer parse da mensagem JSON. Tentando recuperação manual:', jsonString);
     // Fallback manual para JSON malformado
     try {
         const recovered: Partial<StoredMessage> = {
             mediaUrl: extractValue(jsonString, 'mediaUrl'),
             caption: extractValue(jsonString, 'caption'),
+            messageType: extractValue(jsonString, 'messageType'),
             texto: extractValue(jsonString, 'caption') || extractValue(jsonString, 'texto') || '',
             timestamp: extractValue(jsonString, 'timestamp') || Math.floor(Date.now() / 1000).toString(),
-            tipo: (extractValue(jsonString, 'fromMe') === 'true' || extractValue(jsonString, 'tipo') === 'operator') ? 'operator' : 'user',
             contactName: extractValue(jsonString, 'contactName'),
             contactPhotoUrl: extractValue(jsonString, 'contactPhotoUrl'),
-            messageType: extractValue(jsonString, 'messageType') || (extractValue(jsonString, 'mediaUrl') ? 'imageMessage' : 'text'),
             fromMe: extractValue(jsonString, 'fromMe') || 'false',
             instance: extractValue(jsonString, 'instance'),
             messageId: extractValue(jsonString, 'messageId'),
@@ -91,9 +80,11 @@ function parseJsonMessage(jsonString: string): Partial<StoredMessage> | null {
             status: 'sent',
         };
         
-        const tipoExtracted = extractValue(jsonString, 'tipo');
+        let tipoExtracted = extractValue(jsonString, 'tipo');
         if (tipoExtracted && ['user', 'bot', 'operator'].includes(tipoExtracted)) {
             recovered.tipo = tipoExtracted as 'user' | 'bot' | 'operator';
+        } else {
+             recovered.tipo = (recovered.fromMe === 'true' || tipoExtracted === 'operator') ? 'operator' : 'user';
         }
 
         if (recovered.texto || recovered.mediaUrl) {
