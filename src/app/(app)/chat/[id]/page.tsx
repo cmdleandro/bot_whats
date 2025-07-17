@@ -3,7 +3,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams } from 'next/navigation';
-import { Send, Bot, User, ChevronLeft, Loader2, Check, CheckCheck, Paperclip } from 'lucide-react';
+import { Send, Bot, User, ChevronLeft, Loader2, Check, CheckCheck, Paperclip, CornerUpLeft, X } from 'lucide-react';
 import { getMessages, addMessage, getContacts, dismissAttention } from '@/lib/redis';
 import { Message, Contact, MessageStatus, MediaType } from '@/lib/data';
 import { Button } from '@/components/ui/button';
@@ -73,6 +73,26 @@ const MediaMessage = ({ msg }: { msg: Message }) => {
   return <p className="whitespace-pre-wrap">{msg.text}</p>;
 };
 
+const QuotedMessagePreview = ({ msg, contact }: { msg: Message, contact: Contact | null }) => {
+    let senderName = '';
+    if (msg.sender === 'operator') {
+        senderName = msg.operatorName || 'Operador';
+    } else if (msg.sender === 'bot') {
+        senderName = 'Bot';
+    } else {
+        senderName = contact?.name || 'Usuário';
+    }
+
+    const previewText = msg.text.length > 50 ? `${msg.text.substring(0, 50)}...` : msg.text;
+
+    return (
+        <div className="bg-muted/50 p-2 rounded-t-md border-l-4 border-primary">
+            <p className="font-bold text-sm text-primary">{senderName}</p>
+            <p className="text-sm text-muted-foreground truncate">{previewText}</p>
+        </div>
+    );
+};
+
 
 export default function ChatViewPage() {
   const params = useParams();
@@ -86,8 +106,9 @@ export default function ChatViewPage() {
   const [operatorName, setOperatorName] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [isSending, setIsSending] = useState(false);
+  const [replyingTo, setReplyingTo] = useState<Message | null>(null);
 
-
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
 
   const fetchMessages = React.useCallback(async (id: string, isBackground: boolean) => {
@@ -185,18 +206,29 @@ export default function ChatViewPage() {
       operatorName: operatorName,
       timestamp: Date.now(),
       status: 'sent',
+      quotedMessage: replyingTo ? {
+        id: replyingTo.id,
+        text: replyingTo.text,
+        sender: replyingTo.sender,
+        senderName: replyingTo.sender === 'user' ? contact?.name || 'User' : (replyingTo.operatorName || 'System'),
+      } : undefined
     };
-
-    setMessages(prevMessages => [...prevMessages, message]);
+    
+    // Optimistic update
+    // setMessages(prevMessages => [...prevMessages, message]);
     setNewMessage('');
+    setReplyingTo(null);
 
     try {
       await addMessage(contactId, {
         text: message.text,
         sender: 'operator',
         operatorName: operatorName,
-        tempId: tempId
+        tempId: tempId,
+        quotedMessage: message.quotedMessage
       });
+      // Fetch new messages to get the real one from redis
+      await fetchMessages(contactId, true);
     } catch (error: any) {
       console.error('Falha ao enviar mensagem:', error);
       toast({
@@ -204,11 +236,22 @@ export default function ChatViewPage() {
         title: 'Erro ao Enviar',
         description: error.message || 'Não foi possível enviar a mensagem. Por favor, tente novamente.',
       });
-      setMessages(prevMessages => prevMessages.filter(m => m.id !== tempId));
+      // Revert optimistic update if necessary
+      // setMessages(prevMessages => prevMessages.filter(m => m.id !== tempId));
     } finally {
       setIsSending(false);
-      document.querySelector('textarea')?.focus();
+      textareaRef.current?.focus();
     }
+  };
+  
+  const handleStartReply = (message: Message) => {
+    setReplyingTo(message);
+    textareaRef.current?.focus();
+  };
+
+  const handleCancelReply = () => {
+    setReplyingTo(null);
+    textareaRef.current?.focus();
   };
 
   if (!contact && !isLoading) {
@@ -231,6 +274,19 @@ export default function ChatViewPage() {
         return 'rounded-bl-none bg-background';
     }
   };
+
+  const getMessageAlignment = (sender: Message['sender']) => {
+     switch (sender) {
+      case 'user':
+        return 'mr-auto';
+      case 'operator':
+        return 'ml-auto flex-row-reverse';
+      case 'bot':
+        return 'ml-auto flex-row-reverse';
+      default:
+        return 'mr-auto';
+    }
+  }
 
   return (
     <div className="flex h-screen flex-col bg-card">
@@ -277,8 +333,8 @@ export default function ChatViewPage() {
               <div
                 key={msg.id}
                 className={cn(
-                  'flex items-end gap-3',
-                  msg.sender === 'user' ? 'mr-auto' : 'ml-auto flex-row-reverse'
+                  'flex items-end gap-3 group relative',
+                  getMessageAlignment(msg.sender)
                 )}
               >
                 <Avatar className="h-8 w-8">
@@ -306,12 +362,32 @@ export default function ChatViewPage() {
                     <span className="font-bold text-xs mb-1">{msg.operatorName}</span>
                   )}
                   
+                  {msg.quotedMessage && (
+                    <div className="bg-background/20 p-2 rounded-md mb-2 border-l-2 border-primary-foreground/50">
+                        <p className="font-bold text-xs">{msg.quotedMessage.senderName}</p>
+                        <p className="text-xs opacity-90 truncate">{msg.quotedMessage.text}</p>
+                    </div>
+                  )}
+
                   <MediaMessage msg={msg} />
 
                   <div className="flex items-center justify-end mt-1 text-xs opacity-60 self-end">
                     <span>{new Date(msg.timestamp).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
                     {msg.sender === 'operator' && msg.status && <MessageStatusIndicator status={msg.status} />}
                   </div>
+                </div>
+
+                <div className="absolute top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity flex items-center bg-background/80 rounded-full shadow-md"
+                    style={msg.sender === 'user' ? { right: '-2.5rem' } : { left: '-2.5rem' }}
+                >
+                    <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8"
+                        onClick={() => handleStartReply(msg)}
+                    >
+                        <CornerUpLeft className="h-4 w-4" />
+                    </Button>
                 </div>
               </div>
             ))
@@ -320,8 +396,22 @@ export default function ChatViewPage() {
       </ScrollArea>
       
       <footer className="border-t bg-background p-4">
+        {replyingTo && (
+            <div className="relative mb-2">
+                <QuotedMessagePreview msg={replyingTo} contact={contact} />
+                <Button 
+                    variant="ghost" 
+                    size="icon" 
+                    className="absolute top-1 right-1 h-6 w-6"
+                    onClick={handleCancelReply}
+                >
+                    <X className="h-4 w-4" />
+                </Button>
+            </div>
+        )}
         <div className="relative flex items-center">
           <Textarea
+            ref={textareaRef}
             value={newMessage}
             onChange={e => setNewMessage(e.target.value)}
             onKeyDown={e => {
@@ -349,3 +439,4 @@ export default function ChatViewPage() {
     </div>
   );
 }
+

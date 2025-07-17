@@ -2,7 +2,7 @@
 'use server';
 
 import { createClient } from 'redis';
-import type { Contact, Message, StoredMessage, User, StoredContact, GlobalSettings, MediaType } from './data';
+import type { Contact, Message, StoredMessage, User, StoredContact, GlobalSettings, MediaType, QuotedMessage } from './data';
 import { initialUsers } from './data';
 import { formatDistanceToNow, fromUnixTime } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -59,6 +59,7 @@ function extractValue(jsonString: string, key: string): string | null {
 function parseJsonMessage(jsonString: string): Partial<StoredMessage> | null {
   try {
     if (!jsonString) return null;
+    // Attempt to parse the full JSON, including nested objects like quotedMessage
     return JSON.parse(jsonString);
   } catch (error) {
     console.warn('Falha ao fazer parse da mensagem JSON. Tentando recuperação manual:', jsonString);
@@ -85,6 +86,9 @@ function parseJsonMessage(jsonString: string): Partial<StoredMessage> | null {
         } else {
              recovered.tipo = (recovered.fromMe === 'true' || tipoExtracted === 'operator') ? 'operator' : 'user';
         }
+        
+        // Manual recovery doesn't support quoted messages yet.
+        recovered.quotedMessage = undefined;
 
         if (recovered.texto || recovered.mediaUrl) {
             console.log('Mensagem recuperada manualmente:', recovered);
@@ -107,6 +111,9 @@ function mapMessageTypeToMediaType(messageType?: string): MediaType | undefined 
 }
 
 function getLastMessageText(msg: Partial<StoredMessage>): string {
+  if (msg.quotedMessage) {
+    return `↩️ ${msg.texto}`
+  }
   const mediaType = mapMessageTypeToMediaType(msg.messageType);
   
   if (mediaType || msg.jpegThumbnail) {
@@ -147,7 +154,10 @@ export async function getContacts(): Promise<Contact[]> {
         const msg = parseJsonMessage(msgString);
         if (msg && msg.contactName) {
             contactNameFromHistory = msg.contactName;
-            contactPhotoFromHistory = msg.contactPhotoUrl;
+            // Only take the photo if the name is also present in the same message
+            if (msg.contactPhotoUrl) {
+                contactPhotoFromHistory = msg.contactPhotoUrl;
+            }
             break; 
         }
     }
@@ -199,15 +209,17 @@ export async function getMessages(contactId: string): Promise<Message[]> {
         const timestampInMs = storedMsg.timestamp ? (parseInt(storedMsg.timestamp, 10) * 1000) : Date.now();
         
         let sender: Message['sender'];
-        if (storedMsg.tipo === 'operator' || storedMsg.fromMe === 'true') {
-            sender = 'operator';
+        // This logic correctly identifies the sender.
+        // fromMe is the operator. tipo 'bot' is the bot. Everything else is the user.
+        if (storedMsg.fromMe === 'true' || storedMsg.tipo === 'operator') {
+          sender = 'operator';
         } else if (storedMsg.tipo === 'bot') {
             sender = 'bot';
         } else {
             sender = 'user';
         }
         
-        const uniqueId = storedMsg.id || storedMsg.messageId || `${timestampInMs}-${index}`;
+        const uniqueId = storedMsg.messageId || storedMsg.id || `${timestampInMs}-${index}`;
 
         return {
           id: uniqueId,
@@ -221,6 +233,7 @@ export async function getMessages(contactId: string): Promise<Message[]> {
           mediaUrl: storedMsg.mediaUrl,
           mediaType: mapMessageTypeToMediaType(storedMsg.messageType),
           jpegThumbnail: storedMsg.jpegThumbnail,
+          quotedMessage: storedMsg.quotedMessage
         };
       })
       .filter((msg): msg is Message => msg !== null)
@@ -234,7 +247,7 @@ export async function getMessages(contactId: string): Promise<Message[]> {
   }
 }
 
-export async function addMessage(contactId: string, message: { text: string; sender: 'operator', operatorName: string, tempId: string }): Promise<void> {
+export async function addMessage(contactId: string, message: { text: string; sender: 'operator', operatorName: string, tempId: string, quotedMessage?: QuotedMessage }): Promise<void> {
     const client = await getClient();
     const historyKey = `chat:${contactId.trim()}`;
     const channelName = 'fila_envio_whatsapp';
@@ -271,9 +284,11 @@ export async function addMessage(contactId: string, message: { text: string; sen
       instance: instanceName,
       needsAttention: false,
       status: 'sent',
+      quotedMessage: message.quotedMessage
     };
-
-    const messageForQueue = {
+    
+    // Construct the payload for the queue, including quoted message info if present
+    const messageForQueue: any = {
       instance: instanceName,
       remoteJid: contactId.trim(),
       text: `*${message.operatorName}*\n${message.text}`,
@@ -281,6 +296,19 @@ export async function addMessage(contactId: string, message: { text: string; sen
         messageId: message.tempId
       }
     };
+    
+    if (message.quotedMessage) {
+        messageForQueue.options.quoted = {
+            key: {
+                remoteJid: contactId.trim(),
+                id: message.quotedMessage.id,
+                fromMe: message.quotedMessage.sender !== 'user',
+            },
+            message: {
+                conversation: message.quotedMessage.text
+            }
+        };
+    }
     
     await client.lPush(historyKey, JSON.stringify(messageObjectToStore));
     await client.publish(channelName, JSON.stringify(messageForQueue));

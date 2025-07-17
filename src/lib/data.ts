@@ -11,6 +11,15 @@ export type User = {
 export type MessageStatus = 'sent' | 'delivered' | 'read';
 export type MediaType = 'image' | 'video' | 'audio' | 'document';
 
+// Represents the data of a message being replied to.
+export type QuotedMessage = {
+  id: string;      // The ID of the message being replied to (e.g., messageId from webhook)
+  text: string;    // The text content of the replied message
+  sender: 'user' | 'bot' | 'operator'; // The original sender of the replied message
+  senderName: string; // The name of the original sender
+};
+
+
 // Este tipo representa o objeto JSON que está dentro da string na lista do Redis
 export type StoredMessage = {
   id?: string; // id pode não estar presente nos dados do webhook
@@ -29,6 +38,7 @@ export type StoredMessage = {
   messageType?: string; // e.g., 'imageMessage', 'videoMessage' from webhook
   caption?: string;
   jpegThumbnail?: string; // Base64 encoded thumbnail
+  quotedMessage?: QuotedMessage;
 };
 
 
@@ -45,6 +55,7 @@ export type Message = {
   mediaUrl?: string;
   mediaType?: MediaType;
   jpegThumbnail?: string;
+  quotedMessage?: QuotedMessage;
 };
 
 export type Contact = {
