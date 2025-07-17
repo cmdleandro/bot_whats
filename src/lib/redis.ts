@@ -132,7 +132,7 @@ export async function getContacts(): Promise<Contact[]> {
 
   for await (const key of client.scanIterator({ MATCH: 'chat:*', COUNT: 100 })) {
     const contactId = key.replace(/^chat:/, '');
-    const messageHistory = await client.lRange(key, 0, 10); // Pega as últimas 10 msgs
+    const messageHistory = await client.lRange(key, 0, 10);
 
     if (!messageHistory || messageHistory.length === 0) continue;
 
@@ -140,18 +140,20 @@ export async function getContacts(): Promise<Contact[]> {
     const lastMsg = parseJsonMessage(lastMessageString);
     if (!lastMsg) continue;
 
-    // **NOVA LÓGICA:** Itera sobre o histórico para encontrar o nome e a foto.
+    // **LÓGICA CORRIGIDA:** Busca nome e foto no histórico, garantindo que a foto venha da mesma mensagem que o nome.
     let contactNameFromHistory: string | undefined;
     let contactPhotoFromHistory: string | undefined;
 
     for (const msgString of messageHistory) {
         const msg = parseJsonMessage(msgString);
         if (msg) {
-            if (!contactNameFromHistory && msg.contactName) {
-                contactNameFromHistory = msg.contactName;
-            }
-            if (!contactPhotoFromHistory && msg.contactPhotoUrl) {
-                contactPhotoFromHistory = msg.contactPhotoUrl;
+            if (msg.contactName) { // Apenas considera mensagens que tenham o nome do contato
+                if (!contactNameFromHistory) {
+                    contactNameFromHistory = msg.contactName;
+                }
+                if (!contactPhotoFromHistory && msg.contactPhotoUrl) {
+                    contactPhotoFromHistory = msg.contactPhotoUrl;
+                }
             }
         }
         // Para assim que encontrar ambos
