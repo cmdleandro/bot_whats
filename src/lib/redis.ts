@@ -45,12 +45,36 @@ export async function getClient() {
     }
 }
 
-function parseJsonMessage(jsonString: string): StoredMessage | null {
+function extractValue(jsonString: string, key: string): string | null {
+    const regex = new RegExp(`"${key}"\\s*:\\s*"([^"]*)"`);
+    const match = jsonString.match(regex);
+    return match ? match[1] : null;
+}
+
+
+function parseJsonMessage(jsonString: string): Partial<StoredMessage> | null {
   try {
     if (!jsonString) return null;
     return JSON.parse(jsonString);
   } catch (error) {
-    console.error('Erro ao fazer parse da mensagem JSON do Redis:', jsonString, error);
+    console.warn('Falha ao fazer parse da mensagem JSON. Tentando recuperação manual:', jsonString, error);
+    // Fallback manual para JSON malformado
+    try {
+        const mediaUrl = extractValue(jsonString, 'mediaUrl');
+        if (mediaUrl) {
+            const recovered: Partial<StoredMessage> = {
+                mediaUrl: mediaUrl,
+                caption: extractValue(jsonString, 'caption'),
+                texto: extractValue(jsonString, 'caption') || '',
+                timestamp: extractValue(jsonString, 'timestamp') || Math.floor(Date.now() / 1000).toString(),
+                tipo: 'user', // Assume 'user' para mensagens recuperadas
+                messageType: 'imageMessage', // Assume 'image' para recuperação
+            };
+            return recovered;
+        }
+    } catch (recoveryError) {
+        console.error('Falha na recuperação manual:', recoveryError);
+    }
     return null;
   }
 }
@@ -64,7 +88,7 @@ function mapMessageTypeToMediaType(messageType?: string): MediaType | undefined 
     return undefined;
 }
 
-function getLastMessageText(msg: StoredMessage): string {
+function getLastMessageText(msg: Partial<StoredMessage>): string {
   // Se a mensagem tiver uma legenda, ela tem prioridade.
   if (msg.caption) {
     return msg.caption;
@@ -166,15 +190,14 @@ export async function getMessages(contactId: string): Promise<Message[]> {
         if (!storedMsg) return null;
 
         const timestampInMs = storedMsg.timestamp ? (parseInt(storedMsg.timestamp, 10) * 1000) : Date.now();
-        const sender: Message['sender'] = ['user', 'bot', 'operator'].includes(storedMsg.tipo) ? storedMsg.tipo : 'user';
+        const sender: Message['sender'] = storedMsg.tipo && ['user', 'bot', 'operator'].includes(storedMsg.tipo) ? storedMsg.tipo : 'user';
         
         const uniqueId = storedMsg.id || storedMsg.messageId || `${timestampInMs}-${index}`;
 
         return {
           id: uniqueId,
           contactId: contactId,
-          // Prioriza a legenda (caption). Se não houver, usa o texto.
-          text: storedMsg.caption || storedMsg.texto,
+          text: storedMsg.caption || storedMsg.texto || '',
           sender: sender,
           operatorName: storedMsg.operatorName,
           timestamp: timestampInMs,
@@ -240,7 +263,7 @@ export async function addMessage(contactId: string, message: { text: string; sen
     const messageForQueue = {
       instance: instanceName,
       remoteJid: contactId.trim(),
-      text: `*${message.operatorName}*\n${message.text}`,
+      text: `*${message.operatorName}*\\n${message.text}`,
       options: {
         messageId: message.tempId
       }
@@ -326,3 +349,5 @@ export async function saveGlobalSettings(settings: GlobalSettings): Promise<void
         throw error;
     }
 }
+
+    
