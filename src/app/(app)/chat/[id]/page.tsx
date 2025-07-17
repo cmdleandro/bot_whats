@@ -14,7 +14,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuContextMenuTrigger,
+  DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
@@ -258,9 +258,8 @@ export default function ChatViewPage() {
       case 'user':
         return 'rounded-bl-none bg-background';
       case 'operator':
-        return 'rounded-br-none bg-primary text-primary-foreground';
       case 'bot':
-        return 'rounded-br-none bg-accent text-accent-foreground';
+        return 'rounded-br-none bg-primary text-primary-foreground';
       default:
         return 'rounded-bl-none bg-background';
     }
@@ -271,7 +270,6 @@ export default function ChatViewPage() {
       case 'user':
         return 'mr-auto';
       case 'operator':
-        return 'ml-auto flex-row-reverse';
       case 'bot':
         return 'ml-auto flex-row-reverse';
       default:
@@ -322,7 +320,7 @@ export default function ChatViewPage() {
           ) : (
             messages.map(msg => (
               <DropdownMenu key={msg.id}>
-                <DropdownMenuContextMenuTrigger>
+                <DropdownMenuTrigger asChild>
                     <div
                         className={cn(
                         'flex items-end gap-3 w-fit',
@@ -369,7 +367,7 @@ export default function ChatViewPage() {
                         </div>
                         </div>
                     </div>
-                </DropdownMenuContextMenuTrigger>
+                </DropdownMenuTrigger>
                 <DropdownMenuContent>
                     <DropdownMenuItem onClick={() => handleStartReply(msg)}>
                         <CornerUpLeft className="mr-2 h-4 w-4" />

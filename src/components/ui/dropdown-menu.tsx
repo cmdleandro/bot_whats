@@ -11,8 +11,6 @@ const DropdownMenu = DropdownMenuPrimitive.Root
 
 const DropdownMenuTrigger = DropdownMenuPrimitive.Trigger
 
-const DropdownMenuContextMenuTrigger = DropdownMenuPrimitive.ContextMenuTrigger
-
 const DropdownMenuGroup = DropdownMenuPrimitive.Group
 
 const DropdownMenuPortal = DropdownMenuPrimitive.Portal
@@ -200,5 +198,4 @@ export {
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
   DropdownMenuRadioGroup,
-  DropdownMenuContextMenuTrigger,
 }
