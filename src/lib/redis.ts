@@ -127,38 +127,41 @@ export async function getContacts(): Promise<Contact[]> {
   const client = await getClient();
   const storedContacts = await getStoredContacts();
   const storedContactsMap = new Map(storedContacts.map(c => [c.id, c.name]));
-  let hasNewContactsToSave = false;
 
   const activeContacts: (Contact & { rawTimestamp: number })[] = [];
 
   for await (const key of client.scanIterator({ MATCH: 'chat:*', COUNT: 100 })) {
     const contactId = key.replace(/^chat:/, '');
-    const lastMessageString = await client.lIndex(key, 0);
+    const messageHistory = await client.lRange(key, 0, 10); // Pega as últimas 10 msgs
 
-    if (!lastMessageString) continue;
+    if (!messageHistory || messageHistory.length === 0) continue;
 
+    const lastMessageString = messageHistory[0];
     const lastMsg = parseJsonMessage(lastMessageString);
     if (!lastMsg) continue;
-    
-    const contactNameFromMessage = lastMsg.contactName || contactId.split('@')[0];
-    const existingStoredName = storedContactsMap.get(contactId);
 
-    // **NOVA LÓGICA:** Prioriza o nome da última mensagem. Usa o nome salvo como fallback.
-    const finalContactName = contactNameFromMessage || existingStoredName || contactId.split('@')[0];
-    const finalAvatar = lastMsg.contactPhotoUrl || `https://placehold.co/40x40.png`;
+    // **NOVA LÓGICA:** Itera sobre o histórico para encontrar o nome e a foto.
+    let contactNameFromHistory: string | undefined;
+    let contactPhotoFromHistory: string | undefined;
 
-    // Atualiza a lista de contatos salvos se o nome da mensagem for mais recente e diferente.
-    if (contactNameFromMessage && contactNameFromMessage !== existingStoredName) {
-       const existingContact = storedContacts.find(c => c.id === contactId);
-       if (existingContact) {
-         existingContact.name = contactNameFromMessage;
-       } else {
-         storedContacts.push({ id: contactId, name: contactNameFromMessage });
-       }
-       storedContactsMap.set(contactId, contactNameFromMessage);
-       hasNewContactsToSave = true;
+    for (const msgString of messageHistory) {
+        const msg = parseJsonMessage(msgString);
+        if (msg) {
+            if (!contactNameFromHistory && msg.contactName) {
+                contactNameFromHistory = msg.contactName;
+            }
+            if (!contactPhotoFromHistory && msg.contactPhotoUrl) {
+                contactPhotoFromHistory = msg.contactPhotoUrl;
+            }
+        }
+        // Para assim que encontrar ambos
+        if (contactNameFromHistory && contactPhotoFromHistory) break;
     }
 
+    const existingStoredName = storedContactsMap.get(contactId);
+
+    const finalContactName = contactNameFromHistory || existingStoredName || contactId.split('@')[0];
+    const finalAvatar = contactPhotoFromHistory || `https://placehold.co/40x40.png`;
 
     const timestamp = lastMsg.timestamp ? parseInt(lastMsg.timestamp, 10) : 0;
     
@@ -174,10 +177,6 @@ export async function getContacts(): Promise<Contact[]> {
     };
 
     activeContacts.push(contact as Contact & { rawTimestamp: number });
-  }
-
-  if (hasNewContactsToSave) {
-      await saveStoredContacts(storedContacts);
   }
 
   return activeContacts.sort((a, b) => {
