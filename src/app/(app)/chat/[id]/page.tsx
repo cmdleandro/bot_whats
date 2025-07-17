@@ -30,7 +30,6 @@ const MediaMessage = ({ msg }: { msg: Message }) => {
   const thumbnailUrl = msg.jpegThumbnail ? `data:image/jpeg;base64,${msg.jpegThumbnail}` : null;
   const publicUrlForLink = isPublicImageUrl ? msg.text : null;
 
-  // Renderiza a miniatura se disponível
   if (thumbnailUrl) {
     return (
       <div className="flex flex-col gap-1">
@@ -46,7 +45,6 @@ const MediaMessage = ({ msg }: { msg: Message }) => {
     );
   }
 
-  // Fallback para URL de imagem pública
   if (isPublicImageUrl) {
     return (
        <div className="flex flex-col gap-1">
@@ -60,7 +58,6 @@ const MediaMessage = ({ msg }: { msg: Message }) => {
     );
   }
 
-  // Fallback para outros tipos de mídia como um link de documento
   if (msg.mediaUrl) {
     return (
       <a href={msg.mediaUrl} target="_blank" rel="noopener noreferrer" className="block cursor-pointer">
@@ -72,7 +69,6 @@ const MediaMessage = ({ msg }: { msg: Message }) => {
     );
   }
 
-  // Se não for mídia, apenas texto
   return <p className="whitespace-pre-wrap">{msg.text}</p>;
 };
 
@@ -229,7 +225,7 @@ export default function ChatViewPage() {
       case 'operator':
         return 'rounded-br-none bg-primary text-primary-foreground';
       case 'bot':
-        return 'rounded-br-none bg-accent text-accent-foreground';
+        return 'rounded-bl-none bg-accent text-accent-foreground';
       default:
         return 'rounded-bl-none bg-background';
     }
@@ -281,7 +277,7 @@ export default function ChatViewPage() {
                 key={msg.id}
                 className={cn(
                   'flex items-end gap-3',
-                  msg.sender === 'user' || msg.sender === 'operator' ? 'ml-auto flex-row-reverse' : 'mr-auto'
+                  msg.sender === 'operator' ? 'ml-auto flex-row-reverse' : 'mr-auto'
                 )}
               >
                 <Avatar className="h-8 w-8">

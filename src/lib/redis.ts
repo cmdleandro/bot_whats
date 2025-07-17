@@ -140,24 +140,16 @@ export async function getContacts(): Promise<Contact[]> {
     const lastMsg = parseJsonMessage(lastMessageString);
     if (!lastMsg) continue;
 
-    // **LÓGICA CORRIGIDA:** Busca nome e foto no histórico, garantindo que a foto venha da mesma mensagem que o nome.
     let contactNameFromHistory: string | undefined;
     let contactPhotoFromHistory: string | undefined;
 
     for (const msgString of messageHistory) {
         const msg = parseJsonMessage(msgString);
-        if (msg) {
-            if (msg.contactName) { // Apenas considera mensagens que tenham o nome do contato
-                if (!contactNameFromHistory) {
-                    contactNameFromHistory = msg.contactName;
-                }
-                if (!contactPhotoFromHistory && msg.contactPhotoUrl) {
-                    contactPhotoFromHistory = msg.contactPhotoUrl;
-                }
-            }
+        if (msg && msg.contactName) {
+            contactNameFromHistory = msg.contactName;
+            contactPhotoFromHistory = msg.contactPhotoUrl;
+            break; 
         }
-        // Para assim que encontrar ambos
-        if (contactNameFromHistory && contactPhotoFromHistory) break;
     }
 
     const existingStoredName = storedContactsMap.get(contactId);
@@ -205,7 +197,15 @@ export async function getMessages(contactId: string): Promise<Message[]> {
         if (!storedMsg) return null;
 
         const timestampInMs = storedMsg.timestamp ? (parseInt(storedMsg.timestamp, 10) * 1000) : Date.now();
-        const sender: Message['sender'] = storedMsg.tipo && ['user', 'bot', 'operator'].includes(storedMsg.tipo) ? storedMsg.tipo : 'user';
+        
+        let sender: Message['sender'];
+        if (storedMsg.tipo === 'operator' || storedMsg.fromMe === 'true') {
+            sender = 'operator';
+        } else if (storedMsg.tipo === 'bot') {
+            sender = 'bot';
+        } else {
+            sender = 'user';
+        }
         
         const uniqueId = storedMsg.id || storedMsg.messageId || `${timestampInMs}-${index}`;
 
