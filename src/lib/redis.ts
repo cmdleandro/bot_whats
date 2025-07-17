@@ -370,7 +370,7 @@ export async function dismissAttention(contactId: string): Promise<void> {
         const msgString = messageStrings[i];
         const message = parseJsonMessage(msgString);
 
-        if (message && shouldTriggerAttention(message)) {
+        if (message && message.needsAttention === true) {
             const updatedMessage = { ...message, needsAttention: false };
             await client.lSet(key, i, JSON.stringify(updatedMessage));
             updated = true;
