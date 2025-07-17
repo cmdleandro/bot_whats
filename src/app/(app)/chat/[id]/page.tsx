@@ -29,13 +29,17 @@ function MessageStatusIndicator({ status }: { status: MessageStatus }) {
 
 
 const MediaMessage = ({ msg }: { msg: Message }) => {
-  // A URL da mídia é obrigatória para este componente.
   if (!msg.mediaUrl) return null;
 
   const renderMedia = () => {
-    // Se não houver um mediaType, não renderizamos nada para evitar erros.
-    if (!msg.mediaType) return null;
-
+    if (!msg.mediaType) {
+        // Fallback for when mediaType is missing but mediaUrl is present
+        if (/\.(jpg|jpeg|png|gif|webp)$/i.test(msg.mediaUrl)) {
+            return <Image src={msg.mediaUrl} alt={msg.text || 'Imagem enviada'} width={300} height={300} className="rounded-lg object-cover" />;
+        }
+        return <a href={msg.mediaUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">Ver Mídia</a>;
+    }
+    
     switch (msg.mediaType) {
       case 'image':
         return (
@@ -71,8 +75,7 @@ const MediaMessage = ({ msg }: { msg: Message }) => {
             </a>
         );
       default:
-        // Caso o mediaType seja desconhecido, não renderiza nada.
-        return null;
+        return <a href={msg.mediaUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">Ver Mídia Desconhecida</a>;
     }
   };
 
@@ -211,8 +214,6 @@ export default function ChatViewPage() {
         operatorName: operatorName,
         tempId: tempId
       });
-      // Optionally, you can refetch messages here to get the final status from redis
-      // await fetchMessages(contactId, true);
     } catch (error: any) {
       console.error('Falha ao enviar mensagem:', error);
       toast({
@@ -318,7 +319,7 @@ export default function ChatViewPage() {
                   {msg.sender === 'bot' && (
                       <p className="text-xs font-bold mb-1">BOT</p>
                   )}
-                  {msg.sender === 'operator' && msg.operatorName && (
+                  {msg.sender === 'operator' && msg.operatorName && !msg.mediaUrl && (
                     <span className="font-bold text-xs mb-1">{msg.operatorName}</span>
                   )}
                   
