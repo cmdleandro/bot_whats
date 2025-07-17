@@ -315,10 +315,10 @@ export default function ChatViewPage() {
                      getMessageStyle(msg.sender)
                   )}
                 >
-                  {(msg.sender === 'bot') && (
+                  {msg.sender === 'bot' && (
                       <p className="text-xs font-bold mb-1">BOT</p>
                   )}
-                  {msg.sender === 'operator' && (
+                  {msg.sender === 'operator' && msg.operatorName && (
                     <span className="font-bold text-xs mb-1">{msg.operatorName}</span>
                   )}
                   
