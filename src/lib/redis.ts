@@ -60,9 +60,7 @@ function extractValue(jsonString: string, key: string): string | null {
 function parseJsonMessage(jsonString: string): Partial<StoredMessage> | null {
   try {
     if (!jsonString) return null;
-    // Prioriza o parse nativo que é mais rápido e confiável
     const parsed = JSON.parse(jsonString);
-    // Garante que o messageId do webhook seja mantido
     if (parsed.id && !parsed.messageId) {
         parsed.messageId = parsed.id;
     }
@@ -72,7 +70,7 @@ function parseJsonMessage(jsonString: string): Partial<StoredMessage> | null {
     console.warn('Falha ao fazer parse da mensagem JSON. Tentando recuperação manual:', jsonString);
     try {
         const recovered: Partial<StoredMessage> = {
-            messageId: extractValue(jsonString, 'messageId') || extractValue(jsonString, 'id'), // Prioriza messageId
+            messageId: extractValue(jsonString, 'messageId') || extractValue(jsonString, 'id'),
             mediaUrl: extractValue(jsonString, 'mediaUrl'),
             caption: extractValue(jsonString, 'caption'),
             messageType: extractValue(jsonString, 'messageType'),
@@ -96,7 +94,6 @@ function parseJsonMessage(jsonString: string): Partial<StoredMessage> | null {
         
         recovered.quotedMessage = undefined;
         recovered.id = recovered.id || recovered.messageId;
-
 
         if (recovered.texto || recovered.mediaUrl) {
             console.log('Mensagem recuperada manualmente:', recovered);
@@ -176,6 +173,23 @@ export async function getContacts(): Promise<Contact[]> {
     const messageHistory = await client.lRange(key, 0, 10);
 
     if (!messageHistory || messageHistory.length === 0) continue;
+    
+    // Check if the attention for this chat has been dismissed recently
+    const dismissedKey = `attention-dismissed:${contactId}`;
+    const isDismissed = await client.exists(dismissedKey);
+
+    let hasAttentionFlag = false;
+    // Only check for attention if it hasn't been dismissed
+    if (!isDismissed) {
+        for (const msgString of messageHistory) {
+            const msg = parseJsonMessage(msgString);
+            if (msg && shouldTriggerAttention(msg)) {
+                hasAttentionFlag = true;
+                break;
+            }
+        }
+    }
+
 
     const lastMessageString = messageHistory[0];
     const lastMsg = parseJsonMessage(lastMessageString);
@@ -183,24 +197,18 @@ export async function getContacts(): Promise<Contact[]> {
 
     let contactName: string | undefined;
     let contactPhotoUrl: string | undefined;
-    let hasAttentionFlag = false;
 
+    // We still loop to find contact name/photo, but attention is already decided
     for (const msgString of messageHistory) {
         const msg = parseJsonMessage(msgString);
         if (!msg) continue;
-
         if (!contactName && msg.contactName) {
             contactName = msg.contactName;
             if (msg.contactPhotoUrl) {
                 contactPhotoUrl = msg.contactPhotoUrl;
             }
         }
-        
-        if (shouldTriggerAttention(msg)) {
-            hasAttentionFlag = true;
-        }
-
-        if (contactName && hasAttentionFlag) {
+        if (contactName) {
             break; 
         }
     }
@@ -261,7 +269,7 @@ export async function getMessages(contactId: string): Promise<Message[]> {
             sender = 'user';
         }
         
-        const uniqueId = storedMsg.messageId || storedMsg.id || `${timestampInMs}-${index}`;
+        const uniqueId = storedMsg.messageId || `${timestampInMs}-${index}`;
 
         return {
           id: uniqueId,
@@ -361,28 +369,14 @@ export async function addMessage(contactId: string, message: { text: string; sen
 export async function dismissAttention(contactId: string): Promise<void> {
   try {
     const client = await getClient();
-    const key = `chat:${contactId.trim()}`;
+    const key = `attention-dismissed:${contactId.trim()}`;
+    const TWELVE_HOURS_IN_SECONDS = 12 * 60 * 60;
     
-    const messageStrings = await client.lRange(key, 0, -1);
-    let updated = false;
-
-    for (let i = 0; i < messageStrings.length; i++) {
-        const msgString = messageStrings[i];
-        const message = parseJsonMessage(msgString);
-
-        if (message && message.needsAttention === true) {
-            const updatedMessage = { ...message, needsAttention: false };
-            await client.lSet(key, i, JSON.stringify(updatedMessage));
-            updated = true;
-        }
-    }
-
-    if (updated) {
-        console.log(`Alarme para o contato ${contactId} foi desativado em todas as mensagens relevantes.`);
-    }
+    await client.set(key, 'true', { EX: TWELVE_HOURS_IN_SECONDS });
+    console.log(`Marcador de atenção para o contato ${contactId} foi definido e expirará em 12 horas.`);
 
   } catch (error) {
-    console.error(`Falha ao desativar o alarme para ${contactId}:`, error);
+    console.error(`Falha ao definir o marcador de atenção para ${contactId}:`, error);
   }
 }
 
@@ -440,3 +434,4 @@ export async function saveGlobalSettings(settings: GlobalSettings): Promise<void
         throw error;
     }
 }
+
