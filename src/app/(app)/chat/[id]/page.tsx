@@ -35,6 +35,14 @@ const MediaMessage = ({ msg }: { msg: Message }) => {
   const isPublicImageUrl = msg.text && /\.(jpg|jpeg|png|gif|webp)$/i.test(msg.text);
   const thumbnailUrl = msg.jpegThumbnail ? `data:image/jpeg;base64,${msg.jpegThumbnail}` : null;
   const publicUrlForLink = isPublicImageUrl ? msg.text : null;
+  
+  if (msg.mediaType === 'audio' && msg.mediaUrl) {
+    return (
+        <div className="flex items-center gap-2">
+            <audio controls src={msg.mediaUrl} className="w-full max-w-xs" />
+        </div>
+    );
+  }
 
   if (thumbnailUrl || isPublicImageUrl) {
     const src = thumbnailUrl || publicUrlForLink;
@@ -433,3 +441,5 @@ export default function ChatViewPage() {
     </div>
   );
 }
+
+    
