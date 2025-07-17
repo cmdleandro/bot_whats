@@ -25,59 +25,53 @@ function MessageStatusIndicator({ status }: { status: MessageStatus }) {
     return <Check className={iconClass} />;
 }
 
-
 const MediaMessage = ({ msg }: { msg: Message }) => {
   const isPublicImageUrl = msg.text && /\.(jpg|jpeg|png|gif|webp)$/i.test(msg.text);
   const thumbnailUrl = msg.jpegThumbnail ? `data:image/jpeg;base64,${msg.jpegThumbnail}` : null;
-  const linkUrl = isPublicImageUrl ? msg.text : msg.mediaUrl;
 
-  const renderMedia = () => {
-    // Prioriza mostrar a miniatura JPEG se disponível
-    if (thumbnailUrl) {
-      return (
-        // eslint-disable-next-line @next/next/no-img-element
+  // Renderiza a miniatura se disponível
+  if (thumbnailUrl) {
+    return (
+      <div className="flex flex-col gap-1">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={thumbnailUrl}
           alt={msg.text || 'Imagem enviada'}
-          className="rounded-lg object-cover max-w-xs"
-          style={{ maxWidth: '300px' }}
+          className="rounded-lg object-cover w-full max-w-sm"
         />
-      );
-    }
-    
-    // Fallback para URL de imagem pública se não houver miniatura
-    if (isPublicImageUrl) {
-      return (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={msg.text}
-          alt="Imagem enviada"
-          className="rounded-lg object-cover max-w-xs"
-          style={{ maxWidth: '300px' }}
-        />
-      );
-    }
-    
-    // Se não for imagem, mas tiver mediaUrl, mostra como link de documento
-    if (msg.mediaUrl) {
-       return (
-         <div className="flex items-center gap-2 text-primary">
-           <Paperclip className="h-4 w-4" />
-           <span>{msg.text || 'Ver Documento'}</span>
-         </div>
-       );
-    }
-
-    return <p className="whitespace-pre-wrap">{msg.text}</p>;
-  };
-
-  return (
-    <a href={linkUrl} target="_blank" rel="noopener noreferrer" className="block cursor-pointer">
-      <div className="flex flex-col gap-2">
-        {renderMedia()}
+        {msg.text && <p className="text-sm">{msg.text}</p>}
       </div>
-    </a>
-  );
+    );
+  }
+
+  // Fallback para URL de imagem pública
+  if (isPublicImageUrl) {
+    return (
+       <div className="flex flex-col gap-1">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+            src={msg.text}
+            alt="Imagem enviada"
+            className="rounded-lg object-cover w-full max-w-sm"
+        />
+      </div>
+    );
+  }
+
+  // Fallback para outros tipos de mídia como um link de documento
+  if (msg.mediaUrl) {
+    return (
+      <a href={msg.mediaUrl} target="_blank" rel="noopener noreferrer" className="block cursor-pointer">
+        <div className="flex items-center gap-2 text-primary underline">
+          <Paperclip className="h-4 w-4" />
+          <span>{msg.text || 'Ver Documento'}</span>
+        </div>
+      </a>
+    );
+  }
+
+  // Se não for mídia, apenas texto
+  return <p className="whitespace-pre-wrap">{msg.text}</p>;
 };
 
 
@@ -313,11 +307,7 @@ export default function ChatViewPage() {
                     <span className="font-bold text-xs mb-1">{msg.operatorName}</span>
                   )}
                   
-                  {(msg.mediaUrl || msg.jpegThumbnail) ? (
-                    <MediaMessage msg={msg} />
-                  ) : (
-                    <p className="whitespace-pre-wrap">{msg.text}</p>
-                  )}
+                  <MediaMessage msg={msg} />
 
                   <div className="flex items-center justify-end mt-1 text-xs opacity-60 self-end">
                     <span>{new Date(msg.timestamp).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
