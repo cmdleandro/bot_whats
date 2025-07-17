@@ -143,34 +143,35 @@ export async function getContacts(): Promise<Contact[]> {
     const contactNameFromMessage = lastMsg.contactName || contactId.split('@')[0];
     const existingStoredName = storedContactsMap.get(contactId);
 
-    let finalContactName = existingStoredName || contactNameFromMessage;
-    if (!existingStoredName && contactNameFromMessage) {
-       const newContact: StoredContact = { id: contactId, name: contactNameFromMessage };
-       storedContacts.push(newContact);
+    // **NOVA LÓGICA:** Prioriza o nome da última mensagem. Usa o nome salvo como fallback.
+    const finalContactName = contactNameFromMessage || existingStoredName || contactId.split('@')[0];
+    const finalAvatar = lastMsg.contactPhotoUrl || `https://placehold.co/40x40.png`;
+
+    // Atualiza a lista de contatos salvos se o nome da mensagem for mais recente e diferente.
+    if (contactNameFromMessage && contactNameFromMessage !== existingStoredName) {
+       const existingContact = storedContacts.find(c => c.id === contactId);
+       if (existingContact) {
+         existingContact.name = contactNameFromMessage;
+       } else {
+         storedContacts.push({ id: contactId, name: contactNameFromMessage });
+       }
        storedContactsMap.set(contactId, contactNameFromMessage);
        hasNewContactsToSave = true;
     }
+
 
     const timestamp = lastMsg.timestamp ? parseInt(lastMsg.timestamp, 10) : 0;
     
     const contact: Partial<Contact> & { rawTimestamp: number } = {
       id: contactId,
       name: finalContactName,
-      avatar: lastMsg.contactPhotoUrl || `https://placehold.co/40x40.png`,
+      avatar: finalAvatar,
       rawTimestamp: timestamp,
       lastMessage: getLastMessageText(lastMsg),
       timestamp: timestamp ? formatDistanceToNow(fromUnixTime(timestamp), { addSuffix: true, locale: ptBR }) : 'Data desconhecida',
       unreadCount: 0,
       needsAttention: lastMsg.needsAttention || false,
     };
-    
-    if (existingStoredName && existingStoredName !== finalContactName) {
-        const existingStored = storedContacts.find(c => c.id === contactId);
-        if (existingStored) {
-            existingStored.name = finalContactName;
-            hasNewContactsToSave = true;
-        }
-    }
 
     activeContacts.push(contact as Contact & { rawTimestamp: number });
   }
