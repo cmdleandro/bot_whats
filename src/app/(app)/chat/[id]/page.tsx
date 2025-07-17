@@ -28,44 +28,43 @@ function MessageStatusIndicator({ status }: { status: MessageStatus }) {
 
 const MediaMessage = ({ msg }: { msg: Message }) => {
   const isPublicImageUrl = msg.text && /\.(jpg|jpeg|png|gif|webp)$/i.test(msg.text);
+  const thumbnailUrl = msg.jpegThumbnail ? `data:image/jpeg;base64,${msg.jpegThumbnail}` : null;
+  const linkUrl = isPublicImageUrl ? msg.text : msg.mediaUrl;
 
   const renderMedia = () => {
-    // Prioritize showing the JPEG thumbnail if available
-    if (msg.jpegThumbnail) {
-      const thumbnailUrl = `data:image/jpeg;base64,${msg.jpegThumbnail}`;
+    // Prioriza mostrar a miniatura JPEG se disponível
+    if (thumbnailUrl) {
       return (
-        <a href={msg.mediaUrl} target="_blank" rel="noopener noreferrer" className="block cursor-pointer">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={thumbnailUrl}
-            alt={msg.text || 'Imagem enviada'}
-            className="rounded-lg object-cover max-w-xs"
-            style={{ maxWidth: '300px' }}
-          />
-        </a>
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={thumbnailUrl}
+          alt={msg.text || 'Imagem enviada'}
+          className="rounded-lg object-cover max-w-xs"
+          style={{ maxWidth: '300px' }}
+        />
       );
     }
     
+    // Fallback para URL de imagem pública se não houver miniatura
     if (isPublicImageUrl) {
       return (
-        <a href={msg.text} target="_blank" rel="noopener noreferrer" className="block cursor-pointer">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={msg.text}
-            alt="Imagem enviada"
-            className="rounded-lg object-cover max-w-xs"
-            style={{ maxWidth: '300px' }}
-          />
-        </a>
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={msg.text}
+          alt="Imagem enviada"
+          className="rounded-lg object-cover max-w-xs"
+          style={{ maxWidth: '300px' }}
+        />
       );
     }
     
+    // Se não for imagem, mas tiver mediaUrl, mostra como link de documento
     if (msg.mediaUrl) {
        return (
-         <a href={msg.mediaUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-primary hover:underline">
+         <div className="flex items-center gap-2 text-primary">
            <Paperclip className="h-4 w-4" />
            <span>{msg.text || 'Ver Documento'}</span>
-         </a>
+         </div>
        );
     }
 
@@ -73,9 +72,11 @@ const MediaMessage = ({ msg }: { msg: Message }) => {
   };
 
   return (
-    <div className="flex flex-col gap-2">
-      {renderMedia()}
-    </div>
+    <a href={linkUrl} target="_blank" rel="noopener noreferrer" className="block cursor-pointer">
+      <div className="flex flex-col gap-2">
+        {renderMedia()}
+      </div>
+    </a>
   );
 };
 
