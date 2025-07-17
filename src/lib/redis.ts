@@ -84,10 +84,9 @@ function parseJsonMessage(jsonString: string): Partial<StoredMessage> | null {
         if (tipoExtracted && ['user', 'bot', 'operator'].includes(tipoExtracted)) {
             recovered.tipo = tipoExtracted as 'user' | 'bot' | 'operator';
         } else {
-             recovered.tipo = (recovered.fromMe === 'true' || tipoExtracted === 'operator') ? 'operator' : 'user';
+             recovered.tipo = (recovered.fromMe === 'true') ? 'operator' : 'user';
         }
         
-        // Manual recovery doesn't support quoted messages yet.
         recovered.quotedMessage = undefined;
 
         if (recovered.texto || recovered.mediaUrl) {
@@ -158,7 +157,7 @@ export async function getContacts(): Promise<Contact[]> {
 
   for await (const key of client.scanIterator({ MATCH: 'chat:*', COUNT: 100 })) {
     const contactId = key.replace(/^chat:/, '');
-    const messageHistory = await client.lRange(key, 0, 10); // Check last 10 messages
+    const messageHistory = await client.lRange(key, 0, 10);
 
     if (!messageHistory || messageHistory.length === 0) continue;
 
@@ -166,18 +165,18 @@ export async function getContacts(): Promise<Contact[]> {
     const lastMsg = parseJsonMessage(lastMessageString);
     if (!lastMsg) continue;
 
-    let contactNameFromHistory: string | undefined;
-    let contactPhotoFromHistory: string | undefined;
+    let contactName: string | undefined;
+    let contactPhotoUrl: string | undefined;
     let hasAttentionFlag = false;
 
     for (const msgString of messageHistory) {
         const msg = parseJsonMessage(msgString);
         if (!msg) continue;
 
-        if (!contactNameFromHistory && msg.contactName) {
-            contactNameFromHistory = msg.contactName;
+        if (!contactName && msg.contactName) {
+            contactName = msg.contactName;
             if (msg.contactPhotoUrl) {
-                contactPhotoFromHistory = msg.contactPhotoUrl;
+                contactPhotoUrl = msg.contactPhotoUrl;
             }
         }
         
@@ -185,15 +184,15 @@ export async function getContacts(): Promise<Contact[]> {
             hasAttentionFlag = true;
         }
 
-        if (contactNameFromHistory && hasAttentionFlag) {
+        if (contactName && hasAttentionFlag) {
             break; 
         }
     }
 
     const existingStoredName = storedContactsMap.get(contactId);
 
-    const finalContactName = contactNameFromHistory || existingStoredName || contactId.split('@')[0];
-    const finalAvatar = contactPhotoFromHistory || `https://placehold.co/40x40.png`;
+    const finalContactName = contactName || existingStoredName || contactId.split('@')[0];
+    const finalAvatar = contactPhotoUrl || `https://placehold.co/40x40.png`;
 
     const timestamp = lastMsg.timestamp ? parseInt(lastMsg.timestamp, 10) : 0;
     
@@ -314,7 +313,6 @@ export async function addMessage(contactId: string, message: { text: string; sen
       quotedMessage: message.quotedMessage
     };
     
-    // Construct the payload for the queue, including quoted message info if present
     const messageForQueue: any = {
       instance: instanceName,
       remoteJid: contactId.trim(),
@@ -351,18 +349,18 @@ export async function dismissAttention(contactId: string): Promise<void> {
     const messageStrings = await client.lRange(key, 0, -1);
     let updated = false;
 
-    for(let i = 0; i < messageStrings.length; i++) {
+    for (let i = 0; i < messageStrings.length; i++) {
         const msgString = messageStrings[i];
         const message = parseJsonMessage(msgString);
 
-        if (message && (message.needsAttention || shouldTriggerAttention(message))) {
+        if (message && shouldTriggerAttention(message)) {
             const updatedMessage = { ...message, needsAttention: false };
             await client.lSet(key, i, JSON.stringify(updatedMessage));
             updated = true;
         }
     }
 
-    if(updated) {
+    if (updated) {
         console.log(`Alarme para o contato ${contactId} foi desativado em todas as mensagens relevantes.`);
     }
 
