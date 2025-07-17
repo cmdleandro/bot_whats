@@ -1,4 +1,5 @@
 
+
 'use server';
 
 import { createClient } from 'redis';
@@ -65,6 +66,7 @@ function parseJsonMessage(jsonString: string): Partial<StoredMessage> | null {
     console.warn('Falha ao fazer parse da mensagem JSON. Tentando recuperação manual:', jsonString);
     try {
         const recovered: Partial<StoredMessage> = {
+            id: extractValue(jsonString, 'id'),
             mediaUrl: extractValue(jsonString, 'mediaUrl'),
             caption: extractValue(jsonString, 'caption'),
             messageType: extractValue(jsonString, 'messageType'),
