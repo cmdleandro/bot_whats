@@ -28,6 +28,7 @@ export type StoredMessage = {
   mediaUrl?: string;
   messageType?: string; // e.g., 'imageMessage', 'videoMessage' from webhook
   caption?: string;
+  jpegThumbnail?: string; // Base64 encoded thumbnail
 };
 
 
@@ -43,6 +44,7 @@ export type Message = {
   status?: MessageStatus;
   mediaUrl?: string;
   mediaType?: MediaType;
+  jpegThumbnail?: string;
 };
 
 export type Contact = {

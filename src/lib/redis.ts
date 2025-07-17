@@ -46,12 +46,11 @@ export async function getClient() {
 }
 
 function extractValue(jsonString: string, key: string): string | null {
-    // Regex aprimorada para capturar valores entre aspas, ou valores não citados (palavras, números, booleanos)
     const regex = new RegExp(`"${key}"\\s*:\\s*(?:"([^"]*)"|([^",}]+))`);
     const match = jsonString.match(regex);
     if (match) {
-        // O valor pode estar no grupo de captura 1 (entre aspas) ou 2 (sem aspas)
-        return match[1] || match[2].trim();
+        const value = match[1] || match[2];
+        return value ? value.trim().replace(/\\"/g, '"') : null;
     }
     return null;
 }
@@ -63,7 +62,6 @@ function parseJsonMessage(jsonString: string): Partial<StoredMessage> | null {
     return JSON.parse(jsonString);
   } catch (error) {
     console.warn('Falha ao fazer parse da mensagem JSON. Tentando recuperação manual:', jsonString);
-    // Fallback manual para JSON malformado
     try {
         const recovered: Partial<StoredMessage> = {
             mediaUrl: extractValue(jsonString, 'mediaUrl'),
@@ -78,6 +76,7 @@ function parseJsonMessage(jsonString: string): Partial<StoredMessage> | null {
             messageId: extractValue(jsonString, 'messageId'),
             needsAttention: extractValue(jsonString, 'needsAttention') === 'true',
             status: 'sent',
+            jpegThumbnail: extractValue(jsonString, 'jpegThumbnail'),
         };
         
         let tipoExtracted = extractValue(jsonString, 'tipo');
@@ -110,14 +109,14 @@ function mapMessageTypeToMediaType(messageType?: string): MediaType | undefined 
 function getLastMessageText(msg: Partial<StoredMessage>): string {
   const mediaType = mapMessageTypeToMediaType(msg.messageType);
   
-  if (mediaType) {
+  if (mediaType || msg.jpegThumbnail) {
     const typeMap: Record<MediaType, string> = {
       image: '📷 Imagem',
       video: '🎬 Vídeo',
       audio: '🎵 Áudio',
       document: '📄 Documento',
     };
-    const mediaText = typeMap[mediaType] || 'Arquivo de mídia';
+    const mediaText = typeMap[mediaType || 'image'] || 'Arquivo de mídia';
     return msg.caption ? `${mediaText}: ${msg.caption}` : mediaText;
   }
   
@@ -219,6 +218,7 @@ export async function getMessages(contactId: string): Promise<Message[]> {
           status: storedMsg.status,
           mediaUrl: storedMsg.mediaUrl,
           mediaType: mapMessageTypeToMediaType(storedMsg.messageType),
+          jpegThumbnail: storedMsg.jpegThumbnail,
         };
       })
       .filter((msg): msg is Message => msg !== null)
@@ -239,7 +239,6 @@ export async function addMessage(contactId: string, message: { text: string; sen
     
     let instanceName = '';
 
-    // 1. Tenta obter a instância da conversa existente
     const lastMessageResult = await client.lRange(historyKey, 0, 0);
     if (lastMessageResult.length > 0) {
       const parsedMsg = parseJsonMessage(lastMessageResult[0]);
@@ -248,7 +247,6 @@ export async function addMessage(contactId: string, message: { text: string; sen
       }
     }
 
-    // 2. Se for uma conversa nova, busca a instância global
     if (!instanceName) {
       const settings = await getGlobalSettings();
       if (settings && settings.defaultInstance) {
@@ -256,7 +254,6 @@ export async function addMessage(contactId: string, message: { text: string; sen
       }
     }
 
-    // 3. Se nenhuma instância for encontrada, lança um erro claro.
     if (!instanceName) {
         const errorMsg = `Nenhuma instância pôde ser determinada para o contato ${contactId}. Verifique se uma instância padrão está definida nas Configurações Globais.`;
         console.error(errorMsg);
@@ -363,5 +360,3 @@ export async function saveGlobalSettings(settings: GlobalSettings): Promise<void
         throw error;
     }
 }
-
-    

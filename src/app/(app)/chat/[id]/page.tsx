@@ -22,17 +22,30 @@ function MessageStatusIndicator({ status }: { status: MessageStatus }) {
     if (status === 'delivered') {
         return <CheckCheck className={iconClass} />;
     }
-    // Default to 'sent'
     return <Check className={iconClass} />;
 }
 
 
 const MediaMessage = ({ msg }: { msg: Message }) => {
-  // Check if the text itself is a public image URL
   const isPublicImageUrl = msg.text && /\.(jpg|jpeg|png|gif|webp)$/i.test(msg.text);
 
   const renderMedia = () => {
-    // If text is a public image URL, display it as an image.
+    // Prioritize showing the JPEG thumbnail if available
+    if (msg.jpegThumbnail) {
+      const thumbnailUrl = `data:image/jpeg;base64,${msg.jpegThumbnail}`;
+      return (
+        <a href={msg.mediaUrl} target="_blank" rel="noopener noreferrer" className="block cursor-pointer">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={thumbnailUrl}
+            alt={msg.text || 'Imagem enviada'}
+            className="rounded-lg object-cover max-w-xs"
+            style={{ maxWidth: '300px' }}
+          />
+        </a>
+      );
+    }
+    
     if (isPublicImageUrl) {
       return (
         <a href={msg.text} target="_blank" rel="noopener noreferrer" className="block cursor-pointer">
@@ -47,7 +60,6 @@ const MediaMessage = ({ msg }: { msg: Message }) => {
       );
     }
     
-    // For all other media types (including .enc files), treat them as downloadable documents.
     if (msg.mediaUrl) {
        return (
          <a href={msg.mediaUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-primary hover:underline">
@@ -57,7 +69,6 @@ const MediaMessage = ({ msg }: { msg: Message }) => {
        );
     }
 
-    // Fallback for cases where media is expected but URL is missing
     return <p className="whitespace-pre-wrap">{msg.text}</p>;
   };
 
@@ -301,7 +312,7 @@ export default function ChatViewPage() {
                     <span className="font-bold text-xs mb-1">{msg.operatorName}</span>
                   )}
                   
-                  {msg.mediaUrl ? (
+                  {(msg.mediaUrl || msg.jpegThumbnail) ? (
                     <MediaMessage msg={msg} />
                   ) : (
                     <p className="whitespace-pre-wrap">{msg.text}</p>
