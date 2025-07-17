@@ -28,6 +28,7 @@ function MessageStatusIndicator({ status }: { status: MessageStatus }) {
 const MediaMessage = ({ msg }: { msg: Message }) => {
   const isPublicImageUrl = msg.text && /\.(jpg|jpeg|png|gif|webp)$/i.test(msg.text);
   const thumbnailUrl = msg.jpegThumbnail ? `data:image/jpeg;base64,${msg.jpegThumbnail}` : null;
+  const publicUrlForLink = isPublicImageUrl ? msg.text : null;
 
   // Renderiza a miniatura se disponível
   if (thumbnailUrl) {
@@ -37,9 +38,10 @@ const MediaMessage = ({ msg }: { msg: Message }) => {
         <img
           src={thumbnailUrl}
           alt={msg.text || 'Imagem enviada'}
-          className="rounded-lg object-cover w-full"
+          className="rounded-lg object-cover"
+          style={{ width: '256px' }}
         />
-        {msg.text && <p className="text-sm">{msg.text}</p>}
+        {msg.text && <p className="text-sm whitespace-pre-wrap">{msg.text}</p>}
       </div>
     );
   }
@@ -52,7 +54,8 @@ const MediaMessage = ({ msg }: { msg: Message }) => {
         <img
             src={msg.text}
             alt="Imagem enviada"
-            className="rounded-lg object-cover w-full"
+            className="rounded-lg object-cover"
+            style={{ width: '256px' }}
         />
       </div>
     );
@@ -279,7 +282,7 @@ export default function ChatViewPage() {
                 key={msg.id}
                 className={cn(
                   'flex items-end gap-3',
-                  msg.sender === 'user' ? 'mr-auto' : 'ml-auto flex-row-reverse'
+                  msg.sender === 'user' || msg.sender === 'operator' ? 'ml-auto flex-row-reverse' : 'mr-auto'
                 )}
               >
                 <Avatar className="h-8 w-8">
@@ -296,7 +299,7 @@ export default function ChatViewPage() {
                 </Avatar>
                 <div
                   className={cn(
-                    'rounded-lg px-4 py-2 text-sm shadow-sm flex flex-col max-w-xl',
+                    'rounded-lg px-4 py-2 text-sm shadow-sm flex flex-col',
                      getMessageStyle(msg.sender)
                   )}
                 >
