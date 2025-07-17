@@ -35,7 +35,7 @@ const MediaMessage = ({ msg }: { msg: Message }) => {
     if (!msg.mediaType) {
         // Fallback for when mediaType is missing but mediaUrl is present
         if (/\.(jpg|jpeg|png|gif|webp)$/i.test(msg.mediaUrl)) {
-            return <Image src={msg.mediaUrl} alt={msg.text || 'Imagem enviada'} width={300} height={300} className="rounded-lg object-cover" />;
+            return <Image src={msg.mediaUrl} alt={msg.text || 'Imagem enviada'} width={300} height={300} className="rounded-lg object-cover" unoptimized />;
         }
         return <a href={msg.mediaUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">Ver Mídia</a>;
     }
@@ -49,6 +49,7 @@ const MediaMessage = ({ msg }: { msg: Message }) => {
             width={300}
             height={300}
             className="rounded-lg object-cover"
+            unoptimized
           />
         );
       case 'video':
@@ -319,7 +320,7 @@ export default function ChatViewPage() {
                   {msg.sender === 'bot' && (
                       <p className="text-xs font-bold mb-1">BOT</p>
                   )}
-                  {msg.sender === 'operator' && msg.operatorName && !msg.mediaUrl && (
+                  {msg.sender === 'operator' && msg.operatorName && (
                     <span className="font-bold text-xs mb-1">{msg.operatorName}</span>
                   )}
                   
