@@ -10,6 +10,12 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
 import { useToast } from '@/hooks/use-toast';
@@ -48,12 +54,10 @@ const MediaMessage = ({ msg }: { msg: Message }) => {
 
   if (msg.mediaUrl) {
     return (
-      <a href={msg.mediaUrl} target="_blank" rel="noopener noreferrer" className="block cursor-pointer">
         <div className="flex items-center gap-2 text-primary underline">
           <Paperclip className="h-4 w-4" />
           <span>{msg.text || 'Ver Documento'}</span>
         </div>
-      </a>
     );
   }
 
@@ -317,66 +321,62 @@ export default function ChatViewPage() {
             </div>
           ) : (
             messages.map(msg => (
-              <div
-                key={msg.id}
-                className={cn(
-                  'flex items-end gap-3 group relative',
-                  getMessageAlignment(msg.sender)
-                )}
-              >
-                <Avatar className="h-8 w-8">
-                  {msg.sender === 'operator' ? (
-                    <AvatarFallback>{operatorName.charAt(0)}</AvatarFallback>
-                  ) : msg.sender === 'bot' ? (
-                     <AvatarImage src={msg.botAvatarUrl || "/logo.svg"} alt="Bot Logo" />
-                  ) : (
-                    <>
-                    <AvatarImage src={contact?.avatar} alt={contact?.name} />
-                    <AvatarFallback>{contact?.name.charAt(0)}</AvatarFallback>
-                    </>
-                  )}
-                </Avatar>
-                <div
-                  className={cn(
-                    'max-w-xl rounded-lg px-4 py-2 text-sm shadow-sm flex flex-col',
-                     getMessageStyle(msg.sender)
-                  )}
-                >
-                  {msg.sender === 'bot' && (
-                      <p className="text-xs font-bold mb-1">BOT</p>
-                  )}
-                  {msg.sender === 'operator' && msg.operatorName && (
-                    <span className="font-bold text-xs mb-1">{msg.operatorName}</span>
-                  )}
-                  
-                  {msg.quotedMessage && (
-                    <div className="bg-background/20 p-2 rounded-md mb-2 border-l-2 border-primary-foreground/50">
-                        <p className="font-bold text-xs">{msg.quotedMessage.senderName}</p>
-                        <p className="text-xs opacity-90 truncate">{msg.quotedMessage.text}</p>
-                    </div>
-                  )}
-
-                  <MediaMessage msg={msg} />
-
-                  <div className="flex items-center justify-end mt-1 text-xs opacity-60 self-end">
-                    <span>{new Date(msg.timestamp).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
-                    {msg.sender === 'operator' && msg.status && <MessageStatusIndicator status={msg.status} />}
-                  </div>
-                </div>
-
-                <div className="absolute top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity flex items-center bg-background/80 rounded-full shadow-md"
-                    style={msg.sender === 'user' ? { right: '-2.5rem' } : { left: '-2.5rem' }}
-                >
-                    <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8"
-                        onClick={() => handleStartReply(msg)}
+              <DropdownMenu key={msg.id}>
+                <DropdownMenuTrigger asChild>
+                    <div
+                        className={cn(
+                        'flex items-end gap-3 w-fit cursor-pointer',
+                        getMessageAlignment(msg.sender)
+                        )}
                     >
-                        <CornerUpLeft className="h-4 w-4" />
-                    </Button>
-                </div>
-              </div>
+                        <Avatar className="h-8 w-8">
+                        {msg.sender === 'operator' ? (
+                            <AvatarFallback>{operatorName.charAt(0)}</AvatarFallback>
+                        ) : msg.sender === 'bot' ? (
+                            <AvatarImage src={msg.botAvatarUrl || "/logo.svg"} alt="Bot Logo" />
+                        ) : (
+                            <>
+                            <AvatarImage src={contact?.avatar} alt={contact?.name} />
+                            <AvatarFallback>{contact?.name.charAt(0)}</AvatarFallback>
+                            </>
+                        )}
+                        </Avatar>
+                        <div
+                        className={cn(
+                            'max-w-xl rounded-lg px-4 py-2 text-sm shadow-sm flex flex-col',
+                            getMessageStyle(msg.sender)
+                        )}
+                        >
+                        {msg.sender === 'bot' && (
+                            <p className="text-xs font-bold mb-1">BOT</p>
+                        )}
+                        {msg.sender === 'operator' && msg.operatorName && (
+                            <span className="font-bold text-xs mb-1">{msg.operatorName}</span>
+                        )}
+                        
+                        {msg.quotedMessage && (
+                            <div className="bg-background/20 p-2 rounded-md mb-2 border-l-2 border-primary-foreground/50">
+                                <p className="font-bold text-xs">{msg.quotedMessage.senderName}</p>
+                                <p className="text-xs opacity-90 truncate">{msg.quotedMessage.text}</p>
+                            </div>
+                        )}
+
+                        <MediaMessage msg={msg} />
+
+                        <div className="flex items-center justify-end mt-1 text-xs opacity-60 self-end">
+                            <span>{new Date(msg.timestamp).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
+                            {msg.sender === 'operator' && msg.status && <MessageStatusIndicator status={msg.status} />}
+                        </div>
+                        </div>
+                    </div>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent>
+                    <DropdownMenuItem onClick={() => handleStartReply(msg)}>
+                        <CornerUpLeft className="mr-2 h-4 w-4" />
+                        <span>Responder</span>
+                    </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             ))
           )}
         </div>
