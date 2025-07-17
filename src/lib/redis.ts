@@ -2,7 +2,7 @@
 'use server';
 
 import { createClient } from 'redis';
-import type { Contact, Message, StoredMessage, User, StoredContact, GlobalSettings } from './data';
+import type { Contact, Message, StoredMessage, User, StoredContact, GlobalSettings, MediaType } from './data';
 import { initialUsers } from './data';
 import { formatDistanceToNow, fromUnixTime } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -55,15 +55,25 @@ function parseJsonMessage(jsonString: string): StoredMessage | null {
   }
 }
 
+function mapMessageTypeToMediaType(messageType?: string): MediaType | undefined {
+    if (!messageType) return undefined;
+    if (messageType.includes('image')) return 'image';
+    if (messageType.includes('video')) return 'video';
+    if (messageType.includes('audio')) return 'audio';
+    if (messageType.includes('document')) return 'document';
+    return undefined;
+}
+
 function getLastMessageText(msg: StoredMessage): string {
-  if (msg.mediaType) {
-    const typeMap = {
+  const mediaType = mapMessageTypeToMediaType(msg.messageType);
+  if (mediaType) {
+    const typeMap: Record<MediaType, string> = {
       image: '📷 Imagem',
       video: '🎬 Vídeo',
       audio: '🎵 Áudio',
       document: '📄 Documento',
     };
-    return msg.caption || typeMap[msg.mediaType] || 'Arquivo de mídia';
+    return msg.caption || typeMap[mediaType] || 'Arquivo de mídia';
   }
   return msg.texto || 'Mensagem sem texto.';
 }
@@ -162,7 +172,7 @@ export async function getMessages(contactId: string): Promise<Message[]> {
           botAvatarUrl: sender === 'bot' ? '/logo.svg' : undefined,
           status: storedMsg.status,
           mediaUrl: storedMsg.mediaUrl,
-          mediaType: storedMsg.mediaType,
+          mediaType: mapMessageTypeToMediaType(storedMsg.messageType),
         };
       })
       .filter((msg): msg is Message => msg !== null)

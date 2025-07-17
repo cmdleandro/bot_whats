@@ -26,7 +26,7 @@ export type StoredMessage = {
   fromMe?: string; // Campo booleano como string, vindo do webhook
   messageId?: string; // ID da mensagem vindo do webhook
   mediaUrl?: string;
-  mediaType?: MediaType;
+  messageType?: string; // e.g., 'imageMessage', 'videoMessage' from webhook
   caption?: string;
 };
 
