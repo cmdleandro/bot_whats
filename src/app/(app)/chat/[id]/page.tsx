@@ -30,32 +30,19 @@ const MediaMessage = ({ msg }: { msg: Message }) => {
   const thumbnailUrl = msg.jpegThumbnail ? `data:image/jpeg;base64,${msg.jpegThumbnail}` : null;
   const publicUrlForLink = isPublicImageUrl ? msg.text : null;
 
-  if (thumbnailUrl) {
+  if (thumbnailUrl || isPublicImageUrl) {
+    const src = thumbnailUrl || publicUrlForLink;
     return (
-      <div className="flex flex-col gap-1">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src={thumbnailUrl}
-          alt={msg.text || 'Imagem enviada'}
-          className="rounded-lg object-cover"
-          style={{ width: '133px' }}
-        />
-        {msg.text && <p className="text-sm whitespace-pre-wrap">{msg.text}</p>}
-      </div>
-    );
-  }
-
-  if (isPublicImageUrl) {
-    return (
-       <div className="flex flex-col gap-1">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-            src={msg.text}
-            alt="Imagem enviada"
-            className="rounded-lg object-cover"
-            style={{ width: '133px' }}
-        />
-      </div>
+        <div className="flex flex-col gap-1 w-full">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={src!}
+              alt={msg.text || 'Imagem enviada'}
+              className="rounded-lg object-cover"
+              style={{ width: '133px' }}
+            />
+            {msg.text && !isPublicImageUrl && <p className="text-sm whitespace-pre-wrap">{msg.text}</p>}
+        </div>
     );
   }
 
@@ -351,7 +338,7 @@ export default function ChatViewPage() {
                 </Avatar>
                 <div
                   className={cn(
-                    'rounded-lg px-4 py-2 text-sm shadow-sm flex flex-col',
+                    'max-w-xl rounded-lg px-4 py-2 text-sm shadow-sm flex flex-col',
                      getMessageStyle(msg.sender)
                   )}
                 >
@@ -439,4 +426,3 @@ export default function ChatViewPage() {
     </div>
   );
 }
-
