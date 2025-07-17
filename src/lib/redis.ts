@@ -130,6 +130,25 @@ function getLastMessageText(msg: Partial<StoredMessage>): string {
   return msg.texto || 'Mensagem sem texto.';
 }
 
+const ATTENTION_PHRASES = [
+  'técnico humano',
+  'acionar um técnico',
+  'falar com um atendente',
+  'transferindo para um atendente',
+  'ajuda humana'
+];
+
+function shouldTriggerAttention(message: Partial<StoredMessage>): boolean {
+    if (message.needsAttention) {
+        return true;
+    }
+    if (message.tipo === 'bot' && message.texto) {
+        const lowerCaseText = message.texto.toLowerCase();
+        return ATTENTION_PHRASES.some(phrase => lowerCaseText.includes(phrase));
+    }
+    return false;
+}
+
 export async function getContacts(): Promise<Contact[]> {
   const client = await getClient();
   const storedContacts = await getStoredContacts();
@@ -139,7 +158,7 @@ export async function getContacts(): Promise<Contact[]> {
 
   for await (const key of client.scanIterator({ MATCH: 'chat:*', COUNT: 100 })) {
     const contactId = key.replace(/^chat:/, '');
-    const messageHistory = await client.lRange(key, 0, 10);
+    const messageHistory = await client.lRange(key, 0, 10); // Check last 10 messages
 
     if (!messageHistory || messageHistory.length === 0) continue;
 
@@ -149,15 +168,24 @@ export async function getContacts(): Promise<Contact[]> {
 
     let contactNameFromHistory: string | undefined;
     let contactPhotoFromHistory: string | undefined;
+    let hasAttentionFlag = false;
 
     for (const msgString of messageHistory) {
         const msg = parseJsonMessage(msgString);
-        if (msg && msg.contactName) {
+        if (!msg) continue;
+
+        if (!contactNameFromHistory && msg.contactName) {
             contactNameFromHistory = msg.contactName;
-            // Only take the photo if the name is also present in the same message
             if (msg.contactPhotoUrl) {
                 contactPhotoFromHistory = msg.contactPhotoUrl;
             }
+        }
+        
+        if (shouldTriggerAttention(msg)) {
+            hasAttentionFlag = true;
+        }
+
+        if (contactNameFromHistory && hasAttentionFlag) {
             break; 
         }
     }
@@ -177,7 +205,7 @@ export async function getContacts(): Promise<Contact[]> {
       lastMessage: getLastMessageText(lastMsg),
       timestamp: timestamp ? formatDistanceToNow(fromUnixTime(timestamp), { addSuffix: true, locale: ptBR }) : 'Data desconhecida',
       unreadCount: 0,
-      needsAttention: lastMsg.needsAttention || false,
+      needsAttention: hasAttentionFlag,
     };
 
     activeContacts.push(contact as Contact & { rawTimestamp: number });
@@ -209,8 +237,7 @@ export async function getMessages(contactId: string): Promise<Message[]> {
         const timestampInMs = storedMsg.timestamp ? (parseInt(storedMsg.timestamp, 10) * 1000) : Date.now();
         
         let sender: Message['sender'];
-        // This logic correctly identifies the sender.
-        // fromMe is the operator. tipo 'bot' is the bot. Everything else is the user.
+        
         if (storedMsg.fromMe === 'true' || storedMsg.tipo === 'operator') {
           sender = 'operator';
         } else if (storedMsg.tipo === 'bot') {
@@ -320,17 +347,25 @@ export async function dismissAttention(contactId: string): Promise<void> {
   try {
     const client = await getClient();
     const key = `chat:${contactId.trim()}`;
-    const lastMessageString = await client.lIndex(key, 0); 
-
-    if (!lastMessageString) return;
     
-    const message = parseJsonMessage(lastMessageString);
+    const messageStrings = await client.lRange(key, 0, -1);
+    let updated = false;
 
-    if (message && message.needsAttention) {
-      const updatedMessage = { ...message, needsAttention: false };
-      await client.lSet(key, 0, JSON.stringify(updatedMessage));
-      console.log(`Alarme para o contato ${contactId} foi desativado.`);
+    for(let i = 0; i < messageStrings.length; i++) {
+        const msgString = messageStrings[i];
+        const message = parseJsonMessage(msgString);
+
+        if (message && (message.needsAttention || shouldTriggerAttention(message))) {
+            const updatedMessage = { ...message, needsAttention: false };
+            await client.lSet(key, i, JSON.stringify(updatedMessage));
+            updated = true;
+        }
     }
+
+    if(updated) {
+        console.log(`Alarme para o contato ${contactId} foi desativado em todas as mensagens relevantes.`);
+    }
+
   } catch (error) {
     console.error(`Falha ao desativar o alarme para ${contactId}:`, error);
   }
