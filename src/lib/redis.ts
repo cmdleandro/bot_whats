@@ -55,6 +55,19 @@ function parseJsonMessage(jsonString: string): StoredMessage | null {
   }
 }
 
+function getLastMessageText(msg: StoredMessage): string {
+  if (msg.mediaType) {
+    const typeMap = {
+      image: '📷 Imagem',
+      video: '🎬 Vídeo',
+      audio: '🎵 Áudio',
+      document: '📄 Documento',
+    };
+    return msg.caption || typeMap[msg.mediaType] || 'Arquivo de mídia';
+  }
+  return msg.texto || 'Mensagem sem texto.';
+}
+
 export async function getContacts(): Promise<Contact[]> {
   const client = await getClient();
   const storedContacts = await getStoredContacts();
@@ -90,7 +103,7 @@ export async function getContacts(): Promise<Contact[]> {
       name: finalContactName,
       avatar: lastMsg.contactPhotoUrl || `https://placehold.co/40x40.png`,
       rawTimestamp: timestamp,
-      lastMessage: lastMsg.texto || 'Mensagem sem texto.',
+      lastMessage: getLastMessageText(lastMsg),
       timestamp: timestamp ? formatDistanceToNow(fromUnixTime(timestamp), { addSuffix: true, locale: ptBR }) : 'Data desconhecida',
       unreadCount: 0,
       needsAttention: lastMsg.needsAttention || false,
@@ -142,12 +155,14 @@ export async function getMessages(contactId: string): Promise<Message[]> {
         return {
           id: uniqueId,
           contactId: contactId,
-          text: storedMsg.texto,
+          text: storedMsg.caption || storedMsg.texto,
           sender: sender,
           operatorName: storedMsg.operatorName,
           timestamp: timestampInMs,
           botAvatarUrl: sender === 'bot' ? '/logo.svg' : undefined,
           status: storedMsg.status,
+          mediaUrl: storedMsg.mediaUrl,
+          mediaType: storedMsg.mediaType,
         };
       })
       .filter((msg): msg is Message => msg !== null)
@@ -168,6 +183,7 @@ export async function addMessage(contactId: string, message: { text: string; sen
     
     let instanceName = '';
 
+    // Tenta obter a instância da conversa existente
     const lastMessageResult = await client.lRange(historyKey, 0, 0);
     if (lastMessageResult.length > 0) {
       const parsedMsg = parseJsonMessage(lastMessageResult[0]);
@@ -176,6 +192,7 @@ export async function addMessage(contactId: string, message: { text: string; sen
       }
     }
 
+    // Se for uma conversa nova, busca a instância global
     if (!instanceName) {
       const settings = await getGlobalSettings();
       if (settings && settings.defaultInstance) {

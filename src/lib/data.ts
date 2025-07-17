@@ -9,6 +9,7 @@ export type User = {
 };
 
 export type MessageStatus = 'sent' | 'delivered' | 'read';
+export type MediaType = 'image' | 'video' | 'audio' | 'document';
 
 // Este tipo representa o objeto JSON que está dentro da string na lista do Redis
 export type StoredMessage = {
@@ -24,6 +25,9 @@ export type StoredMessage = {
   status?: MessageStatus;
   fromMe?: string; // Campo booleano como string, vindo do webhook
   messageId?: string; // ID da mensagem vindo do webhook
+  mediaUrl?: string;
+  mediaType?: MediaType;
+  caption?: string;
 };
 
 
@@ -37,6 +41,8 @@ export type Message = {
   timestamp: number; // O timestamp UNIX original (em milissegundos) para ser formatado no cliente
   botAvatarUrl?: string;
   status?: MessageStatus;
+  mediaUrl?: string;
+  mediaType?: MediaType;
 };
 
 export type Contact = {
@@ -63,4 +69,3 @@ export const initialUsers: User[] = [
     { id: '1', name: 'Leandro', email: 'leandro@email.com', password: '123', role: 'Admin', createdAt: '2023-01-15' },
     { id: '2', name: 'Alice', email: 'alice@email.com', password: '123', role: 'Operador', createdAt: '2023-02-20' },
 ];
-

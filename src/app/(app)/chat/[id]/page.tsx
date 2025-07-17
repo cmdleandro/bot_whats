@@ -4,7 +4,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams } from 'next/navigation';
 import Image from 'next/image';
-import { Send, Bot, User, ChevronLeft, Loader2, Check, CheckCheck } from 'lucide-react';
+import { Send, Bot, User, ChevronLeft, Loader2, Check, CheckCheck, Paperclip } from 'lucide-react';
 import { getMessages, addMessage, getContacts, dismissAttention } from '@/lib/redis';
 import { Message, Contact, MessageStatus } from '@/lib/data';
 import { Button } from '@/components/ui/button';
@@ -26,6 +26,58 @@ function MessageStatusIndicator({ status }: { status: MessageStatus }) {
     // Default to 'sent'
     return <Check className={iconClass} />;
 }
+
+
+const MediaMessage = ({ msg }: { msg: Message }) => {
+  if (!msg.mediaUrl || !msg.mediaType) return null;
+
+  const renderMedia = () => {
+    switch (msg.mediaType) {
+      case 'image':
+        return (
+          <Image
+            src={msg.mediaUrl}
+            alt={msg.text || 'Imagem enviada'}
+            width={300}
+            height={300}
+            className="rounded-lg object-cover"
+          />
+        );
+      case 'video':
+        return (
+          <video
+            src={msg.mediaUrl}
+            controls
+            className="rounded-lg max-w-xs"
+          />
+        );
+      case 'audio':
+        return (
+          <audio
+            src={msg.mediaUrl}
+            controls
+            className="w-full"
+          />
+        );
+      case 'document':
+        return (
+            <a href={msg.mediaUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-primary hover:underline">
+                <Paperclip className="h-4 w-4" />
+                <span>{msg.text || 'Ver Documento'}</span>
+            </a>
+        );
+      default:
+        return null;
+    }
+  };
+  
+  return (
+    <div className="flex flex-col gap-2">
+        {renderMedia()}
+        {msg.mediaType !== 'document' && msg.text && <p className="text-sm pt-1">{msg.text}</p>}
+    </div>
+  );
+};
 
 
 export default function ChatViewPage() {
@@ -260,7 +312,11 @@ export default function ChatViewPage() {
                           {msg.sender === 'bot' ? 'BOT' : msg.operatorName}
                       </p>
                   )}
-                  <p className="whitespace-pre-wrap">{msg.text}</p>
+                  {msg.mediaUrl ? (
+                      <MediaMessage msg={msg} />
+                  ) : (
+                      <p className="whitespace-pre-wrap">{msg.text}</p>
+                  )}
                   <div className="flex items-center justify-end mt-1 text-xs opacity-60 self-end">
                     <span>{new Date(msg.timestamp).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
                     {msg.sender === 'operator' && msg.status && <MessageStatusIndicator status={msg.status} />}
