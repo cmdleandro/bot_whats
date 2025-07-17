@@ -39,7 +39,7 @@ const MediaMessage = ({ msg }: { msg: Message }) => {
           src={thumbnailUrl}
           alt={msg.text || 'Imagem enviada'}
           className="rounded-lg object-cover"
-          style={{ width: '166px' }}
+          style={{ width: '133px' }}
         />
         {msg.text && <p className="text-sm whitespace-pre-wrap">{msg.text}</p>}
       </div>
@@ -54,8 +54,7 @@ const MediaMessage = ({ msg }: { msg: Message }) => {
         <img
             src={msg.text}
             alt="Imagem enviada"
-            className="rounded-lg object-cover"
-            style={{ width: '166px' }}
+            className="rounded-lg object-cover max-w-sm"
         />
       </div>
     );
