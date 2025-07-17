@@ -37,7 +37,7 @@ const MediaMessage = ({ msg }: { msg: Message }) => {
         <img
           src={thumbnailUrl}
           alt={msg.text || 'Imagem enviada'}
-          className="rounded-lg object-cover w-full max-w-lg"
+          className="rounded-lg object-cover w-full"
         />
         {msg.text && <p className="text-sm">{msg.text}</p>}
       </div>
@@ -52,7 +52,7 @@ const MediaMessage = ({ msg }: { msg: Message }) => {
         <img
             src={msg.text}
             alt="Imagem enviada"
-            className="rounded-lg object-cover w-full max-w-lg"
+            className="rounded-lg object-cover w-full"
         />
       </div>
     );
@@ -278,7 +278,7 @@ export default function ChatViewPage() {
               <div
                 key={msg.id}
                 className={cn(
-                  'flex items-end gap-3 max-w-[85%]',
+                  'flex items-end gap-3',
                   msg.sender === 'user' ? 'mr-auto' : 'ml-auto flex-row-reverse'
                 )}
               >
