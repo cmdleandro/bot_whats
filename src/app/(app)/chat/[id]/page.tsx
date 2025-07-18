@@ -3,7 +3,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams } from 'next/navigation';
-import { Send, Bot, User, ChevronLeft, Loader2, Check, CheckCheck, Paperclip, CornerUpLeft, X, ChevronDown, Mic, Play } from 'lucide-react';
+import { Send, Bot, ChevronLeft, Loader2, Check, CheckCheck, Paperclip, CornerUpLeft, X, ChevronDown, Mic, Play } from 'lucide-react';
 import { getMessages, addMessage, getContacts, dismissAttention } from '@/lib/redis';
 import { Message, Contact, MessageStatus, MediaType } from '@/lib/data';
 import { Button } from '@/components/ui/button';
@@ -33,9 +33,8 @@ function MessageStatusIndicator({ status }: { status: MessageStatus }) {
 }
 
 const MediaMessage = ({ msg, contact }: { msg: Message, contact: Contact | null }) => {
-  const isPublicImageUrl = msg.text && /\.(jpg|jpeg|png|gif|webp)$/i.test(msg.text);
-  const thumbnailUrl = msg.jpegThumbnail ? `data:image/jpeg;base64,${msg.jpegThumbnail}` : null;
-  const publicUrlForLink = isPublicImageUrl ? msg.text : null;
+  const thumbnailUrl = msg.jpegThumbnail ? `data:image/jpeg;base64,${msg.jpegThumbnail}` : msg.mediaUrl && msg.mediaType === 'image' ? msg.mediaUrl : null;
+  const publicUrlForLink = msg.mediaUrl && msg.mediaType === 'image' ? msg.mediaUrl : null;
   
   const [generatedAudioUrl, setGeneratedAudioUrl] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -74,8 +73,6 @@ const MediaMessage = ({ msg, contact }: { msg: Message, contact: Contact | null 
 
   const finalAudioUrl = msg.mediaUrl?.startsWith('data:audio') ? msg.mediaUrl : generatedAudioUrl;
 
-  // This is the main case for audio: either it was sent by the operator (already converted)
-  // or it has been generated on-demand.
   if (msg.mediaType === 'audio' && finalAudioUrl) {
     return (
         <div className="flex items-center gap-2">
@@ -84,8 +81,6 @@ const MediaMessage = ({ msg, contact }: { msg: Message, contact: Contact | null 
     );
   }
 
-  // This is the case for an audio message that has not been converted yet.
-  // We show a play button to trigger the conversion.
   if (msg.mediaType === 'audio' && msg.mediaUrl && !finalAudioUrl) {
       return (
           <div className="flex items-center gap-3">
@@ -111,28 +106,30 @@ const MediaMessage = ({ msg, contact }: { msg: Message, contact: Contact | null 
   }
 
 
-  if (thumbnailUrl || isPublicImageUrl) {
+  if (thumbnailUrl || publicUrlForLink) {
     const src = thumbnailUrl || publicUrlForLink;
     return (
-        <div className="flex flex-col gap-1 w-full">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={src!}
-              alt={msg.text || 'Imagem enviada'}
-              className="rounded-lg object-cover"
-              style={{ width: '133px' }}
-            />
-            {msg.text && !isPublicImageUrl && <p className="text-sm whitespace-pre-wrap">{msg.text}</p>}
-        </div>
+        <a href={msg.mediaUrl} target="_blank" rel="noopener noreferrer" className="block">
+          <div className="flex flex-col gap-1 w-full">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={src!}
+                alt={msg.text || 'Imagem enviada'}
+                className="rounded-lg object-cover"
+                style={{ width: '133px', height: '133px' }}
+              />
+              {msg.text && <p className="text-sm whitespace-pre-wrap mt-1">{msg.text}</p>}
+          </div>
+        </a>
     );
   }
 
   if (msg.mediaUrl && msg.mediaType === 'document') {
     return (
-        <div className="flex items-center gap-2 text-primary underline">
+       <a href={msg.mediaUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-primary underline">
           <Paperclip className="h-4 w-4" />
           <span>{msg.text || 'Ver Documento'}</span>
-        </div>
+       </a>
     );
   }
   
@@ -178,9 +175,11 @@ export default function ChatViewPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSending, setIsSending] = useState(false);
   const [isConvertingAudio, setIsConvertingAudio] = useState(false);
+  const [isUploadingFile, setIsUploadingFile] = useState(false);
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
 
   const fetchMessages = React.useCallback(async (id: string, isBackground: boolean) => {
@@ -320,6 +319,71 @@ export default function ChatViewPage() {
       setIsSending(false);
       setIsConvertingAudio(false);
       textareaRef.current?.focus();
+    }
+  };
+
+  const sendFileMessage = async (file: File) => {
+    if (!file || isUploadingFile) return;
+
+    setIsUploadingFile(true);
+
+    try {
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = async () => {
+            const mediaUrl = reader.result as string;
+            const mediaType = file.type.startsWith('image/') ? 'image' : 'document';
+
+            await addMessage(contactId, {
+                mediaUrl,
+                mediaType,
+                mimetype: file.type,
+                fileName: file.name,
+                sender: 'operator',
+                operatorName,
+                tempId: `temp_${Date.now()}`,
+                text: newMessage,
+            });
+
+            setNewMessage('');
+            await fetchMessages(contactId, true);
+        };
+        reader.onerror = (error) => {
+            console.error("Erro ao ler o arquivo:", error);
+            throw new Error("Não foi possível processar o arquivo selecionado.");
+        };
+
+    } catch (error: any) {
+        console.error('Falha ao enviar arquivo:', error);
+        toast({
+            variant: 'destructive',
+            title: 'Erro de Envio',
+            description: error.message || 'Não foi possível enviar o arquivo.',
+        });
+    } finally {
+        setIsUploadingFile(false);
+    }
+  };
+
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+        sendFileMessage(file);
+    }
+    event.target.value = ''; // Reset input
+  };
+  
+  const handlePaste = (event: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const items = event.clipboardData.items;
+    for (const item of items) {
+        if (item.kind === 'file' && item.type.startsWith('image/')) {
+            event.preventDefault();
+            const file = item.getAsFile();
+            if (file) {
+                sendFileMessage(file);
+            }
+            return;
+        }
     }
   };
   
@@ -496,37 +560,54 @@ export default function ChatViewPage() {
             ref={textareaRef}
             value={newMessage}
             onChange={e => setNewMessage(e.target.value)}
+            onPaste={handlePaste}
             onKeyDown={e => {
               if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
                 handleSendMessage({ asAudio: false });
               }
             }}
-            placeholder="Digite uma mensagem..."
-            className="min-h-[48px] resize-none pr-12"
-            disabled={isSending || isConvertingAudio}
+            placeholder="Digite uma mensagem ou cole uma imagem..."
+            className="min-h-[48px] resize-none pr-32"
+            disabled={isSending || isConvertingAudio || isUploadingFile}
           />
-          <div className="flex flex-col gap-1">
+          <input
+            type="file"
+            ref={fileInputRef}
+            onChange={handleFileChange}
+            className="hidden"
+            accept="image/*,application/pdf"
+            disabled={isUploadingFile}
+          />
+          <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
+             <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={isUploadingFile || isSending || isConvertingAudio}
+                aria-label="Anexar arquivo"
+              >
+                {isUploadingFile ? <Loader2 className="h-5 w-5 animate-spin" /> : <Paperclip className="h-5 w-5" />}
+              </Button>
             <Button
               type="button"
+              variant="ghost"
               size="icon"
-              className="h-10 w-10"
-              onClick={() => handleSendMessage({ asAudio: false })}
+              onClick={() => handleSendMessage({ asAudio: true })}
               disabled={!newMessage.trim() || isSending || isConvertingAudio}
+              aria-label="Enviar como Áudio"
             >
-              {isSending ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5" />}
-              <span className="sr-only">Enviar Texto</span>
+              {isConvertingAudio ? <Loader2 className="h-5 w-5 animate-spin" /> : <Mic className="h-5 w-5" />}
             </Button>
             <Button
               type="button"
-              variant="secondary"
               size="icon"
-              className="h-10 w-10"
-              onClick={() => handleSendMessage({ asAudio: true })}
+              onClick={() => handleSendMessage({ asAudio: false })}
               disabled={!newMessage.trim() || isSending || isConvertingAudio}
+              aria-label="Enviar Texto"
             >
-              {isConvertingAudio ? <Loader2 className="h-5 w-5 animate-spin" /> : <Mic className="h-5 w-5" />}
-              <span className="sr-only">Enviar como Áudio</span>
+              {isSending ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5" />}
             </Button>
           </div>
         </div>
@@ -534,5 +615,3 @@ export default function ChatViewPage() {
     </div>
   );
 }
-
-    

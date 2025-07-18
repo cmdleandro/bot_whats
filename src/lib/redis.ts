@@ -87,7 +87,7 @@ function parseJsonMessage(jsonString: string): Partial<StoredMessage> | null {
     try {
         const recovered: Partial<StoredMessage> = {
             messageId: extractValue(jsonString, 'messageId') || extractValue(jsonString, 'id'),
-            mediaUrl: extractValue(jsonString, 'mediaUrl'), // Will check for "mediaUrl" and "mediaUrl "
+            mediaUrl: extractValue(jsonString, 'mediaUrl') || extractValue(jsonString, 'mediaUrl '),
             caption: extractValue(jsonString, 'caption'),
             messageType: extractValue(jsonString, 'messageType'),
             texto: extractValue(jsonString, 'caption') || extractValue(jsonString, 'texto') || '',
@@ -137,7 +137,6 @@ function getLastMessageText(msg: Partial<StoredMessage>): string {
   }
   const mediaType = mapMessageTypeToMediaType(msg.messageType);
   
-  // Special handling for audio messages that were transcribed
   if (mediaType === 'audio') {
       return `🎵 Áudio recebido`;
   }
@@ -196,12 +195,10 @@ export async function getContacts(): Promise<Contact[]> {
 
     if (!messageHistory || messageHistory.length === 0) continue;
     
-    // Check if the attention for this chat has been dismissed recently
     const dismissedKey = `attention-dismissed:${contactId}`;
     const isDismissed = await client.exists(dismissedKey);
 
     let hasAttentionFlag = false;
-    // Only check for attention if it hasn't been dismissed
     if (!isDismissed) {
         for (const msgString of messageHistory) {
             const msg = parseJsonMessage(msgString);
@@ -220,7 +217,6 @@ export async function getContacts(): Promise<Contact[]> {
     let contactName: string | undefined;
     let contactPhotoUrl: string | undefined;
 
-    // We still loop to find contact name/photo, but attention is already decided
     for (const msgString of messageHistory) {
         const msg = parseJsonMessage(msgString);
         if (!msg) continue;
@@ -295,11 +291,9 @@ export async function getMessages(contactId: string): Promise<Message[]> {
         
         const messageType = mapMessageTypeToMediaType(storedMsg.messageType);
         
-        let text = storedMsg.caption || storedMsg.texto || '';
+        let text = storedMsg.texto || '';
         let mediaUrl = storedMsg.mediaUrl;
         
-        // If it's an audio message with a transcription in mediaUrl, clear the text field
-        // to prevent it from being displayed as a text message.
         if (messageType === 'audio' && mediaUrl && !mediaUrl.startsWith('data:audio')) {
             text = '';
         }
@@ -336,10 +330,12 @@ export async function addMessage(
     text?: string;
     mediaUrl?: string;
     mediaType?: MediaType;
+    mimetype?: string;
     sender: 'operator'; 
     operatorName: string; 
     tempId: string; 
     quotedMessage?: QuotedMessage;
+    fileName?: string;
   }
 ): Promise<void> {
     const client = await getClient();
@@ -381,6 +377,7 @@ export async function addMessage(
       status: 'sent',
       quotedMessage: message.quotedMessage,
       mediaUrl: message.mediaUrl,
+      mimetype: message.mimetype,
       messageType: message.mediaType ? `${message.mediaType}Message` : (message.text ? 'conversation' : undefined),
     };
     
@@ -392,9 +389,19 @@ export async function addMessage(
       }
     };
     
-    if (message.mediaUrl && message.mediaType === 'audio') {
-        messageForQueue.audio = { url: message.mediaUrl };
-        messageForQueue.options.mimetype = 'audio/ogg; codecs=opus';
+    if (message.mediaUrl && message.mediaType) {
+        if (message.mediaType === 'audio') {
+            messageForQueue.audio = { url: message.mediaUrl };
+            messageForQueue.options.mimetype = 'audio/ogg; codecs=opus';
+        } else if (message.mediaType === 'image') {
+            messageForQueue.image = { url: message.mediaUrl };
+            if (message.text) messageForQueue.options.caption = `*${message.operatorName}*\n${message.text}`;
+        } else if (message.mediaType === 'document') {
+            messageForQueue.document = { url: message.mediaUrl };
+            messageForQueue.options.mimetype = message.mimetype;
+            messageForQueue.options.fileName = message.fileName || 'document';
+            if (message.text) messageForQueue.options.caption = `*${message.operatorName}*\n${message.text}`;
+        }
     } else {
         messageForQueue.text = `*${message.operatorName}*\n${message.text}`;
     }

@@ -36,6 +36,7 @@ export type StoredMessage = {
   messageId?: string; // ID da mensagem vindo do webhook
   mediaUrl?: string;
   messageType?: string; // e.g., 'imageMessage', 'videoMessage' from webhook
+  mimetype?: string;
   caption?: string;
   jpegThumbnail?: string; // Base64 encoded thumbnail
   quotedMessage?: QuotedMessage;
@@ -54,6 +55,7 @@ export type Message = {
   status?: MessageStatus;
   mediaUrl?: string;
   mediaType?: MediaType;
+  mimetype?: string;
   jpegThumbnail?: string;
   quotedMessage?: QuotedMessage;
 };
