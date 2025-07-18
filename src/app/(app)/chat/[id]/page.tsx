@@ -33,13 +33,10 @@ function MessageStatusIndicator({ status }: { status: MessageStatus }) {
 }
 
 const MediaMessage = ({ msg, contact }: { msg: Message, contact: Contact | null }) => {
-  const thumbnailUrl = msg.jpegThumbnail ? `data:image/jpeg;base64,${msg.jpegThumbnail}` : msg.mediaUrl && msg.mediaType === 'image' ? msg.mediaUrl : null;
-  const publicUrlForLink = msg.mediaUrl && msg.mediaType === 'image' ? msg.mediaUrl : null;
-  
+  const isMounted = useRef(true);
+  const audioRef = useRef<HTMLAudioElement>(null);
   const [generatedAudioUrl, setGeneratedAudioUrl] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
-  const audioRef = useRef<HTMLAudioElement>(null);
-  const isMounted = useRef(true);
 
   useEffect(() => {
     isMounted.current = true;
@@ -70,6 +67,26 @@ const MediaMessage = ({ msg, contact }: { msg: Message, contact: Contact | null 
         }
       }
   };
+  
+  // Logic for displaying images
+  if (msg.mediaType === 'image' && msg.mediaUrl) {
+    const src = msg.mediaUrl.startsWith('data:') ? msg.mediaUrl : `data:image/jpeg;base64,${msg.jpegThumbnail}`;
+
+    return (
+        <a href={src} target="_blank" rel="noopener noreferrer" className="block">
+          <div className="flex flex-col gap-1 w-full">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={src}
+                alt={msg.text || 'Imagem enviada'}
+                className="rounded-lg object-cover"
+                style={{ width: '133px', height: '133px' }}
+              />
+              {msg.text && <p className="text-sm whitespace-pre-wrap mt-1">{msg.text}</p>}
+          </div>
+        </a>
+    );
+  }
 
   const finalAudioUrl = msg.mediaUrl?.startsWith('data:audio') ? msg.mediaUrl : generatedAudioUrl;
 
@@ -103,25 +120,6 @@ const MediaMessage = ({ msg, contact }: { msg: Message, contact: Contact | null 
               </div>
           </div>
       );
-  }
-
-
-  if (thumbnailUrl || publicUrlForLink) {
-    const src = thumbnailUrl || publicUrlForLink;
-    return (
-        <a href={msg.mediaUrl} target="_blank" rel="noopener noreferrer" className="block">
-          <div className="flex flex-col gap-1 w-full">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={src!}
-                alt={msg.text || 'Imagem enviada'}
-                className="rounded-lg object-cover"
-                style={{ width: '133px', height: '133px' }}
-              />
-              {msg.text && <p className="text-sm whitespace-pre-wrap mt-1">{msg.text}</p>}
-          </div>
-        </a>
-    );
   }
 
   if (msg.mediaUrl && msg.mediaType === 'document') {
@@ -292,6 +290,7 @@ export default function ChatViewPage() {
         await addMessage(contactId, {
           mediaUrl: audioData.audioDataUri,
           mediaType: 'audio',
+          mimetype: 'audio/ogg; codecs=opus',
           sender: 'operator',
           operatorName: operatorName,
           tempId: tempId,
