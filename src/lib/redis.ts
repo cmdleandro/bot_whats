@@ -138,8 +138,8 @@ function getLastMessageText(msg: Partial<StoredMessage>): string {
   const mediaType = mapMessageTypeToMediaType(msg.messageType);
   
   // Special handling for audio messages that were transcribed
-  if (mediaType === 'audio' && msg.mediaUrl && !msg.texto) {
-      return `🎵 Áudio: "${msg.mediaUrl.substring(0, 30)}..."`;
+  if (mediaType === 'audio') {
+      return `🎵 Áudio recebido`;
   }
   
   if (mediaType || msg.jpegThumbnail) {
@@ -295,13 +295,14 @@ export async function getMessages(contactId: string): Promise<Message[]> {
         
         const messageType = mapMessageTypeToMediaType(storedMsg.messageType);
         
-        // As per the new logic, for user audio, mediaUrl contains the transcribed text.
-        // We pass it along. The frontend component will handle TTS.
-        // `text` will be from `texto` or `caption`, which will be empty for these messages.
-        const text = storedMsg.caption || storedMsg.texto || '';
-        const mediaUrl = messageType === 'audio' && sender === 'user' 
-          ? storedMsg.mediaUrl // Pass the transcribed text here
-          : storedMsg.mediaUrl; // For other cases, it's a real URL
+        let text = storedMsg.caption || storedMsg.texto || '';
+        let mediaUrl = storedMsg.mediaUrl;
+        
+        // If it's an audio message with a transcription in mediaUrl, clear the text field
+        // to prevent it from being displayed as a text message.
+        if (messageType === 'audio' && mediaUrl && !mediaUrl.startsWith('data:audio')) {
+            text = '';
+        }
 
         return {
           id: uniqueId,

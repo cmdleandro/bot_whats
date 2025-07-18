@@ -48,18 +48,16 @@ const MediaMessage = ({ msg }: { msg: Message }) => {
 
   useEffect(() => {
     const generateAudioFromText = async () => {
-      // Condição: é um áudio, mediaUrl contém texto (não é uma URL real), e o áudio ainda não foi gerado.
-      // Agora funciona para 'user' e 'operator'
+      // Condition: It's an audio message, mediaUrl is a string (not a data URI), and audio hasn't been generated yet.
       if (msg.mediaType === 'audio' && msg.mediaUrl && !msg.mediaUrl.startsWith('data:audio') && !generatedAudioUrl) {
         setIsGenerating(true);
         try {
-          // Usamos o conteúdo do mediaUrl como texto para a conversão
           const result = await textToSpeech({ text: msg.mediaUrl, voice: 'Alpha-centauri' });
           if (isMounted.current) {
             setGeneratedAudioUrl(result.audioDataUri);
           }
         } catch (error) {
-          console.error("Erro ao converter texto em áudio para mensagem recebida:", error);
+          console.error("Error converting text to audio for received message:", error);
         } finally {
           if (isMounted.current) {
             setIsGenerating(false);
@@ -71,8 +69,8 @@ const MediaMessage = ({ msg }: { msg: Message }) => {
     generateAudioFromText();
   }, [msg, generatedAudioUrl]);
   
-  // Áudios enviados pelo operador (já convertidos) terão uma data URI.
-  // Áudios recebidos (usuário ou operador, como texto) usarão a URL gerada.
+  // Audios sent by the operator (already converted) will have a data URI.
+  // Received audios (from user or operator, as text) will use the generated URL.
   const finalAudioUrl = msg.mediaUrl?.startsWith('data:audio') ? msg.mediaUrl : generatedAudioUrl;
 
   if (isGenerating) {
@@ -84,7 +82,7 @@ const MediaMessage = ({ msg }: { msg: Message }) => {
     );
   }
 
-  // Se for um áudio e tivermos uma URL final (seja enviada ou gerada), mostramos o player.
+  // If it's an audio and we have a final URL (either sent or generated), show the player.
   if (msg.mediaType === 'audio' && finalAudioUrl) {
     return (
         <div className="flex items-center gap-2">
@@ -93,9 +91,9 @@ const MediaMessage = ({ msg }: { msg: Message }) => {
     );
   }
   
-  // Se for um áudio mas ainda não geramos a URL, mostramos a transcrição como fallback.
+  // This is the fallback for audio messages with transcriptions that haven't been converted to audio yet.
   if (msg.mediaType === 'audio' && msg.mediaUrl && !finalAudioUrl) {
-    return <p className="whitespace-pre-wrap italic text-muted-foreground/80">"{msg.mediaUrl}"</p>;
+    return <p className="whitespace-pre-wrap italic text-muted-foreground/80">Carregando áudio...</p>;
   }
 
   if (thumbnailUrl || isPublicImageUrl) {
@@ -123,7 +121,12 @@ const MediaMessage = ({ msg }: { msg: Message }) => {
     );
   }
   
-  return <p className="whitespace-pre-wrap">{msg.text}</p>;
+  // Only render text if it exists. For audio-to-be-generated, text will be empty.
+  if (msg.text) {
+    return <p className="whitespace-pre-wrap">{msg.text}</p>;
+  }
+  
+  return null; // Don't render anything if there's no text and it's not a known media type
 };
 
 const QuotedMessagePreview = ({ msg, contact }: { msg: Message, contact: Contact | null }) => {
