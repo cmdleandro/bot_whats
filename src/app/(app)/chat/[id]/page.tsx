@@ -3,7 +3,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams } from 'next/navigation';
-import { Send, Bot, User, ChevronLeft, Loader2, Check, CheckCheck, Paperclip, CornerUpLeft, X, ChevronDown, Mic } from 'lucide-react';
+import { Send, Bot, User, ChevronLeft, Loader2, Check, CheckCheck, Paperclip, CornerUpLeft, X, ChevronDown, Mic, Play } from 'lucide-react';
 import { getMessages, addMessage, getContacts, dismissAttention } from '@/lib/redis';
 import { Message, Contact, MessageStatus, MediaType } from '@/lib/data';
 import { Button } from '@/components/ui/button';
@@ -32,69 +32,84 @@ function MessageStatusIndicator({ status }: { status: MessageStatus }) {
     return <Check className={iconClass} />;
 }
 
-const MediaMessage = ({ msg }: { msg: Message }) => {
+const MediaMessage = ({ msg, contact }: { msg: Message, contact: Contact | null }) => {
   const isPublicImageUrl = msg.text && /\.(jpg|jpeg|png|gif|webp)$/i.test(msg.text);
   const thumbnailUrl = msg.jpegThumbnail ? `data:image/jpeg;base64,${msg.jpegThumbnail}` : null;
   const publicUrlForLink = isPublicImageUrl ? msg.text : null;
   
   const [generatedAudioUrl, setGeneratedAudioUrl] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
+  const audioRef = useRef<HTMLAudioElement>(null);
   const isMounted = useRef(true);
 
   useEffect(() => {
     isMounted.current = true;
     return () => { isMounted.current = false; };
   }, []);
-
+  
   useEffect(() => {
-    const generateAudioFromText = async () => {
-      // Condition: It's an audio message, mediaUrl is a string (not a data URI), and audio hasn't been generated yet.
-      if (msg.mediaType === 'audio' && msg.mediaUrl && !msg.mediaUrl.startsWith('data:audio') && !generatedAudioUrl) {
-        setIsGenerating(true);
-        try {
-          const result = await textToSpeech({ text: msg.mediaUrl, voice: 'Alpha-centauri' });
-          if (isMounted.current) {
+    if (generatedAudioUrl && audioRef.current) {
+        audioRef.current.play().catch(e => console.error("Falha ao tocar áudio gerado:", e));
+    }
+  }, [generatedAudioUrl]);
+
+  const handleGenerateAudio = async () => {
+      if (!msg.mediaUrl || msg.mediaUrl.startsWith('data:audio')) return;
+
+      setIsGenerating(true);
+      try {
+        let voice: 'Algenib' | 'Alpha-centauri' = msg.sender === 'operator' ? 'Algenib' : 'Alpha-centauri';
+        const result = await textToSpeech({ text: msg.mediaUrl, voice });
+        if (isMounted.current) {
             setGeneratedAudioUrl(result.audioDataUri);
-          }
-        } catch (error) {
-          console.error("Error converting text to audio for received message:", error);
-        } finally {
-          if (isMounted.current) {
+        }
+      } catch (error) {
+        console.error("Error converting text to audio for received message:", error);
+      } finally {
+        if (isMounted.current) {
             setIsGenerating(false);
-          }
         }
       }
-    };
+  };
 
-    generateAudioFromText();
-  }, [msg, generatedAudioUrl]);
-  
-  // Audios sent by the operator (already converted) will have a data URI.
-  // Received audios (from user or operator, as text) will use the generated URL.
   const finalAudioUrl = msg.mediaUrl?.startsWith('data:audio') ? msg.mediaUrl : generatedAudioUrl;
 
-  if (isGenerating) {
-    return (
-        <div className="flex items-center gap-2 text-muted-foreground">
-            <Loader2 className="h-4 w-4 animate-spin" />
-            <span className="text-sm">Gerando áudio...</span>
-        </div>
-    );
-  }
-
-  // If it's an audio and we have a final URL (either sent or generated), show the player.
+  // This is the main case for audio: either it was sent by the operator (already converted)
+  // or it has been generated on-demand.
   if (msg.mediaType === 'audio' && finalAudioUrl) {
     return (
         <div className="flex items-center gap-2">
-            <audio controls src={finalAudioUrl} className="w-full max-w-xs" />
+            <audio controls src={finalAudioUrl} ref={audioRef} className="w-full max-w-xs" />
         </div>
     );
   }
-  
-  // This is the fallback for audio messages with transcriptions that haven't been converted to audio yet.
+
+  // This is the case for an audio message that has not been converted yet.
+  // We show a play button to trigger the conversion.
   if (msg.mediaType === 'audio' && msg.mediaUrl && !finalAudioUrl) {
-    return <p className="whitespace-pre-wrap italic text-muted-foreground/80">Carregando áudio...</p>;
+      return (
+          <div className="flex items-center gap-3">
+              <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={handleGenerateAudio}
+                  disabled={isGenerating}
+                  className="h-9 w-9"
+              >
+                  {isGenerating ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                      <Play className="h-4 w-4" />
+                  )}
+              </Button>
+              <div className="text-sm">
+                  <p className="font-semibold">Áudio Recebido</p>
+                  <p className="text-xs text-muted-foreground italic truncate max-w-xs">"{msg.mediaUrl}"</p>
+              </div>
+          </div>
+      );
   }
+
 
   if (thumbnailUrl || isPublicImageUrl) {
     const src = thumbnailUrl || publicUrlForLink;
@@ -121,13 +136,13 @@ const MediaMessage = ({ msg }: { msg: Message }) => {
     );
   }
   
-  // Only render text if it exists. For audio-to-be-generated, text will be empty.
   if (msg.text) {
     return <p className="whitespace-pre-wrap">{msg.text}</p>;
   }
   
-  return null; // Don't render anything if there's no text and it's not a known media type
+  return null;
 };
+
 
 const QuotedMessagePreview = ({ msg, contact }: { msg: Message, contact: Contact | null }) => {
     let senderName = '';
@@ -430,7 +445,7 @@ export default function ChatViewPage() {
                       </div>
                   )}
 
-                  <MediaMessage msg={msg} />
+                  <MediaMessage msg={msg} contact={contact} />
 
                   <div className="flex items-center justify-end mt-1 text-xs opacity-60 self-end">
                       <span>{new Date(msg.timestamp).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
@@ -519,3 +534,5 @@ export default function ChatViewPage() {
     </div>
   );
 }
+
+    
