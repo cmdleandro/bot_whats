@@ -409,6 +409,7 @@ export async function addMessage(
         }
     } else {
         messageForQueue.text = `*${message.operatorName}*\n${message.text}`;
+        messageForQueue.options.mimetype = 'text/plain';
     }
     
     if (message.quotedMessage) {
