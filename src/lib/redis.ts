@@ -64,6 +64,11 @@ function parseJsonMessage(jsonString: string): Partial<StoredMessage> | null {
     if (parsed.id && !parsed.messageId) {
         parsed.messageId = parsed.id;
     }
+    // Garante que o mediaUrl de áudio é capturado corretamente, pois pode vir em um objeto aninhado.
+    if (parsed.messageType === 'audioMessage' && parsed.audio && parsed.audio.url) {
+        parsed.mediaUrl = parsed.audio.url;
+    }
+
     return parsed;
 
   } catch (error) {
@@ -362,6 +367,7 @@ export async function addMessage(
     
     if (message.mediaUrl && message.mediaType === 'audio') {
         messageForQueue.audio = { url: message.mediaUrl };
+        messageForQueue.options.mimetype = 'audio/ogg; codecs=opus';
     } else {
         messageForQueue.text = `*${message.operatorName}*\n${message.text}`;
     }
@@ -453,3 +459,5 @@ export async function saveGlobalSettings(settings: GlobalSettings): Promise<void
         throw error;
     }
 }
+
+    
