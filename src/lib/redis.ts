@@ -47,11 +47,15 @@ export async function getClient() {
 }
 
 function extractValue(jsonString: string, key: string): string | null {
-    const regex = new RegExp(`"${key}"\\s*:\\s*(?:"([^"]*)"|([^",}]+))`);
-    const match = jsonString.match(regex);
-    if (match) {
-        const value = match[1] || match[2];
-        return value ? value.trim().replace(/\\"/g, '"') : null;
+    // Adiciona uma verificação para a chave com espaço no final
+    const keyVariations = [key, `${key} `];
+    for (const k of keyVariations) {
+        const regex = new RegExp(`"${k}"\\s*:\\s*(?:"([^"]*)"|([^",}]+))`);
+        const match = jsonString.match(regex);
+        if (match) {
+            const value = match[1] || match[2];
+            return value ? value.trim().replace(/\\"/g, '"') : null;
+        }
     }
     return null;
 }
@@ -68,6 +72,13 @@ function parseJsonMessage(jsonString: string): Partial<StoredMessage> | null {
     if (parsed.messageType === 'audioMessage' && parsed.audio && parsed.audio.url) {
         parsed.mediaUrl = parsed.audio.url;
     }
+    
+    // Fallback for malformed key with a space
+    if (parsed['mediaUrl '] && !parsed.mediaUrl) {
+      parsed.mediaUrl = parsed['mediaUrl '];
+      delete parsed['mediaUrl '];
+    }
+
 
     return parsed;
 
@@ -76,7 +87,7 @@ function parseJsonMessage(jsonString: string): Partial<StoredMessage> | null {
     try {
         const recovered: Partial<StoredMessage> = {
             messageId: extractValue(jsonString, 'messageId') || extractValue(jsonString, 'id'),
-            mediaUrl: extractValue(jsonString, 'mediaUrl'),
+            mediaUrl: extractValue(jsonString, 'mediaUrl'), // Will check for "mediaUrl" and "mediaUrl "
             caption: extractValue(jsonString, 'caption'),
             messageType: extractValue(jsonString, 'messageType'),
             texto: extractValue(jsonString, 'caption') || extractValue(jsonString, 'texto') || '',
@@ -126,12 +137,12 @@ function getLastMessageText(msg: Partial<StoredMessage>): string {
   }
   const mediaType = mapMessageTypeToMediaType(msg.messageType);
   
+  // Special handling for audio messages that were transcribed
+  if (mediaType === 'audio' && msg.mediaUrl && !msg.texto) {
+      return `🎵 Áudio: "${msg.mediaUrl.substring(0, 30)}..."`;
+  }
+  
   if (mediaType || msg.jpegThumbnail) {
-    // Special handling for audio messages that were transcribed
-    if (mediaType === 'audio' && msg.mediaUrl && !msg.texto) {
-        return `🎵 Áudio: "${msg.mediaUrl.substring(0, 30)}..."`;
-    }
-
     const typeMap: Record<MediaType, string> = {
       image: '📷 Imagem',
       video: '🎬 Vídeo',
