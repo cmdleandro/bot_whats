@@ -37,10 +37,53 @@ const MediaMessage = ({ msg }: { msg: Message }) => {
   const thumbnailUrl = msg.jpegThumbnail ? `data:image/jpeg;base64,${msg.jpegThumbnail}` : null;
   const publicUrlForLink = isPublicImageUrl ? msg.text : null;
   
-  if (msg.mediaType === 'audio' && msg.mediaUrl) {
+  const [generatedAudioUrl, setGeneratedAudioUrl] = useState<string | null>(null);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const isMounted = useRef(true);
+
+  useEffect(() => {
+    isMounted.current = true;
+    return () => { isMounted.current = false; };
+  }, []);
+
+  useEffect(() => {
+    const generateAudioFromText = async () => {
+      // Condição para conversão: é um áudio do usuário, tem texto mas não tem a URL do áudio.
+      if (msg.sender === 'user' && msg.mediaType === 'audio' && msg.text && !msg.mediaUrl && !generatedAudioUrl) {
+        setIsGenerating(true);
+        try {
+          const result = await textToSpeech({ text: msg.text, voice: 'Alpha-centauri' });
+          if (isMounted.current) {
+            setGeneratedAudioUrl(result.audioDataUri);
+          }
+        } catch (error) {
+          console.error("Erro ao converter texto em áudio para mensagem recebida:", error);
+        } finally {
+          if (isMounted.current) {
+            setIsGenerating(false);
+          }
+        }
+      }
+    };
+
+    generateAudioFromText();
+  }, [msg, generatedAudioUrl]);
+  
+  const finalAudioUrl = msg.mediaUrl || generatedAudioUrl;
+
+  if (isGenerating) {
+    return (
+        <div className="flex items-center gap-2 text-muted-foreground">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            <span className="text-sm">Gerando áudio...</span>
+        </div>
+    );
+  }
+
+  if (msg.mediaType === 'audio' && finalAudioUrl) {
     return (
         <div className="flex items-center gap-2">
-            <audio controls src={msg.mediaUrl} className="w-full max-w-xs" />
+            <audio controls src={finalAudioUrl} className="w-full max-w-xs" />
         </div>
     );
   }
@@ -69,6 +112,12 @@ const MediaMessage = ({ msg }: { msg: Message }) => {
         </div>
     );
   }
+  
+  // Se for um áudio que virou texto mas não tem URL, mostramos o texto.
+  if (msg.mediaType === 'audio' && !finalAudioUrl) {
+    return <p className="whitespace-pre-wrap italic text-muted-foreground/80">"{msg.text}"</p>;
+  }
+
 
   return <p className="whitespace-pre-wrap">{msg.text}</p>;
 };
@@ -215,7 +264,7 @@ export default function ChatViewPage() {
 
     try {
       if (asAudio) {
-        const audioData = await textToSpeech({ text: newMessage });
+        const audioData = await textToSpeech({ text: newMessage, voice: 'Algenib' });
         if (!audioData || !audioData.audioDataUri) {
           throw new Error('Falha ao converter texto em áudio.');
         }
