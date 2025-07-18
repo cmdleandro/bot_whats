@@ -137,8 +137,8 @@ function getLastMessageText(msg: Partial<StoredMessage>): string {
   }
   const mediaType = mapMessageTypeToMediaType(msg.messageType);
   
-  if (mediaType === 'audio') {
-      return `🎵 Áudio: ${msg.mediaUrl || ''}`;
+  if (mediaType === 'audio' && msg.mediaUrl && !msg.mediaUrl.startsWith('data:audio')) {
+      return `🎵 Áudio: ${msg.mediaUrl}`;
   }
   
   if (mediaType || msg.jpegThumbnail) {
@@ -392,15 +392,17 @@ export async function addMessage(
     };
     
     if (message.mediaUrl && message.mediaType) {
+        const base64Data = message.mediaUrl.substring(message.mediaUrl.indexOf(',') + 1);
+
         if (message.mediaType === 'audio') {
             messageForQueue.audio = { url: message.mediaUrl };
             messageForQueue.options.mimetype = 'audio/ogg; codecs=opus';
         } else if (message.mediaType === 'image') {
-            messageForQueue.image = { url: message.mediaUrl };
+            messageForQueue.image = { url: base64Data };
             if (message.mimetype) messageForQueue.options.mimetype = message.mimetype;
             if (message.text) messageForQueue.options.caption = `*${message.operatorName}*\n${message.text}`;
         } else if (message.mediaType === 'document') {
-            messageForQueue.document = { url: message.mediaUrl };
+            messageForQueue.document = { url: base64Data };
             if (message.mimetype) messageForQueue.options.mimetype = message.mimetype;
             messageForQueue.options.fileName = message.fileName || 'document';
             if (message.text) messageForQueue.options.caption = `*${message.operatorName}*\n${message.text}`;
