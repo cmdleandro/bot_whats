@@ -336,7 +336,7 @@ export default function ChatViewPage() {
             </div>
           ) : (
             messages.map(msg => (
-                <div key={msg.id}
+                <div key={`${msg.id}-${msg.timestamp}`}
                   className={cn(
                   'group relative flex items-end gap-3 w-fit',
                   getMessageAlignment(msg.sender)
