@@ -48,11 +48,13 @@ const MediaMessage = ({ msg }: { msg: Message }) => {
 
   useEffect(() => {
     const generateAudioFromText = async () => {
-      // Condição para conversão: é um áudio do usuário, tem texto mas não tem a URL do áudio.
-      if (msg.sender === 'user' && msg.mediaType === 'audio' && msg.text && !msg.mediaUrl && !generatedAudioUrl) {
+      // Condição para conversão: é um áudio do usuário (remetente), tipo de mídia é 'audio', 
+      // e o 'mediaUrl' (que agora contém o texto) não está vazio, e o áudio ainda não foi gerado.
+      if (msg.sender === 'user' && msg.mediaType === 'audio' && msg.mediaUrl && !generatedAudioUrl) {
         setIsGenerating(true);
         try {
-          const result = await textToSpeech({ text: msg.text, voice: 'Alpha-centauri' });
+          // Usamos o conteúdo do mediaUrl como texto para a conversão
+          const result = await textToSpeech({ text: msg.mediaUrl, voice: 'Alpha-centauri' });
           if (isMounted.current) {
             setGeneratedAudioUrl(result.audioDataUri);
           }
@@ -69,7 +71,9 @@ const MediaMessage = ({ msg }: { msg: Message }) => {
     generateAudioFromText();
   }, [msg, generatedAudioUrl]);
   
-  const finalAudioUrl = msg.mediaUrl || generatedAudioUrl;
+  // Para mensagens de áudio do operador, a URL já vem pronta.
+  // Para mensagens de áudio do usuário, usamos a URL gerada.
+  const finalAudioUrl = msg.sender === 'operator' ? msg.mediaUrl : generatedAudioUrl;
 
   if (isGenerating) {
     return (
@@ -80,12 +84,18 @@ const MediaMessage = ({ msg }: { msg: Message }) => {
     );
   }
 
+  // Se for um áudio e tivermos uma URL final (seja do operador ou gerada), mostramos o player.
   if (msg.mediaType === 'audio' && finalAudioUrl) {
     return (
         <div className="flex items-center gap-2">
             <audio controls src={finalAudioUrl} className="w-full max-w-xs" />
         </div>
     );
+  }
+  
+  // Se for um áudio do usuário mas ainda não geramos a URL, mostramos a transcrição.
+  if (msg.sender === 'user' && msg.mediaType === 'audio' && msg.mediaUrl && !finalAudioUrl) {
+    return <p className="whitespace-pre-wrap italic text-muted-foreground/80">"{msg.mediaUrl}"</p>;
   }
 
   if (thumbnailUrl || isPublicImageUrl) {
@@ -104,7 +114,7 @@ const MediaMessage = ({ msg }: { msg: Message }) => {
     );
   }
 
-  if (msg.mediaUrl) {
+  if (msg.mediaUrl && msg.mediaType === 'document') {
     return (
         <div className="flex items-center gap-2 text-primary underline">
           <Paperclip className="h-4 w-4" />
@@ -113,12 +123,6 @@ const MediaMessage = ({ msg }: { msg: Message }) => {
     );
   }
   
-  // Se for um áudio que virou texto mas não tem URL, mostramos o texto.
-  if (msg.mediaType === 'audio' && !finalAudioUrl) {
-    return <p className="whitespace-pre-wrap italic text-muted-foreground/80">"{msg.text}"</p>;
-  }
-
-
   return <p className="whitespace-pre-wrap">{msg.text}</p>;
 };
 

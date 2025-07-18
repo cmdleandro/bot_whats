@@ -127,6 +127,11 @@ function getLastMessageText(msg: Partial<StoredMessage>): string {
   const mediaType = mapMessageTypeToMediaType(msg.messageType);
   
   if (mediaType || msg.jpegThumbnail) {
+    // Special handling for audio messages that were transcribed
+    if (mediaType === 'audio' && msg.mediaUrl && !msg.texto) {
+        return `🎵 Áudio: "${msg.mediaUrl.substring(0, 30)}..."`;
+    }
+
     const typeMap: Record<MediaType, string> = {
       image: '📷 Imagem',
       video: '🎬 Vídeo',
@@ -276,18 +281,28 @@ export async function getMessages(contactId: string): Promise<Message[]> {
         }
         
         const uniqueId = storedMsg.messageId || `${timestampInMs}-${index}`;
+        
+        const messageType = mapMessageTypeToMediaType(storedMsg.messageType);
+        
+        // As per the new logic, for user audio, mediaUrl contains the transcribed text.
+        // We pass it along. The frontend component will handle TTS.
+        // `text` will be from `texto` or `caption`, which will be empty for these messages.
+        const text = storedMsg.caption || storedMsg.texto || '';
+        const mediaUrl = messageType === 'audio' && sender === 'user' 
+          ? storedMsg.mediaUrl // Pass the transcribed text here
+          : storedMsg.mediaUrl; // For other cases, it's a real URL
 
         return {
           id: uniqueId,
           contactId: contactId,
-          text: storedMsg.caption || storedMsg.texto || '',
+          text: text,
           sender: sender,
           operatorName: storedMsg.operatorName,
           timestamp: timestampInMs,
           botAvatarUrl: sender === 'bot' ? '/logo.svg' : undefined,
           status: storedMsg.status,
-          mediaUrl: storedMsg.mediaUrl,
-          mediaType: mapMessageTypeToMediaType(storedMsg.messageType),
+          mediaUrl: mediaUrl,
+          mediaType: messageType,
           jpegThumbnail: storedMsg.jpegThumbnail,
           quotedMessage: storedMsg.quotedMessage
         };
