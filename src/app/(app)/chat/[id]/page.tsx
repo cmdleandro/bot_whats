@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Dialog, DialogContent } from '@/components/ui/dialog';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -32,7 +33,7 @@ function MessageStatusIndicator({ status }: { status: MessageStatus }) {
     return <Check className={iconClass} />;
 }
 
-const MediaMessage = ({ msg, contact }: { msg: Message, contact: Contact | null }) => {
+const MediaMessage = ({ msg, onImageClick }: { msg: Message, onImageClick: (url: string) => void }) => {
   const isMounted = useRef(true);
   const audioRef = useRef<HTMLAudioElement>(null);
   const [generatedAudioUrl, setGeneratedAudioUrl] = useState<string | null>(null);
@@ -54,8 +55,7 @@ const MediaMessage = ({ msg, contact }: { msg: Message, contact: Contact | null 
 
       setIsGenerating(true);
       try {
-        let voice: 'Algenib' | 'Alpha-centauri' = msg.sender === 'operator' ? 'Algenib' : 'Alpha-centauri';
-        const result = await textToSpeech({ text: msg.mediaUrl, voice });
+        const result = await textToSpeech({ text: msg.mediaUrl, voice: msg.sender === 'operator' ? 'Algenib' : 'Alpha-centauri' });
         if (isMounted.current) {
             setGeneratedAudioUrl(result.audioDataUri);
         }
@@ -68,23 +68,20 @@ const MediaMessage = ({ msg, contact }: { msg: Message, contact: Contact | null 
       }
   };
   
-  // Logic for displaying images
   if (msg.mediaType === 'image' && msg.mediaUrl) {
     const src = msg.mediaUrl.startsWith('data:') ? msg.mediaUrl : `data:image/jpeg;base64,${msg.jpegThumbnail}`;
-
     return (
-        <a href={src} target="_blank" rel="noopener noreferrer" className="block">
-          <div className="flex flex-col gap-1 w-full">
+        <button onClick={() => onImageClick(src)} className="block focus:outline-none">
+          <div className="flex flex-col gap-1 w-full max-w-[200px]">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={src}
                 alt={msg.text || 'Imagem enviada'}
-                className="rounded-lg object-cover"
-                style={{ width: '133px', height: '133px' }}
+                className="rounded-lg object-cover w-full h-auto"
               />
-              {msg.text && <p className="text-sm whitespace-pre-wrap mt-1">{msg.text}</p>}
+              {msg.text && <p className="text-sm whitespace-pre-wrap mt-1 text-left">{msg.text}</p>}
           </div>
-        </a>
+        </button>
     );
   }
 
@@ -114,7 +111,7 @@ const MediaMessage = ({ msg, contact }: { msg: Message, contact: Contact | null 
                       <Play className="h-4 w-4" />
                   )}
               </Button>
-              <div className="text-sm">
+              <div className="text-sm text-left">
                   <p className="font-semibold">Áudio Recebido</p>
                   <p className="text-xs text-muted-foreground italic truncate max-w-xs">"{msg.mediaUrl}"</p>
               </div>
@@ -175,6 +172,7 @@ export default function ChatViewPage() {
   const [isConvertingAudio, setIsConvertingAudio] = useState(false);
   const [isUploadingFile, setIsUploadingFile] = useState(false);
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
+  const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null);
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -508,7 +506,7 @@ export default function ChatViewPage() {
                       </div>
                   )}
 
-                  <MediaMessage msg={msg} contact={contact} />
+                  <MediaMessage msg={msg} onImageClick={setImagePreviewUrl} />
 
                   <div className="flex items-center justify-end mt-1 text-xs opacity-60 self-end">
                       <span>{new Date(msg.timestamp).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
@@ -539,6 +537,15 @@ export default function ChatViewPage() {
           )}
         </div>
       </ScrollArea>
+      
+       <Dialog open={!!imagePreviewUrl} onOpenChange={(isOpen) => !isOpen && setImagePreviewUrl(null)}>
+        <DialogContent className="max-w-4xl p-2 bg-transparent border-none shadow-none">
+          {imagePreviewUrl && (
+             // eslint-disable-next-line @next/next/no-img-element
+            <img src={imagePreviewUrl} alt="Visualização de Imagem" className="w-full h-auto rounded-lg object-contain" />
+          )}
+        </DialogContent>
+      </Dialog>
       
       <footer className="border-t bg-background p-4">
         {replyingTo && (
@@ -614,3 +621,5 @@ export default function ChatViewPage() {
     </div>
   );
 }
+
+    
