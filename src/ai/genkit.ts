@@ -1,6 +1,6 @@
 
 import { genkit } from 'genkit';
-import { googleAI } from '@genkit-ai/google-ai';
+import { googleAI } from '@genkit-ai/googleai';
 import { defineDotprompt } from 'genkit/dotprompt';
 import { z } from 'zod';
 import path from 'path';
