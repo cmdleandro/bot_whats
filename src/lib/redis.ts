@@ -64,7 +64,7 @@ function extractValue(jsonString: string, key: string): string | null {
 function parseJsonMessage(jsonString: string): Partial<StoredMessage> | null {
   try {
     if (!jsonString) return null;
-    const parsed = JSON.parse(jsonString);
+    let parsed = JSON.parse(jsonString);
     if (parsed.id && !parsed.messageId) {
         parsed.messageId = parsed.id;
     }
@@ -133,12 +133,12 @@ function mapMessageTypeToMediaType(messageType?: string): MediaType | undefined 
 
 function getLastMessageText(msg: Partial<StoredMessage>): string {
   if (msg.quotedMessage) {
-    return `↩️ ${msg.texto}`
+    return `↩️ ${msg.texto || msg.caption}`
   }
   const mediaType = mapMessageTypeToMediaType(msg.messageType);
   
   if (mediaType === 'audio') {
-      return `🎵 Áudio recebido`;
+      return `🎵 Áudio: ${msg.mediaUrl || ''}`;
   }
   
   if (mediaType || msg.jpegThumbnail) {
@@ -291,9 +291,10 @@ export async function getMessages(contactId: string): Promise<Message[]> {
         
         const messageType = mapMessageTypeToMediaType(storedMsg.messageType);
         
-        let text = storedMsg.texto || '';
+        let text = storedMsg.texto || storedMsg.caption || '';
         let mediaUrl = storedMsg.mediaUrl;
         
+        // Se for um áudio com transcrição, o mediaUrl contém o texto, e o texto da mensagem deve ficar vazio.
         if (messageType === 'audio' && mediaUrl && !mediaUrl.startsWith('data:audio')) {
             text = '';
         }
@@ -378,6 +379,7 @@ export async function addMessage(
       quotedMessage: message.quotedMessage,
       mediaUrl: message.mediaUrl,
       mimetype: message.mimetype,
+      caption: message.text,
       messageType: message.mediaType ? `${message.mediaType}Message` : (message.text ? 'conversation' : undefined),
     };
     
