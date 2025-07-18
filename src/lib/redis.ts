@@ -93,7 +93,7 @@ function parseJsonMessage(jsonString: string): Partial<StoredMessage> | null {
         }
         
         recovered.quotedMessage = undefined;
-        recovered.id = recovered.id || recovered.messageId;
+        recovered.id = recovered.messageId;
 
         if (recovered.texto || recovered.mediaUrl) {
             console.log('Mensagem recuperada manualmente:', recovered);
@@ -144,6 +144,7 @@ const ATTENTION_PHRASES = [
 ];
 
 function normalizeText(text: string): string {
+    if (!text) return '';
     return text
         .toLowerCase()
         .normalize("NFD")
@@ -297,7 +298,18 @@ export async function getMessages(contactId: string): Promise<Message[]> {
   }
 }
 
-export async function addMessage(contactId: string, message: { text: string; sender: 'operator', operatorName: string, tempId: string, quotedMessage?: QuotedMessage }): Promise<void> {
+export async function addMessage(
+  contactId: string, 
+  message: { 
+    text?: string;
+    mediaUrl?: string;
+    mediaType?: MediaType;
+    sender: 'operator'; 
+    operatorName: string; 
+    tempId: string; 
+    quotedMessage?: QuotedMessage;
+  }
+): Promise<void> {
     const client = await getClient();
     const historyKey = `chat:${contactId.trim()}`;
     const channelName = 'fila_envio_whatsapp';
@@ -328,24 +340,31 @@ export async function addMessage(contactId: string, message: { text: string; sen
     const messageObjectToStore: StoredMessage = {
       id: message.tempId,
       messageId: message.tempId,
-      texto: message.text,
+      texto: message.text || '',
       tipo: message.sender,
       timestamp: Math.floor(Date.now() / 1000).toString(),
       operatorName: message.operatorName,
       instance: instanceName,
       needsAttention: false,
       status: 'sent',
-      quotedMessage: message.quotedMessage
+      quotedMessage: message.quotedMessage,
+      mediaUrl: message.mediaUrl,
+      messageType: message.mediaType ? `${message.mediaType}Message` : (message.text ? 'conversation' : undefined),
     };
     
     const messageForQueue: any = {
       instance: instanceName,
       remoteJid: contactId.trim(),
-      text: `*${message.operatorName}*\n${message.text}`,
       options: {
         messageId: message.tempId
       }
     };
+    
+    if (message.mediaUrl && message.mediaType === 'audio') {
+        messageForQueue.audio = { url: message.mediaUrl };
+    } else {
+        messageForQueue.text = `*${message.operatorName}*\n${message.text}`;
+    }
     
     if (message.quotedMessage) {
         messageForQueue.options.quoted = {
@@ -434,4 +453,3 @@ export async function saveGlobalSettings(settings: GlobalSettings): Promise<void
         throw error;
     }
 }
-

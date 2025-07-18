@@ -3,7 +3,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams } from 'next/navigation';
-import { Send, Bot, User, ChevronLeft, Loader2, Check, CheckCheck, Paperclip, CornerUpLeft, X, ChevronDown } from 'lucide-react';
+import { Send, Bot, User, ChevronLeft, Loader2, Check, CheckCheck, Paperclip, CornerUpLeft, X, ChevronDown, Mic } from 'lucide-react';
 import { getMessages, addMessage, getContacts, dismissAttention } from '@/lib/redis';
 import { Message, Contact, MessageStatus, MediaType } from '@/lib/data';
 import { Button } from '@/components/ui/button';
@@ -19,6 +19,7 @@ import {
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
 import { useToast } from '@/hooks/use-toast';
+import { textToSpeech } from '@/ai/flows/text-to-speech-flow';
 
 function MessageStatusIndicator({ status }: { status: MessageStatus }) {
     const iconClass = "h-4 w-4 ml-1";
@@ -105,6 +106,7 @@ export default function ChatViewPage() {
   const [operatorName, setOperatorName] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [isSending, setIsSending] = useState(false);
+  const [isConvertingAudio, setIsConvertingAudio] = useState(false);
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -191,42 +193,50 @@ export default function ChatViewPage() {
     }
   }, [messages]);
 
-  const handleSendMessage = async () => {
-    if (newMessage.trim() === '' || isSending) return;
+  const handleSendMessage = async ({ asAudio = false } = {}) => {
+    if (newMessage.trim() === '' || isSending || isConvertingAudio) return;
 
-    setIsSending(true);
+    if (asAudio) {
+      setIsConvertingAudio(true);
+    } else {
+      setIsSending(true);
+    }
 
     const tempId = `temp_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
-    const message: Message = {
-      id: tempId,
-      contactId,
-      text: newMessage,
-      sender: 'operator',
-      operatorName: operatorName,
-      timestamp: Date.now(),
-      status: 'sent',
-      quotedMessage: replyingTo ? {
+    const quotedMessageData = replyingTo ? {
         id: replyingTo.id,
         text: replyingTo.text,
         sender: replyingTo.sender,
         senderName: replyingTo.sender === 'user' ? contact?.name || 'User' : (replyingTo.operatorName || 'System'),
-      } : undefined
-    };
+      } : undefined;
     
-    // Optimistic update
-    // setMessages(prevMessages => [...prevMessages, message]);
     setNewMessage('');
     setReplyingTo(null);
 
     try {
-      await addMessage(contactId, {
-        text: message.text,
-        sender: 'operator',
-        operatorName: operatorName,
-        tempId: tempId,
-        quotedMessage: message.quotedMessage
-      });
-      // Fetch new messages to get the real one from redis
+      if (asAudio) {
+        const audioData = await textToSpeech({ text: newMessage });
+        if (!audioData || !audioData.audioDataUri) {
+          throw new Error('Falha ao converter texto em áudio.');
+        }
+        await addMessage(contactId, {
+          mediaUrl: audioData.audioDataUri,
+          mediaType: 'audio',
+          sender: 'operator',
+          operatorName: operatorName,
+          tempId: tempId,
+          quotedMessage: quotedMessageData
+        });
+      } else {
+        await addMessage(contactId, {
+          text: newMessage,
+          sender: 'operator',
+          operatorName: operatorName,
+          tempId: tempId,
+          quotedMessage: quotedMessageData
+        });
+      }
+      
       await fetchMessages(contactId, true);
     } catch (error: any) {
       console.error('Falha ao enviar mensagem:', error);
@@ -235,10 +245,9 @@ export default function ChatViewPage() {
         title: 'Erro ao Enviar',
         description: error.message || 'Não foi possível enviar a mensagem. Por favor, tente novamente.',
       });
-      // Revert optimistic update if necessary
-      // setMessages(prevMessages => prevMessages.filter(m => m.id !== tempId));
     } finally {
       setIsSending(false);
+      setIsConvertingAudio(false);
       textareaRef.current?.focus();
     }
   };
@@ -411,7 +420,7 @@ export default function ChatViewPage() {
                 </Button>
             </div>
         )}
-        <div className="relative flex items-center">
+        <div className="relative flex items-center gap-2">
           <Textarea
             ref={textareaRef}
             value={newMessage}
@@ -419,27 +428,38 @@ export default function ChatViewPage() {
             onKeyDown={e => {
               if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
-                handleSendMessage();
+                handleSendMessage({ asAudio: false });
               }
             }}
             placeholder="Digite uma mensagem..."
-            className="min-h-[48px] resize-none pr-16"
-            disabled={isSending}
+            className="min-h-[48px] resize-none pr-12"
+            disabled={isSending || isConvertingAudio}
           />
-          <Button
-            type="submit"
-            size="icon"
-            className="absolute right-3 top-1/2 -translate-y-1/2"
-            onClick={handleSendMessage}
-            disabled={!newMessage.trim() || isSending}
-          >
-            {isSending ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5" />}
-            <span className="sr-only">Enviar</span>
-          </Button>
+          <div className="flex flex-col gap-1">
+            <Button
+              type="button"
+              size="icon"
+              className="h-10 w-10"
+              onClick={() => handleSendMessage({ asAudio: false })}
+              disabled={!newMessage.trim() || isSending || isConvertingAudio}
+            >
+              {isSending ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5" />}
+              <span className="sr-only">Enviar Texto</span>
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              size="icon"
+              className="h-10 w-10"
+              onClick={() => handleSendMessage({ asAudio: true })}
+              disabled={!newMessage.trim() || isSending || isConvertingAudio}
+            >
+              {isConvertingAudio ? <Loader2 className="h-5 w-5 animate-spin" /> : <Mic className="h-5 w-5" />}
+              <span className="sr-only">Enviar como Áudio</span>
+            </Button>
+          </div>
         </div>
       </footer>
     </div>
   );
 }
-
-    
