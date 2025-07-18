@@ -48,9 +48,9 @@ const MediaMessage = ({ msg }: { msg: Message }) => {
 
   useEffect(() => {
     const generateAudioFromText = async () => {
-      // Condição para conversão: é um áudio do usuário (remetente), tipo de mídia é 'audio', 
-      // e o 'mediaUrl' (que agora contém o texto) não está vazio, e o áudio ainda não foi gerado.
-      if (msg.sender === 'user' && msg.mediaType === 'audio' && msg.mediaUrl && !generatedAudioUrl) {
+      // Condição: é um áudio, mediaUrl contém texto (não é uma URL real), e o áudio ainda não foi gerado.
+      // Agora funciona para 'user' e 'operator'
+      if (msg.mediaType === 'audio' && msg.mediaUrl && !msg.mediaUrl.startsWith('data:audio') && !generatedAudioUrl) {
         setIsGenerating(true);
         try {
           // Usamos o conteúdo do mediaUrl como texto para a conversão
@@ -71,9 +71,9 @@ const MediaMessage = ({ msg }: { msg: Message }) => {
     generateAudioFromText();
   }, [msg, generatedAudioUrl]);
   
-  // Para mensagens de áudio do operador, a URL já vem pronta.
-  // Para mensagens de áudio do usuário, usamos a URL gerada.
-  const finalAudioUrl = msg.sender === 'operator' ? msg.mediaUrl : generatedAudioUrl;
+  // Áudios enviados pelo operador (já convertidos) terão uma data URI.
+  // Áudios recebidos (usuário ou operador, como texto) usarão a URL gerada.
+  const finalAudioUrl = msg.mediaUrl?.startsWith('data:audio') ? msg.mediaUrl : generatedAudioUrl;
 
   if (isGenerating) {
     return (
@@ -84,7 +84,7 @@ const MediaMessage = ({ msg }: { msg: Message }) => {
     );
   }
 
-  // Se for um áudio e tivermos uma URL final (seja do operador ou gerada), mostramos o player.
+  // Se for um áudio e tivermos uma URL final (seja enviada ou gerada), mostramos o player.
   if (msg.mediaType === 'audio' && finalAudioUrl) {
     return (
         <div className="flex items-center gap-2">
@@ -93,8 +93,8 @@ const MediaMessage = ({ msg }: { msg: Message }) => {
     );
   }
   
-  // Se for um áudio do usuário mas ainda não geramos a URL, mostramos a transcrição.
-  if (msg.sender === 'user' && msg.mediaType === 'audio' && msg.mediaUrl && !finalAudioUrl) {
+  // Se for um áudio mas ainda não geramos a URL, mostramos a transcrição como fallback.
+  if (msg.mediaType === 'audio' && msg.mediaUrl && !finalAudioUrl) {
     return <p className="whitespace-pre-wrap italic text-muted-foreground/80">"{msg.mediaUrl}"</p>;
   }
 
