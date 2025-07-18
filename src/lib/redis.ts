@@ -397,10 +397,11 @@ export async function addMessage(
             messageForQueue.options.mimetype = 'audio/ogg; codecs=opus';
         } else if (message.mediaType === 'image') {
             messageForQueue.image = { url: message.mediaUrl };
+            if (message.mimetype) messageForQueue.options.mimetype = message.mimetype;
             if (message.text) messageForQueue.options.caption = `*${message.operatorName}*\n${message.text}`;
         } else if (message.mediaType === 'document') {
             messageForQueue.document = { url: message.mediaUrl };
-            messageForQueue.options.mimetype = message.mimetype;
+            if (message.mimetype) messageForQueue.options.mimetype = message.mimetype;
             messageForQueue.options.fileName = message.fileName || 'document';
             if (message.text) messageForQueue.options.caption = `*${message.operatorName}*\n${message.text}`;
         }
