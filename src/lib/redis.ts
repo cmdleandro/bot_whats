@@ -46,19 +46,31 @@ export async function getClient() {
     }
 }
 
-function parseJsonMessage(jsonString: string): Partial<StoredMessage> | null {
+function parseJsonMessage(jsonString: string): Partial<StoredMessage> & { audio?: any } | null {
   try {
     if (!jsonString) return null;
-    
     let parsed = JSON.parse(jsonString);
+    
     if (parsed.id && !parsed.messageId) {
         parsed.messageId = parsed.id;
     }
     
-    // Tratamento para áudio no formato simplificado
-    if (parsed.messageType === 'audioMessage' && typeof parsed.audio === 'string' && parsed.audio && !parsed.audio.startsWith('data:')) {
-        const mimetype = parsed.mimetype || 'audio/ogg; codecs=opus';
-        parsed.mediaUrl = `data:${mimetype};base64,${parsed.audio}`;
+    // Prioritize audio from the 'audio' object if it exists
+    if (parsed.messageType === 'audioMessage' && parsed.audio) {
+        let audioBase64: string | undefined;
+        
+        // Handle both { "audio": { "url": "..." } } and { "audio": "..." }
+        if (typeof parsed.audio === 'object' && parsed.audio !== null && typeof parsed.audio.url === 'string') {
+            audioBase64 = parsed.audio.url;
+        } else if (typeof parsed.audio === 'string') {
+            audioBase64 = parsed.audio;
+        }
+
+        if (audioBase64) {
+            const mimetype = parsed.mimetype || 'audio/ogg; codecs=opus';
+            // Ensure mediaUrl is the full Data URI for the frontend
+            parsed.mediaUrl = `data:${mimetype};base64,${audioBase64}`;
+        }
     }
     
     return parsed;
