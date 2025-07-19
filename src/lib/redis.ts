@@ -55,11 +55,6 @@ function parseJsonMessage(jsonString: string): Partial<StoredMessage> | null {
     if (parsed.id && !parsed.messageId) {
         parsed.messageId = parsed.id;
     }
-    
-    // Support for both "texto" and "message" keys
-    if (parsed.message && !parsed.texto) {
-        parsed.texto = parsed.message;
-    }
 
     return parsed;
 
@@ -74,7 +69,7 @@ function mapMessageTypeToMediaType(messageType?: string): MediaType | undefined 
     if (messageType.includes('image')) return 'image';
     if (messageType.includes('video')) return 'video';
     if (messageType.includes('document')) return 'document';
-    // Audio is not supported
+    if (messageType.includes('audio')) return 'audio';
     return undefined;
 }
 
@@ -219,7 +214,6 @@ export async function getMessages(contactId: string): Promise<Message[]> {
         if (!storedMsg) return null;
 
         const timestampInMs = storedMsg.timestamp ? (parseInt(storedMsg.timestamp, 10) * 1000) : Date.now();
-        const mediaType = mapMessageTypeToMediaType(storedMsg.messageType);
         
         let sender: Message['sender'];
         
@@ -235,19 +229,16 @@ export async function getMessages(contactId: string): Promise<Message[]> {
         
         let text: string | null = null;
         let finalMediaUrl: string | undefined = undefined;
-
-        if (mediaType) {
-            // Handle Media Messages
-            if(mediaType === 'image' && storedMsg.mediaUrl) {
-                finalMediaUrl = storedMsg.mediaUrl;
-            } else {
-                finalMediaUrl = storedMsg.mediaUrl;
-            }
+        let mediaType = mapMessageTypeToMediaType(storedMsg.messageType);
+        
+        if (mediaType && storedMsg.mediaUrl && storedMsg.mimetype) {
+            finalMediaUrl = `data:${storedMsg.mimetype};base64,${storedMsg.mediaUrl}`;
             if (storedMsg.caption && storedMsg.caption.trim() && storedMsg.caption !== 'null') {
                 text = storedMsg.caption;
+            } else {
+                text = null; // Garante que não haverá texto se o caption for vazio/nulo
             }
         } else {
-            // Handle Text Messages
             const messageText = storedMsg.texto || '';
             if (messageText.trim()) {
                 text = messageText;
