@@ -228,19 +228,21 @@ export async function getMessages(contactId: string): Promise<Message[]> {
     
     const messagePromises = storedMessages.map(async (storedMsg, index) => {
         const timestampInMs = storedMsg.timestamp ? (parseInt(storedMsg.timestamp, 10) * 1000) : Date.now();
-        const uniqueId = `${storedMsg.messageId || `msg_${timestampInMs}`}_${index}`;
+        const originalMessageId = storedMsg.messageId || `msg_${timestampInMs}`;
+        const uniqueId = `${originalMessageId}_${index}`;
         
         let sender: Message['sender'];
         let finalStatus: MessageStatus | undefined = storedMsg.status;
 
         if (storedMsg.fromMe === 'true' || storedMsg.tipo === 'operator' || storedMsg.tipo === 'bot') {
             sender = storedMsg.tipo === 'bot' ? 'bot' : 'operator';
-            if (storedMsg.messageId) {
-                const statusData = await client.hGet(`message:${storedMsg.messageId}`, 'status');
-                if (statusData) {
-                    finalStatus = statusData as MessageStatus;
-                }
+            
+            const finalMessageId = await client.get(`map:tempid:${originalMessageId}`) || originalMessageId;
+            const statusData = await client.hGet(`message:${finalMessageId}`, 'status');
+            if (statusData) {
+                finalStatus = statusData as MessageStatus;
             }
+
         } else {
             sender = 'user';
         }
@@ -359,7 +361,7 @@ export async function addMessage(
     
     if (message.mediaUrl && message.mediaType) {
         const fileData = {
-          url: message.mediaUrl,
+          data: message.mediaUrl.split(',')[1],
           mimetype: message.mimetype
         }
 
@@ -470,5 +472,7 @@ export async function saveGlobalSettings(settings: GlobalSettings): Promise<void
         throw error;
     }
 }
+
+    
 
     
