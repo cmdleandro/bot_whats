@@ -56,11 +56,9 @@ function parseJsonMessage(jsonString: string): Partial<StoredMessage> | null {
         parsed.messageId = parsed.id;
     }
 
-    // New logic: if messageType is audioMessage, construct the data URI from mediaUrl and mimetype
+    // Handle new audio format
     if (parsed.messageType === 'audioMessage' && parsed.mediaUrl && parsed.mimetype) {
-        // Ensure mediaUrl is just the base64 string
-        const base64Data = parsed.mediaUrl.includes(',') ? parsed.mediaUrl.split(',')[1] : parsed.mediaUrl;
-        parsed.mediaUrl = `data:${parsed.mimetype};base64,${base64Data}`;
+      // Data is already correct, but we need to ensure it will be processed correctly
     }
     
     return parsed;
@@ -240,12 +238,18 @@ export async function getMessages(contactId: string): Promise<Message[]> {
         const mediaType = mapMessageTypeToMediaType(storedMsg.messageType);
         
         let text: string | null = null;
+        let mediaUrl: string | undefined = storedMsg.mediaUrl;
+        
+        if (mediaType === 'audio' && storedMsg.mimetype && mediaUrl) {
+          mediaUrl = `data:${storedMsg.mimetype};base64,${mediaUrl}`;
+        }
         
         if (storedMsg.caption && storedMsg.caption !== 'null' && storedMsg.caption.trim() !== '') {
             text = storedMsg.caption;
-        } else if (!mediaType) {
-            text = storedMsg.texto || null;
+        } else if (!mediaType && storedMsg.texto) {
+            text = storedMsg.texto;
         }
+
 
         return {
           id: uniqueId,
@@ -256,7 +260,7 @@ export async function getMessages(contactId: string): Promise<Message[]> {
           timestamp: timestampInMs,
           botAvatarUrl: sender === 'bot' ? '/logo.svg' : undefined,
           status: storedMsg.status,
-          mediaUrl: storedMsg.mediaUrl,
+          mediaUrl: mediaUrl,
           mediaType: mediaType,
           mimetype: storedMsg.mimetype,
           jpegThumbnail: storedMsg.jpegThumbnail,
@@ -452,5 +456,3 @@ export async function saveGlobalSettings(settings: GlobalSettings): Promise<void
         throw error;
     }
 }
-
-    
