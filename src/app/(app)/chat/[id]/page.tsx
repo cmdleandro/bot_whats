@@ -50,7 +50,7 @@ const AudioPlayer = ({ mediaUrl }: { mediaUrl: string }) => {
       if (isPlaying) {
         audioRef.current.pause();
       } else {
-        audioRef.current.playbackRate = playbackSpeed; // Garante que a velocidade seja aplicada ao dar play
+        audioRef.current.playbackRate = playbackSpeed; 
         audioRef.current.play();
       }
       setIsPlaying(!isPlaying);
@@ -68,7 +68,7 @@ const AudioPlayer = ({ mediaUrl }: { mediaUrl: string }) => {
           {isPlaying ? <Pause className="h-5 w-5" /> : <Play className="h-5 w-5" />}
         </div>
         <div className="flex-1">
-          <audio ref={audioRef} src={mediaUrl} onEnded={handleEnded} className="w-full" controls controlsList="nodownload" />
+          <audio ref={audioRef} src={mediaUrl} onEnded={handleEnded} className="w-full" controlsList="nodownload" />
         </div>
       </div>
        <p className="text-xs text-muted-foreground italic mt-1 text-left">audio Message</p>
