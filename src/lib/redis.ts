@@ -68,15 +68,18 @@ function parseJsonMessage(jsonString: string): Partial<StoredMessage> | null {
         parsed.messageId = parsed.id;
     }
 
+    // Handles simplified audio format: { "audio": { "url": "BASE64..." } }
     if (parsed.messageType === 'audioMessage' && parsed.audio?.url) {
-      if (!parsed.mediaUrl) {
-         parsed.mediaUrl = `data:audio/ogg; codecs=opus;base64,${parsed.audio.url}`;
-      }
-    } else if (parsed['mediaUrl '] && !parsed.mediaUrl) {
+        if (!parsed.mediaUrl) {
+            // Constructs the full Data URI for browser playback
+            parsed.mediaUrl = `data:audio/ogg; codecs=opus;base64,${parsed.audio.url}`;
+        }
+    } else if (parsed['mediaUrl '] && !parsed.mediaUrl) { // Handles trailing space error
       parsed.mediaUrl = parsed['mediaUrl '];
       delete parsed['mediaUrl '];
     }
     
+    // Handles image format if mediaUrl is just base64
     if (parsed.messageType === 'imageMessage' && parsed.mediaUrl && !parsed.mediaUrl.startsWith('data:')) {
         const mimetype = parsed.mimetype || 'image/jpeg';
         parsed.mediaUrl = `data:${mimetype};base64,${parsed.mediaUrl}`;
@@ -136,12 +139,15 @@ function mapMessageTypeToMediaType(messageType?: string): MediaType | undefined 
 
 function getLastMessageText(msg: Partial<StoredMessage>): string {
   if (msg.quotedMessage) {
-    return `↩️ ${msg.texto || msg.caption}`
+    return `↩️ ${msg.texto || msg.caption || ''}`
   }
   const mediaType = mapMessageTypeToMediaType(msg.messageType);
   
-  if (mediaType === 'audio' && msg.mediaUrl && !msg.mediaUrl.startsWith('data:audio')) {
-      return `🎵 Áudio: ${msg.mediaUrl}`;
+  if (mediaType === 'audio') {
+      if (msg.mediaUrl && !msg.mediaUrl.startsWith('data:audio')) {
+          return `🎵 Áudio: "${msg.mediaUrl}"`;
+      }
+      return '🎵 Mensagem de áudio';
   }
   
   if (mediaType || msg.jpegThumbnail) {
@@ -296,8 +302,7 @@ export async function getMessages(contactId: string): Promise<Message[]> {
         let text = storedMsg.texto || storedMsg.caption || '';
         let mediaUrl = storedMsg.mediaUrl;
         
-        // If it's audio with a transcription, mediaUrl holds the text, and the message text should be empty.
-        // If it's a real audio file, mediaUrl will start with 'data:audio'
+        // If it's an audio with a transcription, mediaUrl holds the text. Clear text to prevent it from being displayed.
         if (messageType === 'audio' && mediaUrl && !mediaUrl.startsWith('data:audio')) {
             text = '';
         } else if (messageType === 'image' && mediaUrl) {
@@ -398,10 +403,11 @@ export async function addMessage(
     };
     
     if (message.mediaUrl && message.mediaType) {
+        // Remove the data URI prefix for the Evolution API
         const base64Data = message.mediaUrl.substring(message.mediaUrl.indexOf(',') + 1);
 
         if (message.mediaType === 'audio') {
-            messageForQueue.audio = { url: message.mediaUrl };
+            messageForQueue.audio = { url: message.mediaUrl }; // Evolution might handle data URIs for audio, confirm later
             messageForQueue.options.mimetype = 'audio/ogg; codecs=opus';
         } else if (message.mediaType === 'image') {
             messageForQueue.image = { url: base64Data };
@@ -415,7 +421,7 @@ export async function addMessage(
         }
     } else {
         messageForQueue.text = `*${message.operatorName}*\n${message.text}`;
-        messageForQueue.options.mimetype = 'text/plain';
+        messageForQueue.options.mimetype = 'text/plain'; // Explicitly set mimetype for text
     }
     
     if (message.quotedMessage) {
