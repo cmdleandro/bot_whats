@@ -36,48 +36,54 @@ function MessageStatusIndicator({ status }: { status: MessageStatus }) {
 const MediaMessage = ({ msg, onImageClick }: { msg: Message; onImageClick: (url: string) => void }) => {
   const { mediaType, mediaUrl, text, jpegThumbnail } = msg;
 
-  if (mediaType === 'image') {
-    const src = mediaUrl?.startsWith('data:') ? mediaUrl : `data:image/jpeg;base64,${jpegThumbnail || mediaUrl}`;
+  // Renderiza a mídia primeiro, se existir
+  if (mediaType && mediaUrl) {
+    let mediaElement: React.ReactNode = null;
+
+    switch (mediaType) {
+      case 'image':
+        const src = mediaUrl.startsWith('data:') ? mediaUrl : `data:image/jpeg;base64,${jpegThumbnail || mediaUrl}`;
+        mediaElement = (
+          <button onClick={() => onImageClick(src)} className="block focus:outline-none">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={src}
+              alt={text || 'Imagem enviada'}
+              className="rounded-lg object-cover w-full h-auto max-w-[250px]"
+            />
+          </button>
+        );
+        break;
+      case 'audio':
+        mediaElement = (
+          <audio controls src={mediaUrl} className="w-full max-w-xs" />
+        );
+        break;
+      case 'document':
+        mediaElement = (
+          <a href={mediaUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-primary underline">
+            <Paperclip className="h-4 w-4" />
+            <span>{text || 'Ver Documento'}</span>
+          </a>
+        );
+        break;
+    }
+    
+    // Retorna a mídia e o texto (legenda) se houver
     return (
       <div className="flex flex-col gap-1 w-full">
-        <button onClick={() => onImageClick(src)} className="block focus:outline-none">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={src}
-            alt={text || 'Imagem enviada'}
-            className="rounded-lg object-cover w-full h-auto max-w-[250px]"
-          />
-        </button>
+        {mediaElement}
         {text && <p className="text-sm whitespace-pre-wrap mt-1 text-left">{text}</p>}
       </div>
     );
   }
 
-  if (mediaType === 'audio') {
-    return (
-      <div className="flex flex-col gap-1 w-full">
-        {mediaUrl && <audio controls src={mediaUrl} className="w-full max-w-xs" />}
-        {text && <p className="text-sm whitespace-pre-wrap mt-1 text-left">{text}</p>}
-      </div>
-    );
-  }
-
-  if (mediaType === 'document') {
-    return (
-      <div className="flex flex-col gap-1 w-full">
-        <a href={mediaUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-primary underline">
-          <Paperclip className="h-4 w-4" />
-          <span>{text || 'Ver Documento'}</span>
-        </a>
-        {text && <p className="text-sm whitespace-pre-wrap mt-1 text-left">{text}</p>}
-      </div>
-    );
-  }
-  
+  // Se não houver mídia, renderiza apenas o texto, se ele existir
   if (text) {
     return <p className="whitespace-pre-wrap">{text}</p>;
   }
 
+  // Se não houver nem mídia nem texto, não renderiza nada
   return null;
 };
 
