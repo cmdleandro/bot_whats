@@ -76,12 +76,11 @@ const MediaMessage = ({ msg, onImageClick }: { msg: Message; onImageClick: (url:
       return (
           <div className="flex flex-col gap-1 w-full">
               {mediaElement}
-              {text && mediaType !== 'audio' && <p className="text-sm whitespace-pre-wrap mt-1 text-left">{text}</p>}
+              {text && <p className="text-sm whitespace-pre-wrap mt-1 text-left">{text}</p>}
           </div>
       );
   }
 
-  // Render text only if no media
   if (text) {
     return <p className="whitespace-pre-wrap">{text}</p>;
   }

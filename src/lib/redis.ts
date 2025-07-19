@@ -51,12 +51,10 @@ function parseJsonMessage(jsonString: string): Partial<StoredMessage> | null {
     if (!jsonString) return null;
     let parsed = JSON.parse(jsonString);
     
-    // Legacy support for older message formats
     if (parsed.id && !parsed.messageId) {
         parsed.messageId = parsed.id;
     }
     
-    // Support "texto" as the primary key for text content
     if (parsed.message && !parsed.texto) {
        parsed.texto = parsed.message
     }
@@ -237,9 +235,8 @@ export async function getMessages(contactId: string): Promise<Message[]> {
         let finalMediaUrl: string | undefined = undefined;
         let mediaType = mapMessageTypeToMediaType(storedMsg.messageType);
         
-        // Handle media
         if (mediaType && storedMsg.mediaUrl) {
-             if (storedMsg.mediaUrl.startsWith('data:')) {
+            if (storedMsg.mediaUrl.startsWith('data:')) {
                 finalMediaUrl = storedMsg.mediaUrl;
             } else if (storedMsg.mimetype) {
                 finalMediaUrl = `data:${storedMsg.mimetype};base64,${storedMsg.mediaUrl}`;
@@ -250,21 +247,15 @@ export async function getMessages(contactId: string): Promise<Message[]> {
                 text = captionText;
             }
         } else {
-            // Handle regular text messages
             const messageText = storedMsg.texto || '';
             if (messageText.trim()) {
                 text = messageText;
             }
         }
-
-        if (mediaType && text === null) {
-            text = storedMsg.texto; // Fallback to texto if caption is null for media
-        }
         
-        if (mediaType === 'audio' && text) {
-            text = null; // Do not show text for audio messages to allow the player to show.
+        if (mediaType === 'audio') {
+            text = null;
         }
-
 
         return {
           id: uniqueId,
@@ -349,11 +340,6 @@ export async function addMessage(
       mimetype: message.mimetype,
       messageType: message.mediaType ? `${message.mediaType}Message` : (message.text ? 'conversation' : undefined),
     };
-    
-    // Only add caption if text is provided with media
-    if (message.mediaType && message.text) {
-        messageObjectToStore.caption = `*${message.operatorName}*\n${message.text}`;
-    }
     
     const messageForQueue: any = {
       instance: instanceName,
