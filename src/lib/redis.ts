@@ -77,7 +77,7 @@ function mapMessageTypeToMediaType(messageType?: string): MediaType | undefined 
     if (messageType.includes('videoMessage')) {
         return 'video';
     }
-    if (messageType.includes('audioMessage')) {
+    if (messageType.includes('audioMessage') || messageType.includes('audio/ogg')) {
         return 'audio';
     }
     if (messageType.includes('documentMessage')) {
@@ -224,26 +224,44 @@ export async function getMessages(contactId: string): Promise<Message[]> {
     if (!messageStrings || messageStrings.length === 0) {
       return [];
     }
+
+    let highestStatusFound: MessageStatus | null = null;
+    const statusCache = new Map<string, MessageStatus>();
     
-    const messages = await Promise.all(messageStrings
-      .map(async (msgString, index) => {
+    const messages = await Promise.all(
+      messageStrings.map(async (msgString, index) => {
         const storedMsg = parseJsonMessage(msgString);
         if (!storedMsg) return null;
 
         const timestampInMs = storedMsg.timestamp ? (parseInt(storedMsg.timestamp, 10) * 1000) : Date.now();
+        const uniqueId = storedMsg.messageId || `msg_${timestampInMs}_${index}`;
         
         let sender: Message['sender'];
         let finalStatus: MessageStatus | undefined = storedMsg.status;
         
         if (storedMsg.fromMe === 'true' || storedMsg.tipo === 'operator') {
-          sender = 'operator';
-          // Se for uma mensagem do operador, busca o status atualizado da chave HASH
-          if (storedMsg.messageId) {
-            const statusData = await client.hGet(`message:${storedMsg.messageId}`, 'status');
-            if (statusData) {
-              finalStatus = statusData as MessageStatus;
+            sender = 'operator';
+            
+            if (highestStatusFound === 'read') {
+                finalStatus = 'read';
+            } else if (highestStatusFound === 'delivered' && finalStatus !== 'read') {
+                finalStatus = 'delivered';
+            } else if (storedMsg.messageId) {
+                if (statusCache.has(storedMsg.messageId)) {
+                    finalStatus = statusCache.get(storedMsg.messageId);
+                } else {
+                    const statusData = await client.hGet(`message:${storedMsg.messageId}`, 'status');
+                    if (statusData) {
+                        finalStatus = statusData as MessageStatus;
+                        statusCache.set(storedMsg.messageId, finalStatus);
+                        if (finalStatus === 'read') {
+                            highestStatusFound = 'read';
+                        } else if (finalStatus === 'delivered' && highestStatusFound !== 'read') {
+                            highestStatusFound = 'delivered';
+                        }
+                    }
+                }
             }
-          }
 
         } else if (storedMsg.tipo === 'bot') {
             sender = 'bot';
@@ -251,11 +269,9 @@ export async function getMessages(contactId: string): Promise<Message[]> {
             sender = 'user';
         }
         
-        const uniqueId = storedMsg.messageId || `${timestampInMs}-${index}`;
-        
         let text: string | null = null;
         let finalMediaUrl: string | undefined = undefined;
-        const mediaType = mapMessageTypeToMediaType(storedMsg.messageType);
+        const mediaType = mapMessageTypeToMediaType(storedMsg.messageType || storedMsg.mimetype);
         
         if (mediaType && storedMsg.mediaUrl) {
             if (storedMsg.mediaUrl.startsWith('data:')) {
@@ -289,7 +305,8 @@ export async function getMessages(contactId: string): Promise<Message[]> {
           jpegThumbnail: storedMsg.jpegThumbnail,
           quotedMessage: storedMsg.quotedMessage
         };
-      }))
+      })
+    );
 
     return messages
       .filter((msg): msg is Message => msg !== null)
@@ -355,7 +372,7 @@ export async function addMessage(
       quotedMessage: message.quotedMessage,
       mediaUrl: message.mediaUrl,
       mimetype: message.mimetype,
-      messageType: message.mediaType === 'audio' ? 'audioMessage' : (message.text ? 'conversation' : undefined),
+      messageType: message.mediaType === 'audio' ? 'audio/ogg' : (message.text ? 'conversation' : undefined),
     };
     
     const messageForQueue: any = {
