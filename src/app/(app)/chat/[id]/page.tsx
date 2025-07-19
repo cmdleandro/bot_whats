@@ -3,7 +3,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams } from 'next/navigation';
-import { Send, Bot, ChevronLeft, Loader2, Check, CheckCheck, Paperclip, CornerUpLeft, X, ChevronDown, Mic } from 'lucide-react';
+import { Send, Bot, ChevronLeft, Loader2, Check, CheckCheck, Paperclip, CornerUpLeft, X, ChevronDown, Mic, Play, Pause } from 'lucide-react';
 import { getMessages, addMessage, getContacts, dismissAttention } from '@/lib/redis';
 import { Message, Contact, MessageStatus, MediaType } from '@/lib/data';
 import { Button } from '@/components/ui/button';
@@ -33,15 +33,47 @@ function MessageStatusIndicator({ status }: { status: MessageStatus }) {
     return <Check className={iconClass} />;
 }
 
+const AudioPlayer = ({ mediaUrl }: { mediaUrl: string }) => {
+  const audioRef = useRef<HTMLAudioElement>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+
+  const togglePlayPause = () => {
+    if (audioRef.current) {
+      if (isPlaying) {
+        audioRef.current.pause();
+      } else {
+        audioRef.current.play();
+      }
+      setIsPlaying(!isPlaying);
+    }
+  };
+  
+  const handleEnded = () => {
+    setIsPlaying(false);
+  }
+
+  return (
+    <div className="flex items-center gap-2 w-full max-w-[250px] cursor-pointer" onClick={togglePlayPause}>
+      <div className="flex-shrink-0">
+        {isPlaying ? <Pause className="h-5 w-5" /> : <Play className="h-5 w-5" />}
+      </div>
+      <div className="flex-1">
+        <audio ref={audioRef} src={mediaUrl} onEnded={handleEnded} className="w-full">
+          Seu navegador não suporta o elemento de áudio.
+        </audio>
+      </div>
+    </div>
+  );
+};
+
+
 const MediaMessage = ({ msg, onImageClick }: { msg: Message; onImageClick: (url: string) => void }) => {
   const { mediaType, mediaUrl, text } = msg;
 
   if (mediaType === 'audio' && mediaUrl) {
     return (
-      <div className="flex flex-col gap-1 w-full max-w-[250px]">
-        <audio controls src={mediaUrl} className="w-full">
-          Seu navegador não suporta o elemento de áudio.
-        </audio>
+       <div className="flex flex-col gap-1 w-full max-w-[250px]">
+        <AudioPlayer mediaUrl={mediaUrl} />
         <p className="text-xs text-muted-foreground italic mt-1 text-left">audio Message</p>
       </div>
     );
