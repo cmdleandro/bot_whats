@@ -54,16 +54,11 @@ function parseJsonMessage(jsonString: string): Partial<StoredMessage> | null {
     if (parsed.id && !parsed.messageId) {
         parsed.messageId = parsed.id;
     }
-
-    // Handles simplified audio format: { "audio": { "url": "BASE64..." } }
-    if (parsed.messageType === 'audioMessage' && parsed.audio?.url) {
-        // Prioritize audio object over a potential text-based mediaUrl
-        parsed.mediaUrl = `data:audio/ogg; codecs=opus;base64,${parsed.audio.url}`;
-    } else if (parsed['mediaUrl '] && !parsed.mediaUrl) { // Handles trailing space error
-      parsed.mediaUrl = parsed['mediaUrl '];
-      delete parsed['mediaUrl '];
-    }
     
+    if (parsed.messageType === 'audioMessage' && typeof parsed.audio === 'string' && parsed.audio && !parsed.audio.startsWith('data:')) {
+        parsed.mediaUrl = `data:audio/ogg; codecs=opus;base64,${parsed.audio}`;
+    }
+
     // Handles image format if mediaUrl is just base64
     if (parsed.messageType === 'imageMessage' && parsed.mediaUrl && !parsed.mediaUrl.startsWith('data:')) {
         const mimetype = parsed.mimetype || 'image/jpeg';
@@ -351,8 +346,7 @@ export async function addMessage(
         const base64Data = message.mediaUrl.substring(message.mediaUrl.indexOf(',') + 1);
 
         if (message.mediaType === 'audio') {
-            messageForQueue.audio = { url: base64Data };
-            messageObjectToStore.audio = { url: base64Data };
+            messageForQueue.audio = { url: base64Data }; // Send only base64
             messageForQueue.options.mimetype = 'audio/ogg; codecs=opus';
         } else if (message.mediaType === 'image') {
             messageForQueue.image = { url: base64Data };
@@ -364,7 +358,7 @@ export async function addMessage(
             messageForQueue.options.fileName = message.fileName || 'document';
             if (message.text) messageForQueue.options.caption = `*${message.operatorName}*\n${message.text}`;
         }
-    } else {
+    } else if (message.text) {
         messageForQueue.text = `*${message.operatorName}*\n${message.text}`;
         messageForQueue.options.mimetype = 'text/plain';
     }
@@ -383,9 +377,13 @@ export async function addMessage(
     }
     
     await client.lPush(historyKey, JSON.stringify(messageObjectToStore));
-    await client.publish(channelName, JSON.stringify(messageForQueue));
     
-    console.log(`Mensagem ${message.tempId} para ${contactId} (instância: ${instanceName}) publicada no canal ${channelName}.`);
+    if (messageForQueue.text || messageForQueue.image || messageForQueue.audio || messageForQueue.document) {
+      await client.publish(channelName, JSON.stringify(messageForQueue));
+      console.log(`Mensagem ${message.tempId} para ${contactId} (instância: ${instanceName}) publicada no canal ${channelName}.`);
+    } else {
+      console.log(`Mensagem ${message.tempId} para ${contactId} era apenas para armazenamento local e não foi publicada.`);
+    }
 }
 
 export async function dismissAttention(contactId: string): Promise<void> {
@@ -456,5 +454,7 @@ export async function saveGlobalSettings(settings: GlobalSettings): Promise<void
         throw error;
     }
 }
+
+    
 
     
