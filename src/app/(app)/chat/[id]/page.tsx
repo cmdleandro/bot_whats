@@ -38,9 +38,12 @@ const MediaMessage = ({ msg, onImageClick }: { msg: Message; onImageClick: (url:
 
   if (mediaType === 'audio' && mediaUrl) {
     return (
-      <audio controls src={mediaUrl} className="max-w-[250px] w-full">
-        Seu navegador não suporta o elemento de áudio.
-      </audio>
+      <div className="flex flex-col gap-1 w-full max-w-[250px]">
+        <audio controls src={mediaUrl} className="w-full">
+          Seu navegador não suporta o elemento de áudio.
+        </audio>
+        <p className="text-xs text-muted-foreground italic mt-1 text-left">audio Message</p>
+      </div>
     );
   }
 
@@ -533,5 +536,3 @@ export default function ChatViewPage() {
     </div>
   );
 }
-
-    
