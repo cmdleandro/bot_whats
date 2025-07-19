@@ -54,20 +54,18 @@ function parseJsonMessage(jsonString: string): Partial<StoredMessage> | null {
     if (parsed.id && !parsed.messageId) {
         parsed.messageId = parsed.id;
     }
+
+    // Prioriza o novo formato com mimetype para áudio e imagem
+    if ((parsed.messageType === 'audioMessage' || parsed.messageType === 'imageMessage') && parsed.mediaUrl && parsed.mimetype && !parsed.mediaUrl.startsWith('data:')) {
+        parsed.mediaUrl = `data:${parsed.mimetype};base64,${parsed.mediaUrl}`;
+    }
     
-    // Handle simplified audio format (base64 string directly in 'audio' field)
-    if (parsed.messageType === 'audioMessage' && typeof parsed.audio === 'string' && parsed.audio && !parsed.audio.startsWith('data:')) {
-        const mimetype = parsed.mimetype || 'audio/ogg; codecs=opus'; // Default to ogg if not provided
+    // Tratamento para áudio no formato simplificado
+    else if (parsed.messageType === 'audioMessage' && typeof parsed.audio === 'string' && parsed.audio && !parsed.audio.startsWith('data:')) {
+        const mimetype = parsed.mimetype || 'audio/ogg; codecs=opus';
         parsed.mediaUrl = `data:${mimetype};base64,${parsed.audio}`;
     }
-
-    // Handles image format if mediaUrl is just base64
-    if (parsed.messageType === 'imageMessage' && parsed.mediaUrl && !parsed.mediaUrl.startsWith('data:')) {
-        const mimetype = parsed.mimetype || 'image/jpeg';
-        parsed.mediaUrl = `data:${mimetype};base64,${parsed.mediaUrl}`;
-    }
-
-
+    
     return parsed;
 
   } catch (error) {
@@ -348,8 +346,8 @@ export async function addMessage(
         const base64Data = message.mediaUrl.substring(message.mediaUrl.indexOf(',') + 1);
 
         if (message.mediaType === 'audio') {
-            messageForQueue.audio = { url: base64Data };
-            messageForQueue.options.mimetype = 'audio/ogg; codecs=opus';
+            messageForQueue.audio = { url: base64Data }; // Enviar apenas Base64 para a API
+            messageForQueue.options.mimetype = message.mimetype || 'audio/ogg; codecs=opus';
         } else if (message.mediaType === 'image') {
             messageForQueue.image = { url: base64Data };
             if (message.mimetype) messageForQueue.options.mimetype = message.mimetype;
@@ -456,3 +454,5 @@ export async function saveGlobalSettings(settings: GlobalSettings): Promise<void
         throw error;
     }
 }
+
+    
