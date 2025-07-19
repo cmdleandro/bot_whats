@@ -2,7 +2,7 @@
 'use server';
 
 import { createClient } from 'redis';
-import type { Contact, Message, StoredMessage, User, StoredContact, GlobalSettings, MediaType, QuotedMessage } from './data';
+import type { Contact, Message, StoredMessage, User, StoredContact, GlobalSettings, MediaType, QuotedMessage, MessageStatus } from './data';
 import { initialUsers } from './data';
 import { formatDistanceToNow, fromUnixTime } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -94,19 +94,19 @@ function getLastMessageText(msg: Partial<StoredMessage>): string {
   const mediaType = mapMessageTypeToMediaType(msg.messageType);
   
   if (mediaType) {
-    if (mediaType === 'audio') {
-        return '🎵 Mensagem de áudio';
-    }
-    const typeMap: Record<string, string> = {
-      image: '📷 Imagem',
-      video: '🎬 Vídeo',
-      document: '📄 Documento',
-    };
-    const mediaText = typeMap[mediaType] || 'Arquivo de mídia';
-    return msg.caption ? `${mediaText}: ${msg.caption}` : mediaText;
+      if (mediaType === 'audio') {
+          return '🎵 Mensagem de áudio';
+      }
+      const typeMap: Record<string, string> = {
+        image: '📷 Imagem',
+        video: '🎬 Vídeo',
+        document: '📄 Documento',
+      };
+      const mediaText = typeMap[mediaType] || 'Arquivo de mídia';
+      return msg.caption ? `${mediaText}: ${msg.caption}` : mediaText;
   }
   
-  return msg.texto || msg.message || 'Mensagem sem texto.';
+  return msg.texto || 'Mensagem sem texto.';
 }
 
 const ATTENTION_PHRASES = [
@@ -225,17 +225,26 @@ export async function getMessages(contactId: string): Promise<Message[]> {
       return [];
     }
     
-    const messages = messageStrings
-      .map((msgString, index) => {
+    const messages = await Promise.all(messageStrings
+      .map(async (msgString, index) => {
         const storedMsg = parseJsonMessage(msgString);
         if (!storedMsg) return null;
 
         const timestampInMs = storedMsg.timestamp ? (parseInt(storedMsg.timestamp, 10) * 1000) : Date.now();
         
         let sender: Message['sender'];
+        let finalStatus: MessageStatus | undefined = storedMsg.status;
         
         if (storedMsg.fromMe === 'true' || storedMsg.tipo === 'operator') {
           sender = 'operator';
+          // Se for uma mensagem do operador, busca o status atualizado da chave HASH
+          if (storedMsg.messageId) {
+            const statusData = await client.hGet(`message:${storedMsg.messageId}`, 'status');
+            if (statusData) {
+              finalStatus = statusData as MessageStatus;
+            }
+          }
+
         } else if (storedMsg.tipo === 'bot') {
             sender = 'bot';
         } else {
@@ -261,10 +270,10 @@ export async function getMessages(contactId: string): Promise<Message[]> {
             text = mainText;
         }
 
-        if (mediaType === 'audio' && text) {
+        if (mediaType === 'audio') {
             text = null;
         }
-
+        
         return {
           id: uniqueId,
           contactId: contactId,
@@ -273,18 +282,18 @@ export async function getMessages(contactId: string): Promise<Message[]> {
           operatorName: storedMsg.operatorName,
           timestamp: timestampInMs,
           botAvatarUrl: sender === 'bot' ? '/logo.svg' : undefined,
-          status: storedMsg.status,
+          status: finalStatus,
           mediaUrl: finalMediaUrl,
           mediaType: mediaType,
           mimetype: storedMsg.mimetype,
           jpegThumbnail: storedMsg.jpegThumbnail,
           quotedMessage: storedMsg.quotedMessage
         };
-      })
+      }))
+
+    return messages
       .filter((msg): msg is Message => msg !== null)
       .reverse();
-
-    return messages;
 
   } catch (error) {
     console.error(`Falha ao buscar mensagens para ${contactId} do Redis:`, error);
@@ -346,7 +355,7 @@ export async function addMessage(
       quotedMessage: message.quotedMessage,
       mediaUrl: message.mediaUrl,
       mimetype: message.mimetype,
-      messageType: message.mediaType ? `${message.mediaType}Message` : (message.text ? 'conversation' : undefined),
+      messageType: message.mediaType === 'audio' ? 'audioMessage' : (message.text ? 'conversation' : undefined),
     };
     
     const messageForQueue: any = {
@@ -358,10 +367,8 @@ export async function addMessage(
     };
     
     if (message.mediaUrl && message.mediaType) {
-        const base64Data = message.mediaUrl.substring(message.mediaUrl.indexOf(',') + 1);
-        
         const fileData = {
-          data: base64Data,
+          data: message.mediaUrl.substring(message.mediaUrl.indexOf(',') + 1),
           mimetype: message.mimetype
         }
 
