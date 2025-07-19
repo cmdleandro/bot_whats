@@ -56,6 +56,11 @@ function parseJsonMessage(jsonString: string): Partial<StoredMessage> | null {
         parsed.messageId = parsed.id;
     }
     
+    // Support for both "texto" and "message" keys
+    if (parsed.message && !parsed.texto) {
+        parsed.texto = parsed.message;
+    }
+
     return parsed;
 
   } catch (error) {
@@ -69,7 +74,7 @@ function mapMessageTypeToMediaType(messageType?: string): MediaType | undefined 
     if (messageType.includes('image')) return 'image';
     if (messageType.includes('video')) return 'video';
     if (messageType.includes('document')) return 'document';
-    // Removed audio handling
+    // Audio is not supported
     return undefined;
 }
 
@@ -112,8 +117,9 @@ function shouldTriggerAttention(message: Partial<StoredMessage>): boolean {
     if (message.needsAttention === true) {
         return true;
     }
-    if (message.tipo === 'bot' && message.texto) {
-        const normalizedText = normalizeText(message.texto);
+    const textToCheck = message.texto || '';
+    if (message.tipo === 'bot' && textToCheck) {
+        const normalizedText = normalizeText(textToCheck);
         return ATTENTION_PHRASES.some(phrase => normalizedText.includes(phrase));
     }
     return false;
@@ -230,22 +236,22 @@ export async function getMessages(contactId: string): Promise<Message[]> {
         let text: string | null = null;
         let finalMediaUrl: string | undefined = undefined;
 
-        if (mediaType === 'image' && storedMsg.mediaUrl) {
-           finalMediaUrl = storedMsg.mediaUrl;
-           if (storedMsg.caption && storedMsg.caption !== 'null') {
-             text = storedMsg.caption;
-           }
+        if (mediaType) {
+            // Handle Media Messages
+            if(mediaType === 'image' && storedMsg.mediaUrl) {
+                finalMediaUrl = storedMsg.mediaUrl;
+            } else {
+                finalMediaUrl = storedMsg.mediaUrl;
+            }
+            if (storedMsg.caption && storedMsg.caption.trim() && storedMsg.caption !== 'null') {
+                text = storedMsg.caption;
+            }
         } else {
-          finalMediaUrl = storedMsg.mediaUrl;
-          if (storedMsg.texto && storedMsg.texto.trim()) {
-            text = storedMsg.texto;
-          }
-        }
-
-        // Se for um tipo de mídia sem manipulador específico, mas que tem uma URL,
-        // apenas armazenamos a URL sem formatá-la.
-        if (storedMsg.mediaUrl && !mediaType) {
-            finalMediaUrl = storedMsg.mediaUrl;
+            // Handle Text Messages
+            const messageText = storedMsg.texto || '';
+            if (messageText.trim()) {
+                text = messageText;
+            }
         }
 
         return {
