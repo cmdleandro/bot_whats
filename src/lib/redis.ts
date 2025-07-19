@@ -50,13 +50,7 @@ function parseJsonMessage(jsonString: string): Partial<StoredMessage> | null {
   try {
     if (!jsonString) return null;
     
-    let correctedJsonString = jsonString;
-    // Correction for unquoted base64 audio URLs in the audio object
-    if (correctedJsonString.includes('"audio": { "url":') && !correctedJsonString.includes('"audio": { "url": "')) {
-      correctedJsonString = jsonString.replace(/"url":\s*([A-Za-z0-9+/=]+)/g, '"url": "$1"');
-    }
-    
-    let parsed = JSON.parse(correctedJsonString);
+    let parsed = JSON.parse(jsonString);
     if (parsed.id && !parsed.messageId) {
         parsed.messageId = parsed.id;
     }
@@ -256,8 +250,6 @@ export async function getMessages(contactId: string): Promise<Message[]> {
         let text = storedMsg.texto || storedMsg.caption || '';
         let mediaUrl = storedMsg.mediaUrl;
         
-        // If it's media, the caption is the text. The text property itself should be empty
-        // to avoid being rendered separately.
         if (messageType === 'image' || messageType === 'audio' || messageType === 'document' || messageType === 'video') {
             text = storedMsg.caption || '';
         }
@@ -330,7 +322,7 @@ export async function addMessage(
         throw new Error(errorMsg);
     }
     
-    const messageObjectToStore: StoredMessage = {
+    const messageObjectToStore: Partial<StoredMessage> = {
       id: message.tempId,
       messageId: message.tempId,
       texto: message.text || '',
@@ -359,7 +351,8 @@ export async function addMessage(
         const base64Data = message.mediaUrl.substring(message.mediaUrl.indexOf(',') + 1);
 
         if (message.mediaType === 'audio') {
-            messageForQueue.audio = { url: message.mediaUrl };
+            messageForQueue.audio = { url: base64Data };
+            messageObjectToStore.audio = { url: base64Data };
             messageForQueue.options.mimetype = 'audio/ogg; codecs=opus';
         } else if (message.mediaType === 'image') {
             messageForQueue.image = { url: base64Data };
@@ -373,7 +366,7 @@ export async function addMessage(
         }
     } else {
         messageForQueue.text = `*${message.operatorName}*\n${message.text}`;
-        messageForQueue.options.mimetype = 'text/plain'; // Explicitly set mimetype for text
+        messageForQueue.options.mimetype = 'text/plain';
     }
     
     if (message.quotedMessage) {
