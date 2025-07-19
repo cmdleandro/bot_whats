@@ -358,17 +358,16 @@ export async function addMessage(
         const base64Data = message.mediaUrl.startsWith('data:') 
             ? message.mediaUrl.substring(message.mediaUrl.indexOf(',') + 1)
             : message.mediaUrl;
+        
+        messageForQueue.options.mimetype = message.mimetype;
 
         if (message.mediaType === 'image') {
             messageForQueue.image = { url: base64Data };
-            if (message.mimetype) messageForQueue.options.mimetype = message.mimetype;
             if (message.text) messageForQueue.options.caption = `*${message.operatorName}*\n${message.text}`;
         } else if (message.mediaType === 'audio') {
             messageForQueue.audio = { url: base64Data };
-             if (message.mimetype) messageForQueue.options.mimetype = message.mimetype;
         } else if (message.mediaType === 'document') {
             messageForQueue.document = { url: base64Data };
-            if (message.mimetype) messageForQueue.options.mimetype = message.mimetype;
             messageForQueue.options.fileName = message.fileName || 'document';
             if (message.text) messageForQueue.options.caption = `*${message.operatorName}*\n${message.text}`;
         }

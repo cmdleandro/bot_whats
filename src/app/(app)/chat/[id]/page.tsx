@@ -3,7 +3,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams } from 'next/navigation';
-import { Send, Bot, ChevronLeft, Loader2, Check, CheckCheck, Paperclip, CornerUpLeft, X, ChevronDown, Mic, Play, Pause } from 'lucide-react';
+import { Send, Bot, ChevronLeft, Loader2, Check, CheckCheck, Paperclip, CornerUpLeft, X, ChevronDown, Mic, Play, Pause, Square } from 'lucide-react';
 import { getMessages, addMessage, getContacts, dismissAttention } from '@/lib/redis';
 import { Message, Contact, MessageStatus, MediaType } from '@/lib/data';
 import { Button } from '@/components/ui/button';
@@ -56,22 +56,22 @@ const AudioPlayer = ({ mediaUrl }: { mediaUrl: string }) => {
       setIsPlaying(!isPlaying);
     }
   };
-
+  
   const handleEnded = () => {
     setIsPlaying(false);
   };
-
+  
   return (
-    <div className="flex flex-col gap-1 w-full max-w-[250px]">
-      <div className="flex items-center gap-2 cursor-pointer" onClick={togglePlayPause}>
+    <div className="flex flex-col gap-1 w-full max-w-[250px]" onClick={togglePlayPause}>
+      <div className="flex items-center gap-2 cursor-pointer">
         <div className="flex-shrink-0">
           {isPlaying ? <Pause className="h-5 w-5" /> : <Play className="h-5 w-5" />}
         </div>
         <div className="flex-1">
-          <audio ref={audioRef} src={mediaUrl} onEnded={handleEnded} className="w-full" controlsList="nodownload" />
+          <audio ref={audioRef} src={mediaUrl} onEnded={handleEnded} className="w-full hidden" controlsList="nodownload" />
+          <p className="text-xs text-muted-foreground italic mt-1 text-left">audio Message</p>
         </div>
       </div>
-       <p className="text-xs text-muted-foreground italic mt-1 text-left">audio Message</p>
     </div>
   );
 };
@@ -153,6 +153,11 @@ export default function ChatViewPage() {
   const [isUploadingFile, setIsUploadingFile] = useState(false);
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
   const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null);
+  
+  // Audio recording state
+  const [isRecording, setIsRecording] = useState(false);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -345,6 +350,55 @@ export default function ChatViewPage() {
         }
     }
   };
+
+  const handleToggleRecording = async () => {
+    if (isRecording) {
+      mediaRecorderRef.current?.stop();
+    } else {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        const mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
+        mediaRecorderRef.current = mediaRecorder;
+        audioChunksRef.current = [];
+
+        mediaRecorder.ondataavailable = (event) => {
+          if (event.data.size > 0) {
+            audioChunksRef.current.push(event.data);
+          }
+        };
+
+        mediaRecorder.onstop = () => {
+          const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+          const reader = new FileReader();
+          reader.readAsDataURL(audioBlob);
+          reader.onload = async () => {
+            const mediaUrl = reader.result as string;
+            await addMessage(contactId, {
+              mediaUrl,
+              mediaType: 'audio',
+              mimetype: 'audio/webm',
+              sender: 'operator',
+              operatorName,
+              tempId: `temp_audio_${Date.now()}`,
+            });
+            await fetchMessages(contactId, true);
+          };
+          stream.getTracks().forEach(track => track.stop()); // Stop mic access
+          setIsRecording(false);
+        };
+        
+        mediaRecorder.start();
+        setIsRecording(true);
+      } catch (err) {
+        console.error("Erro ao acessar o microfone:", err);
+        toast({
+          variant: 'destructive',
+          title: 'Erro de Microfone',
+          description: 'Não foi possível acessar seu microfone. Verifique as permissões.',
+        });
+      }
+    }
+  };
   
   const handleStartReply = (message: Message) => {
     setReplyingTo(message);
@@ -535,17 +589,17 @@ export default function ChatViewPage() {
                 handleSendMessage();
               }
             }}
-            placeholder="Digite uma mensagem ou cole uma imagem..."
-            className="min-h-[48px] resize-none pr-24"
-            disabled={isSending || isUploadingFile}
+            placeholder={isRecording ? "Gravando áudio..." : "Digite uma mensagem ou cole uma imagem..."}
+            className="min-h-[48px] resize-none pr-32"
+            disabled={isSending || isUploadingFile || isRecording}
           />
           <input
             type="file"
             ref={fileInputRef}
             onChange={handleFileChange}
             className="hidden"
-            accept="image/*,application/pdf,audio/*"
-            disabled={isUploadingFile}
+            accept="image/*,application/pdf"
+            disabled={isUploadingFile || isRecording}
           />
           <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
              <Button
@@ -553,16 +607,26 @@ export default function ChatViewPage() {
                 variant="ghost"
                 size="icon"
                 onClick={() => fileInputRef.current?.click()}
-                disabled={isUploadingFile || isSending}
+                disabled={isUploadingFile || isSending || isRecording}
                 aria-label="Anexar arquivo"
               >
                 {isUploadingFile ? <Loader2 className="h-5 w-5 animate-spin" /> : <Paperclip className="h-5 w-5" />}
+              </Button>
+              <Button
+                type="button"
+                variant={isRecording ? "destructive" : "ghost"}
+                size="icon"
+                onClick={handleToggleRecording}
+                disabled={isSending || isUploadingFile}
+                aria-label={isRecording ? "Parar gravação" : "Gravar áudio"}
+              >
+                {isRecording ? <Square className="h-5 w-5" /> : <Mic className="h-5 w-5" />}
               </Button>
             <Button
               type="button"
               size="icon"
               onClick={() => handleSendMessage()}
-              disabled={!newMessage.trim() || isSending}
+              disabled={!newMessage.trim() || isSending || isRecording}
               aria-label="Enviar Texto"
             >
               {isSending ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5" />}
@@ -573,3 +637,5 @@ export default function ChatViewPage() {
     </div>
   );
 }
+
+    
