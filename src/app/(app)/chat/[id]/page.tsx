@@ -34,41 +34,44 @@ function MessageStatusIndicator({ status }: { status: MessageStatus }) {
 }
 
 const MediaMessage = ({ msg, onImageClick }: { msg: Message, onImageClick: (url: string) => void }) => {
-  if (msg.mediaType === 'image' && msg.mediaUrl) {
-    const src = msg.mediaUrl.startsWith('data:') ? msg.mediaUrl : `data:image/jpeg;base64,${msg.jpegThumbnail || msg.mediaUrl}`;
-    return (
-        <button onClick={() => onImageClick(src)} className="block focus:outline-none">
-          <div className="flex flex-col gap-1 w-full max-w-[200px]">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={src}
-                alt={msg.text || 'Imagem enviada'}
-                className="rounded-lg object-cover w-full h-auto"
-              />
-              {msg.text && <p className="text-sm whitespace-pre-wrap mt-1 text-left">{msg.text}</p>}
-          </div>
-        </button>
-    );
-  }
+  const hasMedia = msg.mediaType && msg.mediaUrl;
+  
+  if (hasMedia) {
+    let mediaElement = null;
 
-  if (msg.mediaType === 'audio' && msg.mediaUrl) {
-    return (
-      <div className="flex items-center gap-2">
+    if (msg.mediaType === 'image') {
+      const src = msg.mediaUrl!.startsWith('data:') ? msg.mediaUrl : `data:image/jpeg;base64,${msg.jpegThumbnail || msg.mediaUrl}`;
+      mediaElement = (
+          <button onClick={() => onImageClick(src)} className="block focus:outline-none">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={src}
+              alt={msg.text || 'Imagem enviada'}
+              className="rounded-lg object-cover w-full h-auto max-w-[250px]"
+            />
+          </button>
+      );
+    } else if (msg.mediaType === 'audio') {
+      mediaElement = (
         <audio controls src={msg.mediaUrl} className="w-full max-w-xs" />
+      );
+    } else if (msg.mediaType === 'document') {
+       mediaElement = (
+         <a href={msg.mediaUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-primary underline">
+            <Paperclip className="h-4 w-4" />
+            <span>{msg.text || 'Ver Documento'}</span>
+         </a>
+      );
+    }
+    
+    return (
+      <div className="flex flex-col gap-1 w-full">
+        {mediaElement}
+        {msg.text && <p className="text-sm whitespace-pre-wrap mt-1 text-left">{msg.text}</p>}
       </div>
     );
   }
 
-
-  if (msg.mediaUrl && msg.mediaType === 'document') {
-    return (
-       <a href={msg.mediaUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-primary underline">
-          <Paperclip className="h-4 w-4" />
-          <span>{msg.text || 'Ver Documento'}</span>
-       </a>
-    );
-  }
-  
   if (msg.text) {
     return <p className="whitespace-pre-wrap">{msg.text}</p>;
   }
@@ -87,7 +90,7 @@ const QuotedMessagePreview = ({ msg, contact }: { msg: Message, contact: Contact
         senderName = contact?.name || 'Usuário';
     }
 
-    const previewText = msg.text.length > 50 ? `${msg.text.substring(0, 50)}...` : msg.text;
+    const previewText = msg.text && msg.text.length > 50 ? `${msg.text.substring(0, 50)}...` : msg.text;
 
     return (
         <div className="bg-muted/50 p-2 rounded-t-md border-l-4 border-primary">
@@ -207,7 +210,7 @@ export default function ChatViewPage() {
     const tempId = `temp_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
     const quotedMessageData = replyingTo ? {
         id: replyingTo.id,
-        text: replyingTo.text,
+        text: replyingTo.text || '',
         sender: replyingTo.sender,
         senderName: replyingTo.sender === 'user' ? contact?.name || 'User' : (replyingTo.operatorName || 'System'),
       } : undefined;
@@ -400,7 +403,7 @@ export default function ChatViewPage() {
                       <AvatarImage src={msg.botAvatarUrl || "/logo.svg"} alt="Bot Logo" />
                   ) : (
                       <>
-                      <AvatarImage src={contact?.avatar} alt={contact?.name} />
+                      <AvatarImage src={contact?.avatar} alt={contact?.name || ''} />
                       <AvatarFallback>{contact?.name.charAt(0)}</AvatarFallback>
                       </>
                   )}

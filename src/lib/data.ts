@@ -47,7 +47,7 @@ export type StoredMessage = {
 export type Message = {
   id: string;
   contactId: string;
-  text: string;
+  text: string | null;
   sender: 'user' | 'bot' | 'operator';
   operatorName?: string;
   timestamp: number; // O timestamp UNIX original (em milissegundos) para ser formatado no cliente

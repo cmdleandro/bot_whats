@@ -51,15 +51,16 @@ function parseJsonMessage(jsonString: string): Partial<StoredMessage> | null {
     if (!jsonString) return null;
     let parsed = JSON.parse(jsonString);
     
+    // Legacy support for older message formats
     if (parsed.id && !parsed.messageId) {
         parsed.messageId = parsed.id;
     }
 
-    // Se o tipo da mensagem for de áudio, constrói o Data URI
+    // New logic: if messageType is audioMessage, construct the data URI from mediaUrl and mimetype
     if (parsed.messageType === 'audioMessage' && parsed.mediaUrl && parsed.mimetype) {
-      const audioBase64 = parsed.mediaUrl;
-      const mimetype = parsed.mimetype;
-      parsed.mediaUrl = `data:${mimetype};base64,${audioBase64}`;
+        // Ensure mediaUrl is just the base64 string
+        const base64Data = parsed.mediaUrl.includes(',') ? parsed.mediaUrl.split(',')[1] : parsed.mediaUrl;
+        parsed.mediaUrl = `data:${parsed.mimetype};base64,${base64Data}`;
     }
     
     return parsed;
@@ -238,18 +239,13 @@ export async function getMessages(contactId: string): Promise<Message[]> {
         const uniqueId = storedMsg.messageId || `${timestampInMs}-${index}`;
         const messageType = mapMessageTypeToMediaType(storedMsg.messageType);
         
-        // CORREÇÃO: Usar o caption para mídias, mas manter `text` como null/undefined se não houver texto.
-        // Isso evita que o componente renderize um <p> vazio e esconda o player de áudio.
-        let text: string | undefined = storedMsg.texto || undefined;
-        let mediaUrl = storedMsg.mediaUrl;
+        let text: string | null = storedMsg.texto || null;
 
-        if (messageType === 'image' || messageType === 'audio' || messageType === 'video' || messageType === 'document') {
-          // Se o caption for "null" ou vazio, text deve ser undefined
-          if (storedMsg.caption && storedMsg.caption !== 'null') {
+        // If caption exists and is not null/empty, it should be the text. Otherwise, text remains null.
+        if (storedMsg.caption && storedMsg.caption !== 'null' && storedMsg.caption.trim() !== '') {
             text = storedMsg.caption;
-          } else {
-            text = undefined;
-          }
+        } else if (messageType) {
+            text = null; // Ensure text is null for media messages without a real caption
         }
 
         return {
@@ -261,7 +257,7 @@ export async function getMessages(contactId: string): Promise<Message[]> {
           timestamp: timestampInMs,
           botAvatarUrl: sender === 'bot' ? '/logo.svg' : undefined,
           status: storedMsg.status,
-          mediaUrl: mediaUrl,
+          mediaUrl: storedMsg.mediaUrl,
           mediaType: messageType,
           mimetype: storedMsg.mimetype,
           jpegThumbnail: storedMsg.jpegThumbnail,
@@ -349,7 +345,7 @@ export async function addMessage(
         const base64Data = message.mediaUrl.substring(message.mediaUrl.indexOf(',') + 1);
 
         if (message.mediaType === 'audio') {
-            messageForQueue.audio = { url: base64Data }; // Enviar apenas Base64 para a API
+            messageForQueue.audio = { url: base64Data };
             messageForQueue.options.mimetype = message.mimetype || 'audio/ogg; codecs=opus';
         } else if (message.mediaType === 'image') {
             messageForQueue.image = { url: base64Data };
