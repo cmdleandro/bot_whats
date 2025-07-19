@@ -1,5 +1,4 @@
 
-
 'use server';
 
 import { createClient } from 'redis';
@@ -51,12 +50,15 @@ function parseJsonMessage(jsonString: string): Partial<StoredMessage> | null {
     if (!jsonString) return null;
     let parsed = JSON.parse(jsonString);
     
+    // Compatibility for older message formats
     if (parsed.id && !parsed.messageId) {
         parsed.messageId = parsed.id;
     }
-    
     if (parsed.message && !parsed.texto) {
        parsed.texto = parsed.message
+    }
+    if (parsed.mimeType && !parsed.mimetype) {
+        parsed.mimetype = parsed.mimeType;
     }
 
     return parsed;
@@ -76,6 +78,7 @@ function mapMessageTypeToMediaType(messageType?: string): MediaType | undefined 
     return undefined;
 }
 
+
 function getLastMessageText(msg: Partial<StoredMessage>): string {
   if (msg.quotedMessage) {
     return `↩️ ${msg.texto || msg.caption || ''}`
@@ -83,17 +86,19 @@ function getLastMessageText(msg: Partial<StoredMessage>): string {
   const mediaType = mapMessageTypeToMediaType(msg.messageType);
   
   if (mediaType) {
+    if (mediaType === 'audio') {
+        return '🎵 Mensagem de áudio';
+    }
     const typeMap: Record<string, string> = {
       image: '📷 Imagem',
       video: '🎬 Vídeo',
       document: '📄 Documento',
-      audio: '🎵 Mensagem de áudio',
     };
     const mediaText = typeMap[mediaType] || 'Arquivo de mídia';
     return msg.caption ? `${mediaText}: ${msg.caption}` : mediaText;
   }
   
-  return msg.texto || 'Mensagem sem texto.';
+  return msg.texto || msg.message || 'Mensagem sem texto.';
 }
 
 const ATTENTION_PHRASES = [
@@ -247,7 +252,7 @@ export async function getMessages(contactId: string): Promise<Message[]> {
                 text = captionText;
             }
         } else {
-            const messageText = storedMsg.texto || '';
+            const messageText = storedMsg.texto || storedMsg.message || '';
             if (messageText.trim()) {
                 text = messageText;
             }
@@ -463,3 +468,5 @@ export async function saveGlobalSettings(settings: GlobalSettings): Promise<void
         throw error;
     }
 }
+
+    

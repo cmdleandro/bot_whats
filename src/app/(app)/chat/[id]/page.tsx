@@ -35,7 +35,7 @@ function MessageStatusIndicator({ status }: { status: MessageStatus }) {
 
 const MediaMessage = ({ msg, onImageClick }: { msg: Message; onImageClick: (url: string) => void }) => {
   const { mediaType, mediaUrl, text } = msg;
-  
+
   if (mediaType === 'audio' && mediaUrl) {
     return (
       <audio controls src={mediaUrl} className="max-w-[250px] w-full">
@@ -46,13 +46,13 @@ const MediaMessage = ({ msg, onImageClick }: { msg: Message; onImageClick: (url:
 
   if (mediaType === 'image' && mediaUrl) {
     return (
-      <div className="flex flex-col gap-1 w-full">
+      <div className="flex flex-col gap-1 w-full max-w-[250px]">
         <button onClick={() => onImageClick(mediaUrl)} className="block focus:outline-none">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={mediaUrl}
             alt={text || 'Imagem enviada'}
-            className="rounded-lg object-cover w-full h-auto max-w-[250px]"
+            className="rounded-lg object-cover w-full h-auto"
           />
         </button>
         {text && <p className="text-sm whitespace-pre-wrap mt-1 text-left">{text}</p>}
@@ -533,3 +533,5 @@ export default function ChatViewPage() {
     </div>
   );
 }
+
+    
