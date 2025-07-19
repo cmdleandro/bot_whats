@@ -56,11 +56,10 @@ function parseJsonMessage(jsonString: string): Partial<StoredMessage> | null {
         parsed.messageId = parsed.id;
     }
     
-    // Handle both "texto" and "message" for text content
+    // Support "texto" as the primary key for text content
     if (parsed.message && !parsed.texto) {
-        parsed.texto = parsed.message;
+        // This is a fallback; the primary key should be 'texto'
     }
-
 
     return parsed;
 
@@ -75,7 +74,6 @@ function mapMessageTypeToMediaType(messageType?: string): MediaType | undefined 
     if (messageType.includes('image')) return 'image';
     if (messageType.includes('video')) return 'video';
     if (messageType.includes('document')) return 'document';
-    if (messageType.includes('audio')) return 'audio';
     return undefined;
 }
 
@@ -90,7 +88,6 @@ function getLastMessageText(msg: Partial<StoredMessage>): string {
       image: '📷 Imagem',
       video: '🎬 Vídeo',
       document: '📄 Documento',
-      audio: '🎵 Mensagem de áudio',
     };
     const mediaText = typeMap[mediaType || 'image'] || 'Arquivo de mídia';
     return msg.caption ? `${mediaText}: ${msg.caption}` : mediaText;
@@ -239,15 +236,20 @@ export async function getMessages(contactId: string): Promise<Message[]> {
         let mediaType = mapMessageTypeToMediaType(storedMsg.messageType);
         
         // Handle media
-        if (mediaType && storedMsg.mediaUrl && storedMsg.mimetype) {
-            finalMediaUrl = `data:${storedMsg.mimetype};base64,${storedMsg.mediaUrl}`;
+        if (mediaType && storedMsg.mediaUrl) {
+            // Use mediaUrl directly if it's already a Data URI
+            if (storedMsg.mediaUrl.startsWith('data:')) {
+                finalMediaUrl = storedMsg.mediaUrl;
+            }
+            
             // If there's a real caption, use it as text. Otherwise, text is null.
-            if (storedMsg.caption && storedMsg.caption.trim() && storedMsg.caption !== 'null') {
-                text = storedMsg.caption;
+            const captionText = storedMsg.caption || storedMsg.texto;
+            if (captionText && captionText.trim() && captionText !== 'null') {
+                text = captionText;
             }
         } else {
             // Handle regular text messages
-            const messageText = storedMsg.texto || '';
+            const messageText = storedMsg.texto || storedMsg.message || '';
             if (messageText.trim()) {
                 text = messageText;
             }

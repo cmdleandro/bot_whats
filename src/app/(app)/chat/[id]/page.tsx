@@ -34,19 +34,17 @@ function MessageStatusIndicator({ status }: { status: MessageStatus }) {
 }
 
 const MediaMessage = ({ msg, onImageClick }: { msg: Message; onImageClick: (url: string) => void }) => {
-  const { mediaType, mediaUrl, text, jpegThumbnail } = msg;
-
-  let mediaElement: React.ReactNode = null;
+  const { mediaType, mediaUrl, text } = msg;
 
   if (mediaType && mediaUrl) {
+    let mediaElement: React.ReactNode = null;
     switch (mediaType) {
       case 'image':
-        const src = mediaUrl.startsWith('data:') ? mediaUrl : `data:image/jpeg;base64,${jpegThumbnail || mediaUrl}`;
         mediaElement = (
-          <button onClick={() => onImageClick(src)} className="block focus:outline-none">
+          <button onClick={() => onImageClick(mediaUrl)} className="block focus:outline-none">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src={src}
+              src={mediaUrl}
               alt={text || 'Imagem enviada'}
               className="rounded-lg object-cover w-full h-auto max-w-[250px]"
             />
@@ -61,21 +59,19 @@ const MediaMessage = ({ msg, onImageClick }: { msg: Message; onImageClick: (url:
           </a>
         );
         break;
-      // Audio case removed
       default:
         // Fallback for unhandled media types if necessary
         break;
     }
-  }
-
-  // Render media with caption if available
-  if (mediaElement) {
-    return (
-      <div className="flex flex-col gap-1 w-full">
-        {mediaElement}
-        {text && <p className="text-sm whitespace-pre-wrap mt-1 text-left">{text}</p>}
-      </div>
-    );
+    
+    if (mediaElement) {
+        return (
+            <div className="flex flex-col gap-1 w-full">
+                {mediaElement}
+                {text && <p className="text-sm whitespace-pre-wrap mt-1 text-left">{text}</p>}
+            </div>
+        );
+    }
   }
 
   // Render text only if no media
