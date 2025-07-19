@@ -63,16 +63,19 @@ function extractValue(jsonString: string, key: string): string | null {
 function parseJsonMessage(jsonString: string): Partial<StoredMessage> | null {
   try {
     if (!jsonString) return null;
-    let parsed = JSON.parse(jsonString);
+    
+    // Correction for unquoted base64 audio URLs
+    let correctedJsonString = jsonString.replace(/"url":\s*([A-Za-z0-9+/=]+)/g, '"url": "$1"');
+    
+    let parsed = JSON.parse(correctedJsonString);
     if (parsed.id && !parsed.messageId) {
         parsed.messageId = parsed.id;
     }
 
     // Handles simplified audio format: { "audio": { "url": "BASE64..." } }
     if (parsed.messageType === 'audioMessage' && parsed.audio?.url) {
-        if (!parsed.mediaUrl) {
-            // Constructs the full Data URI for browser playback
-            parsed.mediaUrl = `data:audio/ogg; codecs=opus;base64,${parsed.audio.url}`;
+        if (!parsed.mediaUrl || !parsed.mediaUrl.startsWith('data:')) {
+             parsed.mediaUrl = `data:audio/ogg; codecs=opus;base64,${parsed.audio.url}`;
         }
     } else if (parsed['mediaUrl '] && !parsed.mediaUrl) { // Handles trailing space error
       parsed.mediaUrl = parsed['mediaUrl '];
