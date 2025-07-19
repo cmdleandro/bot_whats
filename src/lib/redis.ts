@@ -237,15 +237,14 @@ export async function getMessages(contactId: string): Promise<Message[]> {
         }
         
         const uniqueId = storedMsg.messageId || `${timestampInMs}-${index}`;
-        const messageType = mapMessageTypeToMediaType(storedMsg.messageType);
+        const mediaType = mapMessageTypeToMediaType(storedMsg.messageType);
         
-        let text: string | null = storedMsg.texto || null;
-
-        // If caption exists and is not null/empty, it should be the text. Otherwise, text remains null.
+        let text: string | null = null;
+        
         if (storedMsg.caption && storedMsg.caption !== 'null' && storedMsg.caption.trim() !== '') {
             text = storedMsg.caption;
-        } else if (messageType) {
-            text = null; // Ensure text is null for media messages without a real caption
+        } else if (!mediaType) {
+            text = storedMsg.texto || null;
         }
 
         return {
@@ -258,7 +257,7 @@ export async function getMessages(contactId: string): Promise<Message[]> {
           botAvatarUrl: sender === 'bot' ? '/logo.svg' : undefined,
           status: storedMsg.status,
           mediaUrl: storedMsg.mediaUrl,
-          mediaType: messageType,
+          mediaType: mediaType,
           mimetype: storedMsg.mimetype,
           jpegThumbnail: storedMsg.jpegThumbnail,
           quotedMessage: storedMsg.quotedMessage
