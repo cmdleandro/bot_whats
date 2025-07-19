@@ -55,8 +55,10 @@ function parseJsonMessage(jsonString: string): Partial<StoredMessage> | null {
         parsed.messageId = parsed.id;
     }
     
+    // Handle simplified audio format (base64 string directly in 'audio' field)
     if (parsed.messageType === 'audioMessage' && typeof parsed.audio === 'string' && parsed.audio && !parsed.audio.startsWith('data:')) {
-        parsed.mediaUrl = `data:audio/ogg; codecs=opus;base64,${parsed.audio}`;
+        const mimetype = parsed.mimetype || 'audio/ogg; codecs=opus'; // Default to ogg if not provided
+        parsed.mediaUrl = `data:${mimetype};base64,${parsed.audio}`;
     }
 
     // Handles image format if mediaUrl is just base64
@@ -346,7 +348,7 @@ export async function addMessage(
         const base64Data = message.mediaUrl.substring(message.mediaUrl.indexOf(',') + 1);
 
         if (message.mediaType === 'audio') {
-            messageForQueue.audio = { url: base64Data }; // Send only base64
+            messageForQueue.audio = { url: base64Data };
             messageForQueue.options.mimetype = 'audio/ogg; codecs=opus';
         } else if (message.mediaType === 'image') {
             messageForQueue.image = { url: base64Data };
@@ -454,7 +456,3 @@ export async function saveGlobalSettings(settings: GlobalSettings): Promise<void
         throw error;
     }
 }
-
-    
-
-    
