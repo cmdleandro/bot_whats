@@ -266,7 +266,8 @@ export default function ChatViewPage() {
         sender: 'operator',
         operatorName: operatorName,
         tempId: tempId,
-        quotedMessage: quotedMessageData
+        quotedMessage: quotedMessageData,
+        mimetype: 'text/plain'
       });
       
       await fetchMessages(contactId, true);
