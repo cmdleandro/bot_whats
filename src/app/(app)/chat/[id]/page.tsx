@@ -36,10 +36,9 @@ function MessageStatusIndicator({ status }: { status: MessageStatus }) {
 const MediaMessage = ({ msg, onImageClick }: { msg: Message; onImageClick: (url: string) => void }) => {
   const { mediaType, mediaUrl, text, jpegThumbnail } = msg;
 
-  // Renderiza a mídia primeiro, se existir
-  if (mediaType && mediaUrl) {
-    let mediaElement: React.ReactNode = null;
+  let mediaElement: React.ReactNode = null;
 
+  if (mediaType && mediaUrl) {
     switch (mediaType) {
       case 'image':
         const src = mediaUrl.startsWith('data:') ? mediaUrl : `data:image/jpeg;base64,${jpegThumbnail || mediaUrl}`;
@@ -54,11 +53,6 @@ const MediaMessage = ({ msg, onImageClick }: { msg: Message; onImageClick: (url:
           </button>
         );
         break;
-      case 'audio':
-        mediaElement = (
-          <audio controls src={mediaUrl} className="w-full max-w-xs" />
-        );
-        break;
       case 'document':
         mediaElement = (
           <a href={mediaUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-primary underline">
@@ -67,9 +61,15 @@ const MediaMessage = ({ msg, onImageClick }: { msg: Message; onImageClick: (url:
           </a>
         );
         break;
+      // Audio case removed
+      default:
+        // Fallback for unhandled media types if necessary
+        break;
     }
-    
-    // Retorna a mídia e o texto (legenda) se houver
+  }
+
+  // Render media with caption if available
+  if (mediaElement) {
     return (
       <div className="flex flex-col gap-1 w-full">
         {mediaElement}
@@ -78,12 +78,11 @@ const MediaMessage = ({ msg, onImageClick }: { msg: Message; onImageClick: (url:
     );
   }
 
-  // Se não houver mídia, renderiza apenas o texto, se ele existir
+  // Render text only if no media
   if (text) {
     return <p className="whitespace-pre-wrap">{text}</p>;
   }
 
-  // Se não houver nem mídia nem texto, não renderiza nada
   return null;
 };
 

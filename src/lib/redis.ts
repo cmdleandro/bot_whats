@@ -68,8 +68,8 @@ function mapMessageTypeToMediaType(messageType?: string): MediaType | undefined 
     if (!messageType) return undefined;
     if (messageType.includes('image')) return 'image';
     if (messageType.includes('video')) return 'video';
-    if (messageType.includes('audio')) return 'audio';
     if (messageType.includes('document')) return 'document';
+    // Removed audio handling
     return undefined;
 }
 
@@ -79,15 +79,10 @@ function getLastMessageText(msg: Partial<StoredMessage>): string {
   }
   const mediaType = mapMessageTypeToMediaType(msg.messageType);
   
-  if (mediaType === 'audio') {
-      return '🎵 Mensagem de áudio';
-  }
-  
   if (mediaType || msg.jpegThumbnail) {
-    const typeMap: Record<MediaType, string> = {
+    const typeMap: Record<string, string> = {
       image: '📷 Imagem',
       video: '🎬 Vídeo',
-      audio: '🎵 Áudio',
       document: '📄 Documento',
     };
     const mediaText = typeMap[mediaType || 'image'] || 'Arquivo de mídia';
@@ -235,10 +230,7 @@ export async function getMessages(contactId: string): Promise<Message[]> {
         let text: string | null = null;
         let finalMediaUrl: string | undefined = undefined;
 
-        if (mediaType === 'audio' && storedMsg.mediaUrl && storedMsg.mimetype) {
-          finalMediaUrl = `data:${storedMsg.mimetype};base64,${storedMsg.mediaUrl}`;
-          text = null; // Ensure text is null for audio-only messages
-        } else if (mediaType === 'image' && storedMsg.mediaUrl) {
+        if (mediaType === 'image' && storedMsg.mediaUrl) {
            finalMediaUrl = storedMsg.mediaUrl;
            if (storedMsg.caption && storedMsg.caption !== 'null') {
              text = storedMsg.caption;
@@ -248,6 +240,12 @@ export async function getMessages(contactId: string): Promise<Message[]> {
           if (storedMsg.texto && storedMsg.texto.trim()) {
             text = storedMsg.texto;
           }
+        }
+
+        // Se for um tipo de mídia sem manipulador específico, mas que tem uma URL,
+        // apenas armazenamos a URL sem formatá-la.
+        if (storedMsg.mediaUrl && !mediaType) {
+            finalMediaUrl = storedMsg.mediaUrl;
         }
 
         return {
@@ -348,10 +346,7 @@ export async function addMessage(
             ? message.mediaUrl.substring(message.mediaUrl.indexOf(',') + 1)
             : message.mediaUrl;
 
-        if (message.mediaType === 'audio') {
-            messageForQueue.audio = { url: base64Data };
-            messageForQueue.options.mimetype = message.mimetype || 'audio/ogg; codecs=opus';
-        } else if (message.mediaType === 'image') {
+        if (message.mediaType === 'image') {
             messageForQueue.image = { url: base64Data };
             if (message.mimetype) messageForQueue.options.mimetype = message.mimetype;
             if (message.text) messageForQueue.options.caption = `*${message.operatorName}*\n${message.text}`;
