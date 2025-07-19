@@ -251,7 +251,7 @@ export default function ChatViewPage() {
 
     const tempId = `temp_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
     const quotedMessageData = replyingTo ? {
-        id: replyingTo.id,
+        id: replyingTo.id.split('_')[0],
         text: replyingTo.text || '',
         sender: replyingTo.sender,
         senderName: replyingTo.sender === 'user' ? contact?.name || 'User' : (replyingTo.operatorName || 'System'),
@@ -483,8 +483,8 @@ export default function ChatViewPage() {
               <p className="text-muted-foreground">Nenhuma mensagem nesta conversa.</p>
             </div>
           ) : (
-            messages.map((msg, index) => (
-                <div key={`${msg.id}-${index}`}
+            messages.map((msg) => (
+                <div key={msg.id}
                   className={cn(
                   'group relative flex items-end gap-3 w-fit',
                   getMessageAlignment(msg.sender)

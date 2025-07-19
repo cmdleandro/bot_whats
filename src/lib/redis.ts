@@ -196,7 +196,6 @@ export async function getContacts(): Promise<Contact[]> {
     const contact: Partial<Contact> & { rawTimestamp: number } = {
       id: contactId,
       name: finalContactName,
-      avatar: finalAvatar,
       rawTimestamp: timestamp,
       timestamp: timestamp ? formatDistanceToNow(fromUnixTime(timestamp), { addSuffix: true, locale: ptBR }) : 'Data desconhecida',
       unreadCount: 0,
@@ -219,7 +218,6 @@ export async function getMessages(contactId: string): Promise<Message[]> {
   try {
     const client = await getClient();
     const historyKey = `chat:${contactId.trim()}`;
-    // Optimization: Fetch only the last 50 messages instead of the whole list.
     const messageStrings = await client.lRange(historyKey, 0, 49);
 
     if (!messageStrings || messageStrings.length === 0) {
@@ -230,15 +228,16 @@ export async function getMessages(contactId: string): Promise<Message[]> {
     const messages: Message[] = [];
     
     let highestStatusFound: MessageStatus | null = null;
+    let firstReadIndex: number | null = null;
     const statusCache = new Map<string, MessageStatus>();
 
-    // Iterate from newest to oldest to find the latest status
-    for (const storedMsg of storedMessages) {
-      if (!highestStatusFound && (storedMsg.tipo === 'operator' || storedMsg.fromMe === 'true') && storedMsg.messageId) {
+    for (const [index, storedMsg] of storedMessages.entries()) {
+      if ((storedMsg.tipo === 'operator' || storedMsg.fromMe === 'true') && storedMsg.messageId) {
         const statusData = await client.hGet(`message:${storedMsg.messageId}`, 'status');
         if (statusData) {
             statusCache.set(storedMsg.messageId, statusData as MessageStatus);
             if (statusData === 'read') {
+                if (firstReadIndex === null) firstReadIndex = index;
                 highestStatusFound = 'read';
             } else if (statusData === 'delivered' && highestStatusFound !== 'read') {
                 highestStatusFound = 'delivered';
@@ -247,10 +246,13 @@ export async function getMessages(contactId: string): Promise<Message[]> {
       }
     }
 
-    // Now build the final message array, applying the cascaded status
+    if (firstReadIndex !== null) {
+      await client.lTrim(historyKey, 0, firstReadIndex);
+    }
+
     for (const [index, storedMsg] of storedMessages.entries()) {
         const timestampInMs = storedMsg.timestamp ? (parseInt(storedMsg.timestamp, 10) * 1000) : Date.now();
-        const uniqueId = storedMsg.messageId || `msg_${timestampInMs}_${index}`;
+        const uniqueId = `${storedMsg.messageId || `msg_${timestampInMs}`}_${index}`;
         
         let sender: Message['sender'];
         let finalStatus: MessageStatus | undefined = storedMsg.status;
@@ -381,7 +383,7 @@ export async function addMessage(
     
     if (message.mediaUrl && message.mediaType) {
         const fileData = {
-          data: message.mediaUrl.substring(message.mediaUrl.indexOf(',') + 1),
+          url: message.mediaUrl,
           mimetype: message.mimetype
         }
 
