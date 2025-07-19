@@ -71,10 +71,18 @@ function parseJsonMessage(jsonString: string): Partial<StoredMessage> | null {
 
 function mapMessageTypeToMediaType(messageType?: string): MediaType | undefined {
     if (!messageType) return undefined;
-    if (messageType.includes('image')) return 'image';
-    if (messageType.includes('video')) return 'video';
-    if (messageType.includes('audio')) return 'audio';
-    if (messageType.includes('document')) return 'document';
+    if (messageType.includes('image')) {
+        return 'image';
+    }
+    if (messageType.includes('video')) {
+        return 'video';
+    }
+    if (messageType.includes('audio')) {
+        return 'audio';
+    }
+    if (messageType.includes('document')) {
+        return 'document';
+    }
     return undefined;
 }
 
@@ -238,7 +246,7 @@ export async function getMessages(contactId: string): Promise<Message[]> {
         
         let text: string | null = null;
         let finalMediaUrl: string | undefined = undefined;
-        let mediaType = mapMessageTypeToMediaType(storedMsg.messageType);
+        const mediaType = mapMessageTypeToMediaType(storedMsg.messageType);
         
         if (mediaType && storedMsg.mediaUrl) {
             if (storedMsg.mediaUrl.startsWith('data:')) {
@@ -246,18 +254,13 @@ export async function getMessages(contactId: string): Promise<Message[]> {
             } else if (storedMsg.mimetype) {
                 finalMediaUrl = `data:${storedMsg.mimetype};base64,${storedMsg.mediaUrl}`;
             }
-
-            const captionText = storedMsg.caption || storedMsg.texto;
-            if (captionText && captionText.trim() && captionText !== 'null') {
-                text = captionText;
-            }
-        } else {
-            const messageText = storedMsg.texto || storedMsg.message || '';
-            if (messageText.trim()) {
-                text = messageText;
-            }
         }
         
+        const mainText = storedMsg.caption || storedMsg.texto;
+        if (mainText && mainText.trim() && mainText !== 'null') {
+            text = mainText;
+        }
+
         if (mediaType === 'audio' && text) {
             text = null;
         }
@@ -359,16 +362,21 @@ export async function addMessage(
             ? message.mediaUrl.substring(message.mediaUrl.indexOf(',') + 1)
             : message.mediaUrl;
         
+        const fileForN8n = {
+            data: base64Data,
+            mimeType: message.mimetype,
+            fileName: message.fileName
+        };
+        
         messageForQueue.options.mimetype = message.mimetype;
 
         if (message.mediaType === 'image') {
-            messageForQueue.image = { url: base64Data };
+            messageForQueue.image = fileForN8n;
             if (message.text) messageForQueue.options.caption = `*${message.operatorName}*\n${message.text}`;
         } else if (message.mediaType === 'audio') {
-            messageForQueue.audio = { url: base64Data };
+            messageForQueue.audio = fileForN8n;
         } else if (message.mediaType === 'document') {
-            messageForQueue.document = { url: base64Data };
-            messageForQueue.options.fileName = message.fileName || 'document';
+            messageForQueue.document = fileForN8n;
             if (message.text) messageForQueue.options.caption = `*${message.operatorName}*\n${message.text}`;
         }
     } else if (message.text) {
