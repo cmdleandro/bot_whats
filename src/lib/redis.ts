@@ -225,47 +225,22 @@ export async function getMessages(contactId: string): Promise<Message[]> {
     }
     
     const storedMessages = messageStrings.map(parseJsonMessage).filter((msg): msg is Partial<StoredMessage> => msg !== null);
-    const messages: Message[] = [];
     
-    let highestStatusFound: MessageStatus | null = null;
-    let firstReadIndex: number | null = null;
-    const statusCache = new Map<string, MessageStatus>();
-
-    for (const [index, storedMsg] of storedMessages.entries()) {
-      if ((storedMsg.tipo === 'operator' || storedMsg.fromMe === 'true') && storedMsg.messageId) {
-        const statusData = await client.hGet(`message:${storedMsg.messageId}`, 'status');
-        if (statusData) {
-            statusCache.set(storedMsg.messageId, statusData as MessageStatus);
-            if (statusData === 'read') {
-                if (firstReadIndex === null) firstReadIndex = index;
-                highestStatusFound = 'read';
-            } else if (statusData === 'delivered' && highestStatusFound !== 'read') {
-                highestStatusFound = 'delivered';
-            }
-        }
-      }
-    }
-
-    if (firstReadIndex !== null) {
-      await client.lTrim(historyKey, 0, firstReadIndex);
-    }
-
-    for (const [index, storedMsg] of storedMessages.entries()) {
+    const messagePromises = storedMessages.map(async (storedMsg, index) => {
         const timestampInMs = storedMsg.timestamp ? (parseInt(storedMsg.timestamp, 10) * 1000) : Date.now();
         const uniqueId = `${storedMsg.messageId || `msg_${timestampInMs}`}_${index}`;
         
         let sender: Message['sender'];
         let finalStatus: MessageStatus | undefined = storedMsg.status;
-        
-        if (storedMsg.fromMe === 'true' || storedMsg.tipo === 'operator') {
-            sender = 'operator';
-            if (highestStatusFound) {
-                finalStatus = highestStatusFound;
-            } else if (storedMsg.messageId) {
-                 finalStatus = statusCache.get(storedMsg.messageId);
+
+        if (storedMsg.fromMe === 'true' || storedMsg.tipo === 'operator' || storedMsg.tipo === 'bot') {
+            sender = storedMsg.tipo === 'bot' ? 'bot' : 'operator';
+            if (storedMsg.messageId) {
+                const statusData = await client.hGet(`message:${storedMsg.messageId}`, 'status');
+                if (statusData) {
+                    finalStatus = statusData as MessageStatus;
+                }
             }
-        } else if (storedMsg.tipo === 'bot') {
-            sender = 'bot';
         } else {
             sender = 'user';
         }
@@ -291,7 +266,7 @@ export async function getMessages(contactId: string): Promise<Message[]> {
             text = null;
         }
         
-        messages.push({
+        return {
           id: uniqueId,
           contactId: contactId,
           text: text,
@@ -305,9 +280,10 @@ export async function getMessages(contactId: string): Promise<Message[]> {
           mimetype: storedMsg.mimetype,
           jpegThumbnail: storedMsg.jpegThumbnail,
           quotedMessage: storedMsg.quotedMessage
-        });
-    }
+        };
+    });
 
+    const messages = await Promise.all(messagePromises);
     return messages.reverse();
 
   } catch (error) {
