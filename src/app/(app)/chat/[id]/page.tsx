@@ -483,8 +483,8 @@ export default function ChatViewPage() {
               <p className="text-muted-foreground">Nenhuma mensagem nesta conversa.</p>
             </div>
           ) : (
-            messages.map(msg => (
-                <div key={msg.id}
+            messages.map((msg, index) => (
+                <div key={`${msg.id}-${index}`}
                   className={cn(
                   'group relative flex items-end gap-3 w-fit',
                   getMessageAlignment(msg.sender)
