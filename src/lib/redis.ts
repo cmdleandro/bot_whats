@@ -55,11 +55,6 @@ function parseJsonMessage(jsonString: string): Partial<StoredMessage> | null {
     if (parsed.id && !parsed.messageId) {
         parsed.messageId = parsed.id;
     }
-
-    // Handle new audio format
-    if (parsed.messageType === 'audioMessage' && parsed.mediaUrl && parsed.mimetype) {
-      // Data is already correct, but we need to ensure it will be processed correctly
-    }
     
     return parsed;
 
@@ -223,6 +218,7 @@ export async function getMessages(contactId: string): Promise<Message[]> {
         if (!storedMsg) return null;
 
         const timestampInMs = storedMsg.timestamp ? (parseInt(storedMsg.timestamp, 10) * 1000) : Date.now();
+        const mediaType = mapMessageTypeToMediaType(storedMsg.messageType);
         
         let sender: Message['sender'];
         
@@ -235,21 +231,24 @@ export async function getMessages(contactId: string): Promise<Message[]> {
         }
         
         const uniqueId = storedMsg.messageId || `${timestampInMs}-${index}`;
-        const mediaType = mapMessageTypeToMediaType(storedMsg.messageType);
         
         let text: string | null = null;
-        let mediaUrl: string | undefined = storedMsg.mediaUrl;
-        
-        if (mediaType === 'audio' && storedMsg.mimetype && mediaUrl) {
-          mediaUrl = `data:${storedMsg.mimetype};base64,${mediaUrl}`;
-        }
-        
-        if (storedMsg.caption && storedMsg.caption !== 'null' && storedMsg.caption.trim() !== '') {
-            text = storedMsg.caption;
-        } else if (!mediaType && storedMsg.texto) {
-            text = storedMsg.texto;
-        }
+        let finalMediaUrl: string | undefined = undefined;
 
+        if (mediaType === 'audio' && storedMsg.mediaUrl && storedMsg.mimetype) {
+          finalMediaUrl = `data:${storedMsg.mimetype};base64,${storedMsg.mediaUrl}`;
+          text = null; // Ensure text is null for audio-only messages
+        } else if (mediaType === 'image' && storedMsg.mediaUrl) {
+           finalMediaUrl = storedMsg.mediaUrl;
+           if (storedMsg.caption && storedMsg.caption !== 'null') {
+             text = storedMsg.caption;
+           }
+        } else {
+          finalMediaUrl = storedMsg.mediaUrl;
+          if (storedMsg.texto && storedMsg.texto.trim()) {
+            text = storedMsg.texto;
+          }
+        }
 
         return {
           id: uniqueId,
@@ -260,7 +259,7 @@ export async function getMessages(contactId: string): Promise<Message[]> {
           timestamp: timestampInMs,
           botAvatarUrl: sender === 'bot' ? '/logo.svg' : undefined,
           status: storedMsg.status,
-          mediaUrl: mediaUrl,
+          mediaUrl: finalMediaUrl,
           mediaType: mediaType,
           mimetype: storedMsg.mimetype,
           jpegThumbnail: storedMsg.jpegThumbnail,
@@ -345,7 +344,9 @@ export async function addMessage(
     };
     
     if (message.mediaUrl && message.mediaType) {
-        const base64Data = message.mediaUrl.substring(message.mediaUrl.indexOf(',') + 1);
+        const base64Data = message.mediaUrl.startsWith('data:') 
+            ? message.mediaUrl.substring(message.mediaUrl.indexOf(',') + 1)
+            : message.mediaUrl;
 
         if (message.mediaType === 'audio') {
             messageForQueue.audio = { url: base64Data };

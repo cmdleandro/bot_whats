@@ -33,49 +33,51 @@ function MessageStatusIndicator({ status }: { status: MessageStatus }) {
     return <Check className={iconClass} />;
 }
 
-const MediaMessage = ({ msg, onImageClick }: { msg: Message, onImageClick: (url: string) => void }) => {
-  const hasMedia = msg.mediaType && msg.mediaUrl;
-  
-  if (hasMedia) {
-    let mediaElement = null;
+const MediaMessage = ({ msg, onImageClick }: { msg: Message; onImageClick: (url: string) => void }) => {
+  const { mediaType, mediaUrl, text, jpegThumbnail } = msg;
 
-    if (msg.mediaType === 'image') {
-      const src = msg.mediaUrl!.startsWith('data:') ? msg.mediaUrl : `data:image/jpeg;base64,${msg.jpegThumbnail || msg.mediaUrl}`;
-      mediaElement = (
-          <button onClick={() => onImageClick(src)} className="block focus:outline-none">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={src}
-              alt={msg.text || 'Imagem enviada'}
-              className="rounded-lg object-cover w-full h-auto max-w-[250px]"
-            />
-          </button>
-      );
-    } else if (msg.mediaType === 'audio') {
-      mediaElement = (
-        <audio controls src={msg.mediaUrl} className="w-full max-w-xs" />
-      );
-    } else if (msg.mediaType === 'document') {
-       mediaElement = (
-         <a href={msg.mediaUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-primary underline">
-            <Paperclip className="h-4 w-4" />
-            <span>{msg.text || 'Ver Documento'}</span>
-         </a>
-      );
-    }
-    
+  if (mediaType === 'image') {
+    const src = mediaUrl?.startsWith('data:') ? mediaUrl : `data:image/jpeg;base64,${jpegThumbnail || mediaUrl}`;
     return (
       <div className="flex flex-col gap-1 w-full">
-        {mediaElement}
-        {msg.text && <p className="text-sm whitespace-pre-wrap mt-1 text-left">{msg.text}</p>}
+        <button onClick={() => onImageClick(src)} className="block focus:outline-none">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={src}
+            alt={text || 'Imagem enviada'}
+            className="rounded-lg object-cover w-full h-auto max-w-[250px]"
+          />
+        </button>
+        {text && <p className="text-sm whitespace-pre-wrap mt-1 text-left">{text}</p>}
       </div>
     );
   }
 
-  if (msg.text) {
-    return <p className="whitespace-pre-wrap">{msg.text}</p>;
+  if (mediaType === 'audio') {
+    return (
+      <div className="flex flex-col gap-1 w-full">
+        {mediaUrl && <audio controls src={mediaUrl} className="w-full max-w-xs" />}
+        {text && <p className="text-sm whitespace-pre-wrap mt-1 text-left">{text}</p>}
+      </div>
+    );
+  }
+
+  if (mediaType === 'document') {
+    return (
+      <div className="flex flex-col gap-1 w-full">
+        <a href={mediaUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-primary underline">
+          <Paperclip className="h-4 w-4" />
+          <span>{text || 'Ver Documento'}</span>
+        </a>
+        {text && <p className="text-sm whitespace-pre-wrap mt-1 text-left">{text}</p>}
+      </div>
+    );
   }
   
+  if (text) {
+    return <p className="whitespace-pre-wrap">{text}</p>;
+  }
+
   return null;
 };
 
