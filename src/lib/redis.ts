@@ -55,6 +55,7 @@ function parseJsonMessage(jsonString: string): Partial<StoredMessage> | null {
         parsed.messageId = parsed.id;
     }
 
+    // Se o tipo da mensagem for de áudio, constrói o Data URI
     if (parsed.messageType === 'audioMessage' && parsed.mediaUrl && parsed.mimetype) {
       const audioBase64 = parsed.mediaUrl;
       const mimetype = parsed.mimetype;
@@ -237,11 +238,18 @@ export async function getMessages(contactId: string): Promise<Message[]> {
         const uniqueId = storedMsg.messageId || `${timestampInMs}-${index}`;
         const messageType = mapMessageTypeToMediaType(storedMsg.messageType);
         
-        let text = storedMsg.texto || storedMsg.caption || '';
+        // CORREÇÃO: Usar o caption para mídias, mas manter `text` como null/undefined se não houver texto.
+        // Isso evita que o componente renderize um <p> vazio e esconda o player de áudio.
+        let text: string | undefined = storedMsg.texto || undefined;
         let mediaUrl = storedMsg.mediaUrl;
-        
-        if (messageType === 'image' || messageType === 'audio' || messageType === 'document' || messageType === 'video') {
-            text = storedMsg.caption || '';
+
+        if (messageType === 'image' || messageType === 'audio' || messageType === 'video' || messageType === 'document') {
+          // Se o caption for "null" ou vazio, text deve ser undefined
+          if (storedMsg.caption && storedMsg.caption !== 'null') {
+            text = storedMsg.caption;
+          } else {
+            text = undefined;
+          }
         }
 
         return {
