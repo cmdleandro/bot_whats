@@ -6,6 +6,7 @@ import React, { createContext, useContext, useEffect, useState, useMemo } from '
 const THEME_STORAGE_KEY = 'chatview-theme';
 const DARK_MODE_STORAGE_KEY = 'chatview-dark-mode';
 const NOTIFICATION_SOUND_STORAGE_KEY = 'chatview-notification-sound';
+const PLAYBACK_SPEED_STORAGE_KEY = 'chatview-playback-speed';
 
 type ThemeName = 'zinc' | 'slate' | 'blue' | 'green' | 'orange' | 'rose' | 'violet' | 'yellow';
 type CssVariables = {
@@ -388,9 +389,11 @@ type ThemeProviderState = {
   theme: ThemeName;
   isDarkMode: boolean;
   notificationSound: string;
+  playbackSpeed: number;
   setTheme: (theme: ThemeName) => void;
   toggleDarkMode: () => void;
   setNotificationSound: (sound: string) => void;
+  setPlaybackSpeed: (speed: number) => void;
 };
 
 const getInitialState = () => {
@@ -399,16 +402,19 @@ const getInitialState = () => {
       theme: 'zinc' as ThemeName,
       isDarkMode: false,
       notificationSound: '/notification1.wav',
+      playbackSpeed: 1,
     };
   }
   try {
     const storedTheme = (localStorage.getItem(THEME_STORAGE_KEY) || 'zinc') as ThemeName;
     const storedIsDarkMode = JSON.parse(localStorage.getItem(DARK_MODE_STORAGE_KEY) || 'false');
     const storedNotificationSound = localStorage.getItem(NOTIFICATION_SOUND_STORAGE_KEY) || '/notification1.wav';
+    const storedPlaybackSpeed = JSON.parse(localStorage.getItem(PLAYBACK_SPEED_STORAGE_KEY) || '1');
     return {
       theme: storedTheme,
       isDarkMode: storedIsDarkMode,
       notificationSound: storedNotificationSound,
+      playbackSpeed: storedPlaybackSpeed,
     };
   } catch (error) {
     console.warn('Failed to read theme from localStorage', error);
@@ -416,6 +422,7 @@ const getInitialState = () => {
       theme: 'zinc' as ThemeName,
       isDarkMode: false,
       notificationSound: '/notification1.wav',
+      playbackSpeed: 1,
     };
   }
 };
@@ -427,6 +434,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [theme, setThemeState] = useState<ThemeName>(initialState.theme);
   const [isDarkMode, setIsDarkModeState] = useState<boolean>(initialState.isDarkMode);
   const [notificationSound, setNotificationSoundState] = useState<string>(initialState.notificationSound);
+  const [playbackSpeed, setPlaybackSpeedState] = useState<number>(initialState.playbackSpeed);
   
   useEffect(() => {
     const root = window.document.documentElement;
@@ -454,15 +462,22 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     localStorage.setItem(NOTIFICATION_SOUND_STORAGE_KEY, newSound);
     setNotificationSoundState(newSound);
   };
+  
+  const setPlaybackSpeed = (newSpeed: number) => {
+    localStorage.setItem(PLAYBACK_SPEED_STORAGE_KEY, JSON.stringify(newSpeed));
+    setPlaybackSpeedState(newSpeed);
+  };
 
   const value = useMemo(() => ({
     theme,
     isDarkMode,
     notificationSound,
+    playbackSpeed,
     setTheme,
     toggleDarkMode,
     setNotificationSound,
-  }), [theme, isDarkMode, notificationSound]);
+    setPlaybackSpeed,
+  }), [theme, isDarkMode, notificationSound, playbackSpeed]);
 
   return (
     <ThemeProviderContext.Provider value={value}>

@@ -20,6 +20,7 @@ import {
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
 import { useToast } from '@/hooks/use-toast';
+import { useTheme } from '@/components/theme/theme-provider';
 
 
 function MessageStatusIndicator({ status }: { status: MessageStatus }) {
@@ -36,32 +37,41 @@ function MessageStatusIndicator({ status }: { status: MessageStatus }) {
 const AudioPlayer = ({ mediaUrl }: { mediaUrl: string }) => {
   const audioRef = useRef<HTMLAudioElement>(null);
   const [isPlaying, setIsPlaying] = useState(false);
+  const { playbackSpeed } = useTheme();
+
+  useEffect(() => {
+    if (audioRef.current) {
+      audioRef.current.playbackRate = playbackSpeed;
+    }
+  }, [playbackSpeed]);
 
   const togglePlayPause = () => {
     if (audioRef.current) {
       if (isPlaying) {
         audioRef.current.pause();
       } else {
+        audioRef.current.playbackRate = playbackSpeed; // Garante que a velocidade seja aplicada ao dar play
         audioRef.current.play();
       }
       setIsPlaying(!isPlaying);
     }
   };
-  
+
   const handleEnded = () => {
     setIsPlaying(false);
-  }
+  };
 
   return (
-    <div className="flex items-center gap-2 w-full max-w-[250px] cursor-pointer" onClick={togglePlayPause}>
-      <div className="flex-shrink-0">
-        {isPlaying ? <Pause className="h-5 w-5" /> : <Play className="h-5 w-5" />}
+    <div className="flex flex-col gap-1 w-full max-w-[250px]">
+      <div className="flex items-center gap-2 cursor-pointer" onClick={togglePlayPause}>
+        <div className="flex-shrink-0">
+          {isPlaying ? <Pause className="h-5 w-5" /> : <Play className="h-5 w-5" />}
+        </div>
+        <div className="flex-1">
+          <audio ref={audioRef} src={mediaUrl} onEnded={handleEnded} className="w-full" controls />
+        </div>
       </div>
-      <div className="flex-1">
-        <audio ref={audioRef} src={mediaUrl} onEnded={handleEnded} className="w-full">
-          Seu navegador não suporta o elemento de áudio.
-        </audio>
-      </div>
+       <p className="text-xs text-muted-foreground italic mt-1 text-left">audio Message</p>
     </div>
   );
 };
@@ -71,12 +81,7 @@ const MediaMessage = ({ msg, onImageClick }: { msg: Message; onImageClick: (url:
   const { mediaType, mediaUrl, text } = msg;
 
   if (mediaType === 'audio' && mediaUrl) {
-    return (
-       <div className="flex flex-col gap-1 w-full max-w-[250px]">
-        <AudioPlayer mediaUrl={mediaUrl} />
-        <p className="text-xs text-muted-foreground italic mt-1 text-left">audio Message</p>
-      </div>
-    );
+    return <AudioPlayer mediaUrl={mediaUrl} />;
   }
 
   if (mediaType === 'image' && mediaUrl) {

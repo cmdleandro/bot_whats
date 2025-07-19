@@ -2,7 +2,7 @@
 'use client';
 
 import * as React from 'react';
-import { Moon, Palette, Sun, Check, Music4, Play } from 'lucide-react';
+import { Moon, Palette, Sun, Check, Music4, Play, Zap } from 'lucide-react';
 
 import { useTheme } from './theme-provider';
 import { Button } from '@/components/ui/button';
@@ -44,6 +44,14 @@ const themeColors: Record<string, string> = {
 
 const notificationSounds = Array.from({ length: 9 }, (_, i) => `/notification${i + 1}.wav`);
 
+const playbackSpeeds = [
+    { value: 1, label: '1x' },
+    { value: 1.25, label: '1.25x' },
+    { value: 1.5, label: '1.5x' },
+    { value: 1.75, label: '1.75x' },
+    { value: 2, label: '2x' },
+];
+
 export function ThemeSwitcher() {
   const { 
     theme, 
@@ -52,6 +60,8 @@ export function ThemeSwitcher() {
     toggleDarkMode,
     notificationSound,
     setNotificationSound,
+    playbackSpeed,
+    setPlaybackSpeed,
   } = useTheme();
 
   const playSound = (soundSrc: string) => {
@@ -130,6 +140,28 @@ export function ThemeSwitcher() {
             </DropdownMenuSubContent>
           </DropdownMenuPortal>
         </DropdownMenuSub>
+
+        <DropdownMenuSeparator />
+        
+        <DropdownMenuSub>
+            <DropdownMenuSubTrigger>
+                <Zap className="mr-2 h-4 w-4" />
+                <span>Velocidade do Áudio</span>
+            </DropdownMenuSubTrigger>
+            <DropdownMenuPortal>
+                <DropdownMenuSubContent>
+                {playbackSpeeds.map((speed) => (
+                    <DropdownMenuItem key={speed.value} onClick={() => setPlaybackSpeed(speed.value)}>
+                    <span className="w-full flex items-center justify-between">
+                        {speed.label}
+                        {playbackSpeed === speed.value && <Check className="h-4 w-4 ml-2" />}
+                    </span>
+                    </DropdownMenuItem>
+                ))}
+                </DropdownMenuSubContent>
+            </DropdownMenuPortal>
+        </DropdownMenuSub>
+
       </DropdownMenuContent>
     </DropdownMenu>
   );
