@@ -526,7 +526,7 @@ export default function ChatViewPage() {
 
                   <div className="flex items-center justify-end mt-1 text-xs opacity-60 self-end">
                       <span>{new Date(msg.timestamp).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
-                      {msg.sender === 'operator' && msg.status && <MessageStatusIndicator status={msg.status} />}
+                      {(msg.sender === 'operator' || msg.sender === 'bot') && msg.status && <MessageStatusIndicator status={msg.status} />}
                   </div>
                   </div>
                   <DropdownMenu>
