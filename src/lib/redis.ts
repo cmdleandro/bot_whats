@@ -71,16 +71,16 @@ function parseJsonMessage(jsonString: string): Partial<StoredMessage> | null {
 
 function mapMessageTypeToMediaType(messageType?: string): MediaType | undefined {
     if (!messageType) return undefined;
-    if (messageType.includes('image')) {
+    if (messageType.includes('imageMessage')) {
         return 'image';
     }
-    if (messageType.includes('video')) {
+    if (messageType.includes('videoMessage')) {
         return 'video';
     }
-    if (messageType.includes('audio')) {
+    if (messageType.includes('audioMessage')) {
         return 'audio';
     }
-    if (messageType.includes('document')) {
+    if (messageType.includes('documentMessage')) {
         return 'document';
     }
     return undefined;
@@ -362,21 +362,15 @@ export async function addMessage(
             ? message.mediaUrl.substring(message.mediaUrl.indexOf(',') + 1)
             : message.mediaUrl;
         
-        const fileForN8n = {
-            data: base64Data,
-            mimeType: message.mimetype,
-            fileName: message.fileName
-        };
-        
         messageForQueue.options.mimetype = message.mimetype;
 
         if (message.mediaType === 'image') {
-            messageForQueue.image = fileForN8n;
+            messageForQueue.image = base64Data;
             if (message.text) messageForQueue.options.caption = `*${message.operatorName}*\n${message.text}`;
         } else if (message.mediaType === 'audio') {
-            messageForQueue.audio = fileForN8n;
+            messageForQueue.audio = base64Data;
         } else if (message.mediaType === 'document') {
-            messageForQueue.document = fileForN8n;
+            messageForQueue.document = base64Data;
             if (message.text) messageForQueue.options.caption = `*${message.operatorName}*\n${message.text}`;
         }
     } else if (message.text) {
