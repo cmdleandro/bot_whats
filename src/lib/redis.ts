@@ -47,7 +47,6 @@ export async function getClient() {
 }
 
 function extractValue(jsonString: string, key: string): string | null {
-    // Adiciona uma verificação para a chave com espaço no final
     const keyVariations = [key, `${key} `];
     for (const k of keyVariations) {
         const regex = new RegExp(`"${k}"\\s*:\\s*(?:"([^"]*)"|([^",}]+))`);
@@ -68,15 +67,19 @@ function parseJsonMessage(jsonString: string): Partial<StoredMessage> | null {
     if (parsed.id && !parsed.messageId) {
         parsed.messageId = parsed.id;
     }
-    // Garante que o mediaUrl de áudio é capturado corretamente, pois pode vir em um objeto aninhado.
-    if (parsed.messageType === 'audioMessage' && parsed.audio && parsed.audio.url) {
-        parsed.mediaUrl = parsed.audio.url;
-    }
-    
-    // Fallback for malformed key with a space
-    if (parsed['mediaUrl '] && !parsed.mediaUrl) {
+
+    if (parsed.messageType === 'audioMessage' && parsed.audio?.url) {
+      if (!parsed.mediaUrl) {
+         parsed.mediaUrl = `data:audio/ogg; codecs=opus;base64,${parsed.audio.url}`;
+      }
+    } else if (parsed['mediaUrl '] && !parsed.mediaUrl) {
       parsed.mediaUrl = parsed['mediaUrl '];
       delete parsed['mediaUrl '];
+    }
+    
+    if (parsed.messageType === 'imageMessage' && parsed.mediaUrl && !parsed.mediaUrl.startsWith('data:')) {
+        const mimetype = parsed.mimetype || 'image/jpeg';
+        parsed.mediaUrl = `data:${mimetype};base64,${parsed.mediaUrl}`;
     }
 
 
@@ -288,15 +291,17 @@ export async function getMessages(contactId: string): Promise<Message[]> {
         }
         
         const uniqueId = storedMsg.messageId || `${timestampInMs}-${index}`;
-        
         const messageType = mapMessageTypeToMediaType(storedMsg.messageType);
         
         let text = storedMsg.texto || storedMsg.caption || '';
         let mediaUrl = storedMsg.mediaUrl;
         
-        // Se for um áudio com transcrição, o mediaUrl contém o texto, e o texto da mensagem deve ficar vazio.
+        // If it's audio with a transcription, mediaUrl holds the text, and the message text should be empty.
+        // If it's a real audio file, mediaUrl will start with 'data:audio'
         if (messageType === 'audio' && mediaUrl && !mediaUrl.startsWith('data:audio')) {
             text = '';
+        } else if (messageType === 'image' && mediaUrl) {
+            text = storedMsg.caption || '';
         }
 
         return {
@@ -310,6 +315,7 @@ export async function getMessages(contactId: string): Promise<Message[]> {
           status: storedMsg.status,
           mediaUrl: mediaUrl,
           mediaType: messageType,
+          mimetype: storedMsg.mimetype,
           jpegThumbnail: storedMsg.jpegThumbnail,
           quotedMessage: storedMsg.quotedMessage
         };

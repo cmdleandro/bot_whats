@@ -35,7 +35,6 @@ function MessageStatusIndicator({ status }: { status: MessageStatus }) {
 
 const MediaMessage = ({ msg, onImageClick }: { msg: Message, onImageClick: (url: string) => void }) => {
   const isMounted = useRef(true);
-  const audioRef = useRef<HTMLAudioElement>(null);
   const [generatedAudioUrl, setGeneratedAudioUrl] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
 
@@ -43,14 +42,9 @@ const MediaMessage = ({ msg, onImageClick }: { msg: Message, onImageClick: (url:
     isMounted.current = true;
     return () => { isMounted.current = false; };
   }, []);
-  
-  useEffect(() => {
-    if (generatedAudioUrl && audioRef.current) {
-        audioRef.current.play().catch(e => console.error("Falha ao tocar áudio gerado:", e));
-    }
-  }, [generatedAudioUrl]);
 
   const handleGenerateAudio = async () => {
+      // Don't generate if it's already an audio data URL or if there's no text to convert.
       if (!msg.mediaUrl || msg.mediaUrl.startsWith('data:audio')) return;
 
       setIsGenerating(true);
@@ -60,7 +54,7 @@ const MediaMessage = ({ msg, onImageClick }: { msg: Message, onImageClick: (url:
             setGeneratedAudioUrl(result.audioDataUri);
         }
       } catch (error) {
-        console.error("Error converting text to audio for received message:", error);
+        console.error("Error converting text to audio:", error);
       } finally {
         if (isMounted.current) {
             setIsGenerating(false);
@@ -69,7 +63,7 @@ const MediaMessage = ({ msg, onImageClick }: { msg: Message, onImageClick: (url:
   };
   
   if (msg.mediaType === 'image' && msg.mediaUrl) {
-    const src = msg.mediaUrl.startsWith('data:') ? msg.mediaUrl : `data:image/jpeg;base64,${msg.jpegThumbnail}`;
+    const src = msg.mediaUrl.startsWith('data:') ? msg.mediaUrl : `data:image/jpeg;base64,${msg.jpegThumbnail || msg.mediaUrl}`;
     return (
         <button onClick={() => onImageClick(src)} className="block focus:outline-none">
           <div className="flex flex-col gap-1 w-full max-w-[200px]">
@@ -85,17 +79,17 @@ const MediaMessage = ({ msg, onImageClick }: { msg: Message, onImageClick: (url:
     );
   }
 
-  const finalAudioUrl = msg.mediaUrl?.startsWith('data:audio') ? msg.mediaUrl : generatedAudioUrl;
+  const finalAudioUrl = generatedAudioUrl || (msg.mediaUrl?.startsWith('data:audio') ? msg.mediaUrl : null);
 
-  if (msg.mediaType === 'audio' && finalAudioUrl) {
+  if (finalAudioUrl) {
     return (
-        <div className="flex items-center gap-2">
-            <audio controls src={finalAudioUrl} ref={audioRef} className="w-full max-w-xs" />
-        </div>
+      <div className="flex items-center gap-2">
+        <audio controls src={finalAudioUrl} className="w-full max-w-xs" />
+      </div>
     );
   }
 
-  if (msg.mediaType === 'audio' && msg.mediaUrl && !finalAudioUrl) {
+  if (msg.mediaType === 'audio' && msg.mediaUrl) {
       return (
           <div className="flex items-center gap-3">
               <Button
@@ -105,11 +99,7 @@ const MediaMessage = ({ msg, onImageClick }: { msg: Message, onImageClick: (url:
                   disabled={isGenerating}
                   className="h-9 w-9"
               >
-                  {isGenerating ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                      <Play className="h-4 w-4" />
-                  )}
+                  {isGenerating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
               </Button>
               <div className="text-sm text-left">
                   <p className="font-semibold">Áudio Recebido</p>
@@ -118,6 +108,7 @@ const MediaMessage = ({ msg, onImageClick }: { msg: Message, onImageClick: (url:
           </div>
       );
   }
+
 
   if (msg.mediaUrl && msg.mediaType === 'document') {
     return (
@@ -468,7 +459,7 @@ export default function ChatViewPage() {
             </div>
           ) : (
             messages.map(msg => (
-                <div key={`${msg.id}-${msg.timestamp}`}
+                <div key={msg.id}
                   className={cn(
                   'group relative flex items-end gap-3 w-fit',
                   getMessageAlignment(msg.sender)
