@@ -35,50 +35,38 @@ function MessageStatusIndicator({ status }: { status: MessageStatus }) {
 
 const MediaMessage = ({ msg, onImageClick }: { msg: Message; onImageClick: (url: string) => void }) => {
   const { mediaType, mediaUrl, text } = msg;
-
-  let mediaElement: React.ReactNode = null;
-
-  if (mediaType && mediaUrl) {
-    switch (mediaType) {
-      case 'image':
-        mediaElement = (
-          <button onClick={() => onImageClick(mediaUrl)} className="block focus:outline-none">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={mediaUrl}
-              alt={text || 'Imagem enviada'}
-              className="rounded-lg object-cover w-full h-auto max-w-[250px]"
-            />
-          </button>
-        );
-        break;
-      case 'document':
-        mediaElement = (
-          <a href={mediaUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-primary underline">
-            <Paperclip className="h-4 w-4" />
-            <span>{text || 'Ver Documento'}</span>
-          </a>
-        );
-        break;
-      case 'audio':
-         mediaElement = (
-            <audio controls src={mediaUrl} className="max-w-[250px] w-full">
-              Seu navegador não suporta o elemento de áudio.
-            </audio>
-         );
-         break;
-      default:
-        break;
-    }
-  }
   
-  if (mediaElement) {
-      return (
-          <div className="flex flex-col gap-1 w-full">
-              {mediaElement}
-              {text && <p className="text-sm whitespace-pre-wrap mt-1 text-left">{text}</p>}
-          </div>
-      );
+  if (mediaType === 'audio' && mediaUrl) {
+    return (
+      <audio controls src={mediaUrl} className="max-w-[250px] w-full">
+        Seu navegador não suporta o elemento de áudio.
+      </audio>
+    );
+  }
+
+  if (mediaType === 'image' && mediaUrl) {
+    return (
+      <div className="flex flex-col gap-1 w-full">
+        <button onClick={() => onImageClick(mediaUrl)} className="block focus:outline-none">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={mediaUrl}
+            alt={text || 'Imagem enviada'}
+            className="rounded-lg object-cover w-full h-auto max-w-[250px]"
+          />
+        </button>
+        {text && <p className="text-sm whitespace-pre-wrap mt-1 text-left">{text}</p>}
+      </div>
+    );
+  }
+
+  if (mediaType === 'document' && mediaUrl) {
+    return (
+      <a href={mediaUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-primary underline">
+        <Paperclip className="h-4 w-4" />
+        <span>{text || 'Ver Documento'}</span>
+      </a>
+    );
   }
 
   if (text) {
@@ -260,7 +248,10 @@ export default function ChatViewPage() {
         reader.readAsDataURL(file);
         reader.onload = async () => {
             const mediaUrl = reader.result as string;
-            const mediaType = file.type.startsWith('image/') ? 'image' : 'document';
+            
+            let mediaType: MediaType = 'document';
+            if (file.type.startsWith('image/')) mediaType = 'image';
+            if (file.type.startsWith('audio/')) mediaType = 'audio';
 
             await addMessage(contactId, {
                 mediaUrl,
@@ -513,7 +504,7 @@ export default function ChatViewPage() {
             ref={fileInputRef}
             onChange={handleFileChange}
             className="hidden"
-            accept="image/*,application/pdf"
+            accept="image/*,application/pdf,audio/*"
             disabled={isUploadingFile}
           />
           <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">

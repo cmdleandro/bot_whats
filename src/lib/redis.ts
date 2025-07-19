@@ -82,14 +82,14 @@ function getLastMessageText(msg: Partial<StoredMessage>): string {
   }
   const mediaType = mapMessageTypeToMediaType(msg.messageType);
   
-  if (mediaType || msg.jpegThumbnail) {
+  if (mediaType) {
     const typeMap: Record<string, string> = {
       image: '📷 Imagem',
       video: '🎬 Vídeo',
       document: '📄 Documento',
       audio: '🎵 Mensagem de áudio',
     };
-    const mediaText = typeMap[mediaType || 'image'] || 'Arquivo de mídia';
+    const mediaText = typeMap[mediaType] || 'Arquivo de mídia';
     return msg.caption ? `${mediaText}: ${msg.caption}` : mediaText;
   }
   
@@ -253,7 +253,7 @@ export async function getMessages(contactId: string): Promise<Message[]> {
             }
         }
         
-        if (mediaType === 'audio') {
+        if (mediaType === 'audio' && text) {
             text = null;
         }
 
@@ -358,6 +358,9 @@ export async function addMessage(
             messageForQueue.image = { url: base64Data };
             if (message.mimetype) messageForQueue.options.mimetype = message.mimetype;
             if (message.text) messageForQueue.options.caption = `*${message.operatorName}*\n${message.text}`;
+        } else if (message.mediaType === 'audio') {
+            messageForQueue.audio = { url: base64Data };
+             if (message.mimetype) messageForQueue.options.mimetype = message.mimetype;
         } else if (message.mediaType === 'document') {
             messageForQueue.document = { url: base64Data };
             if (message.mimetype) messageForQueue.options.mimetype = message.mimetype;
