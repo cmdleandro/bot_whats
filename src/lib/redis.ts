@@ -219,20 +219,36 @@ export async function getMessages(contactId: string): Promise<Message[]> {
   try {
     const client = await getClient();
     const historyKey = `chat:${contactId.trim()}`;
-    const messageStrings = await client.lRange(historyKey, 0, -1);
+    // Optimization: Fetch only the last 50 messages instead of the whole list.
+    const messageStrings = await client.lRange(historyKey, 0, 49);
 
     if (!messageStrings || messageStrings.length === 0) {
       return [];
     }
-
+    
+    const storedMessages = messageStrings.map(parseJsonMessage).filter((msg): msg is Partial<StoredMessage> => msg !== null);
+    const messages: Message[] = [];
+    
     let highestStatusFound: MessageStatus | null = null;
     const statusCache = new Map<string, MessageStatus>();
-    
-    const messages = await Promise.all(
-      messageStrings.map(async (msgString, index) => {
-        const storedMsg = parseJsonMessage(msgString);
-        if (!storedMsg) return null;
 
+    // Iterate from newest to oldest to find the latest status
+    for (const storedMsg of storedMessages) {
+      if (!highestStatusFound && (storedMsg.tipo === 'operator' || storedMsg.fromMe === 'true') && storedMsg.messageId) {
+        const statusData = await client.hGet(`message:${storedMsg.messageId}`, 'status');
+        if (statusData) {
+            statusCache.set(storedMsg.messageId, statusData as MessageStatus);
+            if (statusData === 'read') {
+                highestStatusFound = 'read';
+            } else if (statusData === 'delivered' && highestStatusFound !== 'read') {
+                highestStatusFound = 'delivered';
+            }
+        }
+      }
+    }
+
+    // Now build the final message array, applying the cascaded status
+    for (const [index, storedMsg] of storedMessages.entries()) {
         const timestampInMs = storedMsg.timestamp ? (parseInt(storedMsg.timestamp, 10) * 1000) : Date.now();
         const uniqueId = storedMsg.messageId || `msg_${timestampInMs}_${index}`;
         
@@ -241,28 +257,11 @@ export async function getMessages(contactId: string): Promise<Message[]> {
         
         if (storedMsg.fromMe === 'true' || storedMsg.tipo === 'operator') {
             sender = 'operator';
-            
-            if (highestStatusFound === 'read') {
-                finalStatus = 'read';
-            } else if (highestStatusFound === 'delivered' && finalStatus !== 'read') {
-                finalStatus = 'delivered';
+            if (highestStatusFound) {
+                finalStatus = highestStatusFound;
             } else if (storedMsg.messageId) {
-                if (statusCache.has(storedMsg.messageId)) {
-                    finalStatus = statusCache.get(storedMsg.messageId);
-                } else {
-                    const statusData = await client.hGet(`message:${storedMsg.messageId}`, 'status');
-                    if (statusData) {
-                        finalStatus = statusData as MessageStatus;
-                        statusCache.set(storedMsg.messageId, finalStatus);
-                        if (finalStatus === 'read') {
-                            highestStatusFound = 'read';
-                        } else if (finalStatus === 'delivered' && highestStatusFound !== 'read') {
-                            highestStatusFound = 'delivered';
-                        }
-                    }
-                }
+                 finalStatus = statusCache.get(storedMsg.messageId);
             }
-
         } else if (storedMsg.tipo === 'bot') {
             sender = 'bot';
         } else {
@@ -290,7 +289,7 @@ export async function getMessages(contactId: string): Promise<Message[]> {
             text = null;
         }
         
-        return {
+        messages.push({
           id: uniqueId,
           contactId: contactId,
           text: text,
@@ -304,13 +303,10 @@ export async function getMessages(contactId: string): Promise<Message[]> {
           mimetype: storedMsg.mimetype,
           jpegThumbnail: storedMsg.jpegThumbnail,
           quotedMessage: storedMsg.quotedMessage
-        };
-      })
-    );
+        });
+    }
 
-    return messages
-      .filter((msg): msg is Message => msg !== null)
-      .reverse();
+    return messages.reverse();
 
   } catch (error) {
     console.error(`Falha ao buscar mensagens para ${contactId} do Redis:`, error);
