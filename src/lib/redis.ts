@@ -58,7 +58,7 @@ function parseJsonMessage(jsonString: string): Partial<StoredMessage> | null {
     
     // Support "texto" as the primary key for text content
     if (parsed.message && !parsed.texto) {
-        // This is a fallback; the primary key should be 'texto'
+       parsed.texto = parsed.message
     }
 
     return parsed;
@@ -73,6 +73,7 @@ function mapMessageTypeToMediaType(messageType?: string): MediaType | undefined 
     if (!messageType) return undefined;
     if (messageType.includes('image')) return 'image';
     if (messageType.includes('video')) return 'video';
+    if (messageType.includes('audio')) return 'audio';
     if (messageType.includes('document')) return 'document';
     return undefined;
 }
@@ -88,6 +89,7 @@ function getLastMessageText(msg: Partial<StoredMessage>): string {
       image: '📷 Imagem',
       video: '🎬 Vídeo',
       document: '📄 Documento',
+      audio: '🎵 Mensagem de áudio',
     };
     const mediaText = typeMap[mediaType || 'image'] || 'Arquivo de mídia';
     return msg.caption ? `${mediaText}: ${msg.caption}` : mediaText;
@@ -185,10 +187,10 @@ export async function getContacts(): Promise<Contact[]> {
       name: finalContactName,
       avatar: finalAvatar,
       rawTimestamp: timestamp,
-      lastMessage: getLastMessageText(lastMsg),
       timestamp: timestamp ? formatDistanceToNow(fromUnixTime(timestamp), { addSuffix: true, locale: ptBR }) : 'Data desconhecida',
       unreadCount: 0,
       needsAttention: hasAttentionFlag,
+      lastMessage: getLastMessageText(lastMsg),
     };
 
     activeContacts.push(contact as Contact & { rawTimestamp: number });
@@ -237,22 +239,30 @@ export async function getMessages(contactId: string): Promise<Message[]> {
         
         // Handle media
         if (mediaType && storedMsg.mediaUrl) {
-            // Use mediaUrl directly if it's already a Data URI
-            if (storedMsg.mediaUrl.startsWith('data:')) {
+             if (storedMsg.mediaUrl.startsWith('data:')) {
                 finalMediaUrl = storedMsg.mediaUrl;
+            } else if (storedMsg.mimetype) {
+                finalMediaUrl = `data:${storedMsg.mimetype};base64,${storedMsg.mediaUrl}`;
             }
-            
-            // If there's a real caption, use it as text. Otherwise, text is null.
+
             const captionText = storedMsg.caption || storedMsg.texto;
             if (captionText && captionText.trim() && captionText !== 'null') {
                 text = captionText;
             }
         } else {
             // Handle regular text messages
-            const messageText = storedMsg.texto || storedMsg.message || '';
+            const messageText = storedMsg.texto || '';
             if (messageText.trim()) {
                 text = messageText;
             }
+        }
+
+        if (mediaType && text === null) {
+            text = storedMsg.texto; // Fallback to texto if caption is null for media
+        }
+        
+        if (mediaType === 'audio' && text) {
+            text = null; // Do not show text for audio messages to allow the player to show.
         }
 
 
@@ -327,7 +337,7 @@ export async function addMessage(
     const messageObjectToStore: Partial<StoredMessage> = {
       id: message.tempId,
       messageId: message.tempId,
-      texto: message.text || '',
+      texto: message.text,
       tipo: message.sender,
       timestamp: Math.floor(Date.now() / 1000).toString(),
       operatorName: message.operatorName,
@@ -342,7 +352,7 @@ export async function addMessage(
     
     // Only add caption if text is provided with media
     if (message.mediaType && message.text) {
-        messageObjectToStore.caption = message.text;
+        messageObjectToStore.caption = `*${message.operatorName}*\n${message.text}`;
     }
     
     const messageForQueue: any = {

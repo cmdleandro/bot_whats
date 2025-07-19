@@ -36,8 +36,9 @@ function MessageStatusIndicator({ status }: { status: MessageStatus }) {
 const MediaMessage = ({ msg, onImageClick }: { msg: Message; onImageClick: (url: string) => void }) => {
   const { mediaType, mediaUrl, text } = msg;
 
+  let mediaElement: React.ReactNode = null;
+
   if (mediaType && mediaUrl) {
-    let mediaElement: React.ReactNode = null;
     switch (mediaType) {
       case 'image':
         mediaElement = (
@@ -59,19 +60,25 @@ const MediaMessage = ({ msg, onImageClick }: { msg: Message; onImageClick: (url:
           </a>
         );
         break;
+      case 'audio':
+         mediaElement = (
+            <audio controls src={mediaUrl} className="max-w-[250px] w-full">
+              Seu navegador não suporta o elemento de áudio.
+            </audio>
+         );
+         break;
       default:
-        // Fallback for unhandled media types if necessary
         break;
     }
-    
-    if (mediaElement) {
-        return (
-            <div className="flex flex-col gap-1 w-full">
-                {mediaElement}
-                {text && <p className="text-sm whitespace-pre-wrap mt-1 text-left">{text}</p>}
-            </div>
-        );
-    }
+  }
+  
+  if (mediaElement) {
+      return (
+          <div className="flex flex-col gap-1 w-full">
+              {mediaElement}
+              {text && mediaType !== 'audio' && <p className="text-sm whitespace-pre-wrap mt-1 text-left">{text}</p>}
+          </div>
+      );
   }
 
   // Render text only if no media
