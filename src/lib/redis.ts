@@ -358,24 +358,24 @@ export async function addMessage(
     };
     
     if (message.mediaUrl && message.mediaType) {
-        const base64Data = message.mediaUrl.startsWith('data:') 
-            ? message.mediaUrl.substring(message.mediaUrl.indexOf(',') + 1)
-            : message.mediaUrl;
+        const base64Data = message.mediaUrl.substring(message.mediaUrl.indexOf(',') + 1);
         
-        messageForQueue.options.mimetype = message.mimetype;
+        const fileData = {
+          data: base64Data,
+          mimetype: message.mimetype
+        }
 
         if (message.mediaType === 'image') {
-            messageForQueue.image = base64Data;
+            messageForQueue.image = fileData;
             if (message.text) messageForQueue.options.caption = `*${message.operatorName}*\n${message.text}`;
         } else if (message.mediaType === 'audio') {
-            messageForQueue.audio = base64Data;
+            messageForQueue.audio = fileData;
         } else if (message.mediaType === 'document') {
-            messageForQueue.document = base64Data;
+            messageForQueue.document = fileData;
             if (message.text) messageForQueue.options.caption = `*${message.operatorName}*\n${message.text}`;
         }
     } else if (message.text) {
         messageForQueue.text = `*${message.operatorName}*\n${message.text}`;
-        messageForQueue.options.mimetype = 'text/plain';
     }
     
     if (message.quotedMessage) {
