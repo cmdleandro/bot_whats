@@ -3,7 +3,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams } from 'next/navigation';
-import { Send, Bot, ChevronLeft, Loader2, Check, CheckCheck, Paperclip, CornerUpLeft, X, ChevronDown, Mic, Play } from 'lucide-react';
+import { Send, Bot, ChevronLeft, Loader2, Check, CheckCheck, Paperclip, CornerUpLeft, X, ChevronDown, Mic } from 'lucide-react';
 import { getMessages, addMessage, getContacts, dismissAttention } from '@/lib/redis';
 import { Message, Contact, MessageStatus, MediaType } from '@/lib/data';
 import { Button } from '@/components/ui/button';
@@ -20,7 +20,7 @@ import {
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
 import { useToast } from '@/hooks/use-toast';
-import { textToSpeech } from '@/ai/flows/text-to-speech-flow';
+
 
 function MessageStatusIndicator({ status }: { status: MessageStatus }) {
     const iconClass = "h-4 w-4 ml-1";
@@ -34,34 +34,6 @@ function MessageStatusIndicator({ status }: { status: MessageStatus }) {
 }
 
 const MediaMessage = ({ msg, onImageClick }: { msg: Message, onImageClick: (url: string) => void }) => {
-  const isMounted = useRef(true);
-  const [generatedAudioUrl, setGeneratedAudioUrl] = useState<string | null>(null);
-  const [isGenerating, setIsGenerating] = useState(false);
-
-  useEffect(() => {
-    isMounted.current = true;
-    return () => { isMounted.current = false; };
-  }, []);
-
-  const handleGenerateAudio = async () => {
-      // Don't generate if it's already an audio data URL or if there's no text to convert.
-      if (!msg.mediaUrl || msg.mediaUrl.startsWith('data:audio')) return;
-
-      setIsGenerating(true);
-      try {
-        const result = await textToSpeech({ text: msg.mediaUrl, voice: msg.sender === 'operator' ? 'Algenib' : 'Alpha-centauri' });
-        if (isMounted.current) {
-            setGeneratedAudioUrl(result.audioDataUri);
-        }
-      } catch (error) {
-        console.error("Error converting text to audio:", error);
-      } finally {
-        if (isMounted.current) {
-            setIsGenerating(false);
-        }
-      }
-  };
-  
   if (msg.mediaType === 'image' && msg.mediaUrl) {
     const src = msg.mediaUrl.startsWith('data:') ? msg.mediaUrl : `data:image/jpeg;base64,${msg.jpegThumbnail || msg.mediaUrl}`;
     return (
@@ -79,34 +51,12 @@ const MediaMessage = ({ msg, onImageClick }: { msg: Message, onImageClick: (url:
     );
   }
 
-  const finalAudioUrl = generatedAudioUrl || (msg.mediaUrl?.startsWith('data:audio') ? msg.mediaUrl : null);
-
-  if (finalAudioUrl) {
+  if (msg.mediaType === 'audio' && msg.mediaUrl) {
     return (
       <div className="flex items-center gap-2">
-        <audio controls src={finalAudioUrl} className="w-full max-w-xs" />
+        <audio controls src={msg.mediaUrl} className="w-full max-w-xs" />
       </div>
     );
-  }
-
-  if (msg.mediaType === 'audio' && msg.mediaUrl) {
-      return (
-          <div className="flex items-center gap-3">
-              <Button
-                  variant="outline"
-                  size="icon"
-                  onClick={handleGenerateAudio}
-                  disabled={isGenerating}
-                  className="h-9 w-9"
-              >
-                  {isGenerating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
-              </Button>
-              <div className="text-sm text-left">
-                  <p className="font-semibold">Áudio Recebido</p>
-                  <p className="text-xs text-muted-foreground italic truncate max-w-xs">"{msg.mediaUrl}"</p>
-              </div>
-          </div>
-      );
   }
 
 
@@ -160,7 +110,6 @@ export default function ChatViewPage() {
   const [operatorName, setOperatorName] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [isSending, setIsSending] = useState(false);
-  const [isConvertingAudio, setIsConvertingAudio] = useState(false);
   const [isUploadingFile, setIsUploadingFile] = useState(false);
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
   const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null);
@@ -250,14 +199,10 @@ export default function ChatViewPage() {
     }
   }, [messages]);
 
-  const handleSendMessage = async ({ asAudio = false } = {}) => {
-    if (newMessage.trim() === '' || isSending || isConvertingAudio) return;
+  const handleSendMessage = async () => {
+    if (newMessage.trim() === '' || isSending) return;
 
-    if (asAudio) {
-      setIsConvertingAudio(true);
-    } else {
-      setIsSending(true);
-    }
+    setIsSending(true);
 
     const tempId = `temp_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
     const quotedMessageData = replyingTo ? {
@@ -271,29 +216,13 @@ export default function ChatViewPage() {
     setReplyingTo(null);
 
     try {
-      if (asAudio) {
-        const audioData = await textToSpeech({ text: newMessage, voice: 'Algenib' });
-        if (!audioData || !audioData.audioDataUri) {
-          throw new Error('Falha ao converter texto em áudio.');
-        }
-        await addMessage(contactId, {
-          mediaUrl: audioData.audioDataUri,
-          mediaType: 'audio',
-          mimetype: 'audio/ogg; codecs=opus',
-          sender: 'operator',
-          operatorName: operatorName,
-          tempId: tempId,
-          quotedMessage: quotedMessageData
-        });
-      } else {
-        await addMessage(contactId, {
-          text: newMessage,
-          sender: 'operator',
-          operatorName: operatorName,
-          tempId: tempId,
-          quotedMessage: quotedMessageData
-        });
-      }
+      await addMessage(contactId, {
+        text: newMessage,
+        sender: 'operator',
+        operatorName: operatorName,
+        tempId: tempId,
+        quotedMessage: quotedMessageData
+      });
       
       await fetchMessages(contactId, true);
     } catch (error: any) {
@@ -305,7 +234,6 @@ export default function ChatViewPage() {
       });
     } finally {
       setIsSending(false);
-      setIsConvertingAudio(false);
       textareaRef.current?.focus();
     }
   };
@@ -561,12 +489,12 @@ export default function ChatViewPage() {
             onKeyDown={e => {
               if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
-                handleSendMessage({ asAudio: false });
+                handleSendMessage();
               }
             }}
             placeholder="Digite uma mensagem ou cole uma imagem..."
-            className="min-h-[48px] resize-none pr-32"
-            disabled={isSending || isConvertingAudio || isUploadingFile}
+            className="min-h-[48px] resize-none pr-24"
+            disabled={isSending || isUploadingFile}
           />
           <input
             type="file"
@@ -582,26 +510,16 @@ export default function ChatViewPage() {
                 variant="ghost"
                 size="icon"
                 onClick={() => fileInputRef.current?.click()}
-                disabled={isUploadingFile || isSending || isConvertingAudio}
+                disabled={isUploadingFile || isSending}
                 aria-label="Anexar arquivo"
               >
                 {isUploadingFile ? <Loader2 className="h-5 w-5 animate-spin" /> : <Paperclip className="h-5 w-5" />}
               </Button>
             <Button
               type="button"
-              variant="ghost"
               size="icon"
-              onClick={() => handleSendMessage({ asAudio: true })}
-              disabled={!newMessage.trim() || isSending || isConvertingAudio}
-              aria-label="Enviar como Áudio"
-            >
-              {isConvertingAudio ? <Loader2 className="h-5 w-5 animate-spin" /> : <Mic className="h-5 w-5" />}
-            </Button>
-            <Button
-              type="button"
-              size="icon"
-              onClick={() => handleSendMessage({ asAudio: false })}
-              disabled={!newMessage.trim() || isSending || isConvertingAudio}
+              onClick={() => handleSendMessage()}
+              disabled={!newMessage.trim() || isSending}
               aria-label="Enviar Texto"
             >
               {isSending ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5" />}
@@ -612,5 +530,3 @@ export default function ChatViewPage() {
     </div>
   );
 }
-
-    

@@ -46,26 +46,15 @@ export async function getClient() {
     }
 }
 
-function extractValue(jsonString: string, key: string): string | null {
-    const keyVariations = [key, `${key} `];
-    for (const k of keyVariations) {
-        const regex = new RegExp(`"${k}"\\s*:\\s*(?:"([^"]*)"|([^",}]+))`);
-        const match = jsonString.match(regex);
-        if (match) {
-            const value = match[1] || match[2];
-            return value ? value.trim().replace(/\\"/g, '"') : null;
-        }
-    }
-    return null;
-}
-
-
 function parseJsonMessage(jsonString: string): Partial<StoredMessage> | null {
   try {
     if (!jsonString) return null;
     
-    // Correction for unquoted base64 audio URLs
-    let correctedJsonString = jsonString.replace(/"url":\s*([A-Za-z0-9+/=]+)/g, '"url": "$1"');
+    let correctedJsonString = jsonString;
+    // Correction for unquoted base64 audio URLs in the audio object
+    if (correctedJsonString.includes('"audio": { "url":') && !correctedJsonString.includes('"audio": { "url": "')) {
+      correctedJsonString = jsonString.replace(/"url":\s*([A-Za-z0-9+/=]+)/g, '"url": "$1"');
+    }
     
     let parsed = JSON.parse(correctedJsonString);
     if (parsed.id && !parsed.messageId) {
@@ -74,9 +63,8 @@ function parseJsonMessage(jsonString: string): Partial<StoredMessage> | null {
 
     // Handles simplified audio format: { "audio": { "url": "BASE64..." } }
     if (parsed.messageType === 'audioMessage' && parsed.audio?.url) {
-        if (!parsed.mediaUrl || !parsed.mediaUrl.startsWith('data:')) {
-             parsed.mediaUrl = `data:audio/ogg; codecs=opus;base64,${parsed.audio.url}`;
-        }
+        // Prioritize audio object over a potential text-based mediaUrl
+        parsed.mediaUrl = `data:audio/ogg; codecs=opus;base64,${parsed.audio.url}`;
     } else if (parsed['mediaUrl '] && !parsed.mediaUrl) { // Handles trailing space error
       parsed.mediaUrl = parsed['mediaUrl '];
       delete parsed['mediaUrl '];
@@ -92,41 +80,7 @@ function parseJsonMessage(jsonString: string): Partial<StoredMessage> | null {
     return parsed;
 
   } catch (error) {
-    console.warn('Falha ao fazer parse da mensagem JSON. Tentando recuperação manual:', jsonString);
-    try {
-        const recovered: Partial<StoredMessage> = {
-            messageId: extractValue(jsonString, 'messageId') || extractValue(jsonString, 'id'),
-            mediaUrl: extractValue(jsonString, 'mediaUrl') || extractValue(jsonString, 'mediaUrl '),
-            caption: extractValue(jsonString, 'caption'),
-            messageType: extractValue(jsonString, 'messageType'),
-            texto: extractValue(jsonString, 'caption') || extractValue(jsonString, 'texto') || '',
-            timestamp: extractValue(jsonString, 'timestamp') || Math.floor(Date.now() / 1000).toString(),
-            contactName: extractValue(jsonString, 'contactName'),
-            contactPhotoUrl: extractValue(jsonString, 'contactPhotoUrl'),
-            fromMe: extractValue(jsonString, 'fromMe') || 'false',
-            instance: extractValue(jsonString, 'instance'),
-            needsAttention: extractValue(jsonString, 'needsAttention') === 'true',
-            status: 'sent',
-            jpegThumbnail: extractValue(jsonString, 'jpegThumbnail'),
-        };
-        
-        let tipoExtracted = extractValue(jsonString, 'tipo');
-        if (tipoExtracted && ['user', 'bot', 'operator'].includes(tipoExtracted)) {
-            recovered.tipo = tipoExtracted as 'user' | 'bot' | 'operator';
-        } else {
-             recovered.tipo = (recovered.fromMe === 'true') ? 'operator' : 'user';
-        }
-        
-        recovered.quotedMessage = undefined;
-        recovered.id = recovered.messageId;
-
-        if (recovered.texto || recovered.mediaUrl) {
-            console.log('Mensagem recuperada manualmente:', recovered);
-            return recovered;
-        }
-    } catch (recoveryError) {
-        console.error('Falha na recuperação manual:', recoveryError);
-    }
+    console.warn('Falha ao fazer parse da mensagem JSON:', jsonString, error);
     return null;
   }
 }
@@ -147,9 +101,6 @@ function getLastMessageText(msg: Partial<StoredMessage>): string {
   const mediaType = mapMessageTypeToMediaType(msg.messageType);
   
   if (mediaType === 'audio') {
-      if (msg.mediaUrl && !msg.mediaUrl.startsWith('data:audio')) {
-          return `🎵 Áudio: "${msg.mediaUrl}"`;
-      }
       return '🎵 Mensagem de áudio';
   }
   
@@ -305,10 +256,9 @@ export async function getMessages(contactId: string): Promise<Message[]> {
         let text = storedMsg.texto || storedMsg.caption || '';
         let mediaUrl = storedMsg.mediaUrl;
         
-        // If it's an audio with a transcription, mediaUrl holds the text. Clear text to prevent it from being displayed.
-        if (messageType === 'audio' && mediaUrl && !mediaUrl.startsWith('data:audio')) {
-            text = '';
-        } else if (messageType === 'image' && mediaUrl) {
+        // If it's media, the caption is the text. The text property itself should be empty
+        // to avoid being rendered separately.
+        if (messageType === 'image' || messageType === 'audio' || messageType === 'document' || messageType === 'video') {
             text = storedMsg.caption || '';
         }
 
@@ -406,11 +356,10 @@ export async function addMessage(
     };
     
     if (message.mediaUrl && message.mediaType) {
-        // Remove the data URI prefix for the Evolution API
         const base64Data = message.mediaUrl.substring(message.mediaUrl.indexOf(',') + 1);
 
         if (message.mediaType === 'audio') {
-            messageForQueue.audio = { url: message.mediaUrl }; // Evolution might handle data URIs for audio, confirm later
+            messageForQueue.audio = { url: message.mediaUrl };
             messageForQueue.options.mimetype = 'audio/ogg; codecs=opus';
         } else if (message.mediaType === 'image') {
             messageForQueue.image = { url: base64Data };
