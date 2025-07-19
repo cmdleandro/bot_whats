@@ -54,14 +54,9 @@ function parseJsonMessage(jsonString: string): Partial<StoredMessage> | null {
     if (parsed.id && !parsed.messageId) {
         parsed.messageId = parsed.id;
     }
-
-    // Prioriza o novo formato com mimetype para áudio e imagem
-    if ((parsed.messageType === 'audioMessage' || parsed.messageType === 'imageMessage') && parsed.mediaUrl && parsed.mimetype && !parsed.mediaUrl.startsWith('data:')) {
-        parsed.mediaUrl = `data:${parsed.mimetype};base64,${parsed.mediaUrl}`;
-    }
     
     // Tratamento para áudio no formato simplificado
-    else if (parsed.messageType === 'audioMessage' && typeof parsed.audio === 'string' && parsed.audio && !parsed.audio.startsWith('data:')) {
+    if (parsed.messageType === 'audioMessage' && typeof parsed.audio === 'string' && parsed.audio && !parsed.audio.startsWith('data:')) {
         const mimetype = parsed.mimetype || 'audio/ogg; codecs=opus';
         parsed.mediaUrl = `data:${mimetype};base64,${parsed.audio}`;
     }
