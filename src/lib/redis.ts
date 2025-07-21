@@ -226,7 +226,20 @@ export async function getMessages(contactId: string): Promise<Message[]> {
     
     const storedMessages = messageStrings.map(parseJsonMessage).filter((msg): msg is Partial<StoredMessage> => msg !== null);
     
-    const messagePromises = storedMessages.map(async (storedMsg, index) => {
+    // Prepare promises for all status lookups
+    const statusPromises = storedMessages.map(async (storedMsg) => {
+      if (storedMsg.fromMe === 'true' || storedMsg.tipo === 'operator' || storedMsg.tipo === 'bot') {
+        const tempId = storedMsg.messageId;
+        const finalMessageId = await client.get(`map:tempid:${tempId}`) || tempId;
+        const status = await client.hGet(`message:${finalMessageId}`, 'status');
+        return status as MessageStatus | null;
+      }
+      return null;
+    });
+
+    const statuses = await Promise.all(statusPromises);
+
+    const messages = storedMessages.map((storedMsg, index) => {
         const timestampInMs = storedMsg.timestamp ? (parseInt(storedMsg.timestamp, 10) * 1000) : Date.now();
         const originalMessageId = storedMsg.messageId || `msg_${timestampInMs}`;
         const uniqueId = `${originalMessageId}_${index}`;
@@ -236,13 +249,9 @@ export async function getMessages(contactId: string): Promise<Message[]> {
 
         if (storedMsg.fromMe === 'true' || storedMsg.tipo === 'operator' || storedMsg.tipo === 'bot') {
             sender = storedMsg.tipo === 'bot' ? 'bot' : 'operator';
-            
-            const finalMessageId = await client.get(`map:tempid:${originalMessageId}`) || originalMessageId;
-            const statusData = await client.hGet(`message:${finalMessageId}`, 'status');
-            if (statusData) {
-                finalStatus = statusData as MessageStatus;
+            if (statuses[index]) {
+                finalStatus = statuses[index] as MessageStatus;
             }
-
         } else {
             sender = 'user';
         }
@@ -285,12 +294,12 @@ export async function getMessages(contactId: string): Promise<Message[]> {
         };
     });
 
-    const messages = await Promise.all(messagePromises);
     return messages.reverse();
 
   } catch (error) {
     console.error(`Falha ao buscar mensagens para ${contactId} do Redis:`, error);
-    return [];
+    // Return an empty array or re-throw to be handled by the caller
+    throw new Error('An unexpected response was received from the server.');
   }
 }
 
@@ -355,7 +364,8 @@ export async function addMessage(
       instance: instanceName,
       remoteJid: contactId.trim(),
       options: {
-        messageId: message.tempId
+        messageId: message.tempId,
+        mimetype: message.mimetype
       }
     };
     
@@ -376,9 +386,6 @@ export async function addMessage(
         }
     } else if (message.text) {
         messageForQueue.text = `*${message.operatorName}*\n${message.text}`;
-        if (message.mimetype) {
-            messageForQueue.options.mimetype = message.mimetype;
-        }
     }
     
     if (message.quotedMessage) {
@@ -396,6 +403,9 @@ export async function addMessage(
     
     await client.lPush(historyKey, JSON.stringify(messageObjectToStore));
     
+    // Create the reverse mapping from tempId to allow status updates
+    await client.set(`map:tempid:${message.tempId}`, 'placeholder', { EX: 86400 }); // Placeholder until real ID arrives
+
     if (messageForQueue.text || messageForQueue.image || messageForQueue.audio || messageForQueue.document) {
       await client.publish(channelName, JSON.stringify(messageForQueue));
       console.log(`Mensagem ${message.tempId} para ${contactId} (instância: ${instanceName}) publicada no canal ${channelName}.`);
