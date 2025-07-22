@@ -43,7 +43,7 @@ export default async function StatusPage() {
               <AlertTriangle className="h-4 w-4" />
               <AlertTitle>Erro na Conexão com Redis</AlertTitle>
               <AlertDescription>
-                <p className="font-mono text-xs">{status.error}</p>
+                <p className="font-mono text-xs bg-destructive/10 p-2 rounded">{status.error}</p>
               </AlertDescription>
             </Alert>
           )}
