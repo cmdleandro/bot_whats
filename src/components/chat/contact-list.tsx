@@ -41,6 +41,7 @@ export function ContactList() {
   const [searchTerm, setSearchTerm] = useState('');
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [hasInteracted, setHasInteracted] = useState(false);
 
   // For the "New Chat" Dialog
   const [isNewChatOpen, setIsNewChatOpen] = useState(false);
@@ -50,6 +51,19 @@ export function ContactList() {
   
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const previousAttentionIds = useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    const handleFirstInteraction = () => {
+      setHasInteracted(true);
+      window.removeEventListener('click', handleFirstInteraction, true);
+    };
+
+    window.addEventListener('click', handleFirstInteraction, true);
+
+    return () => {
+      window.removeEventListener('click', handleFirstInteraction, true);
+    };
+  }, []);
 
   useEffect(() => {
     if (typeof window !== 'undefined' && notificationSound) {
@@ -82,7 +96,7 @@ export function ContactList() {
             id => !previousAttentionIds.current.has(id)
         );
 
-        if (hasNewAttention && audioRef.current) {
+        if (hasNewAttention && audioRef.current && hasInteracted) {
             audioRef.current.play().catch(e => console.error("Erro ao tocar áudio de notificação:", e));
         }
 
@@ -96,7 +110,7 @@ export function ContactList() {
             setIsLoading(false);
         }
       }
-    }, [contacts.length, isLoading]);
+    }, [contacts.length, isLoading, hasInteracted]);
 
   useEffect(() => {
     fetchContacts();
