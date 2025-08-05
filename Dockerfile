@@ -23,14 +23,12 @@ WORKDIR /app
 
 ENV NODE_ENV=production
 
-# Copia os arquivos necessários
+# Copia tudo o necessário
+COPY --from=builder /app/node_modules ./node_modules        # <-- ADICIONE ESTA LINHA
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
 COPY --from=builder /app/package.json ./package.json
 
-# Expõe a porta (a que será usada pela variável PORT)
 EXPOSE 3001
-
-# Usa o script definido no package.json
 CMD ["npm", "start"]
