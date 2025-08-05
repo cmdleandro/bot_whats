@@ -4,8 +4,9 @@ WORKDIR /app
 
 # Copia package.json e lockfile
 COPY package.json package-lock.json* ./
+
 # Instala dependências
-RUN npm install
+RUN npm install --frozen-lockfile
 
 # 2. Build da aplicação
 FROM node:20-alpine AS builder
@@ -22,11 +23,14 @@ WORKDIR /app
 
 ENV NODE_ENV=production
 
-# Copia os arquivos de build
+# Copia os arquivos necessários
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
+COPY --from=builder /app/package.json ./package.json
 
-# Expõe a porta e define o comando de start
-EXPOSE 3000
-CMD ["node", "server.js"]
+# Expõe a porta (a que será usada pela variável PORT)
+EXPOSE 3001
+
+# Usa o script definido no package.json
+CMD ["npm", "start"]
